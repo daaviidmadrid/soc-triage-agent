@@ -2,4 +2,4 @@
 ## Authors: 
 - David
 - Alex
-- Francescp
+- Francesco
