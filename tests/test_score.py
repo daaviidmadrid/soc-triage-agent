@@ -73,6 +73,25 @@ def test_load_tickets_formats(tmp_path):
         assert sc.load_tickets(p) == [t]
 
 
+def test_main_reads_the_folder_the_batch_writes(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "v2"
+    folder.mkdir()
+    (folder / "A.json").write_text(json.dumps(T("T1", ["A"], "true_positive", "high", True)))
+    monkeypatch.setattr(sc, "RUNS_DIR", tmp_path)
+    monkeypatch.setattr(sc, "load_test_set", lambda: [{"alert_id": "A"}])
+    monkeypatch.setattr(sc, "load_labels", lambda: [L("A", "true_positive", "high", "true")])
+    assert sc.runs_folder() == folder
+    sc.main([])
+    output = capsys.readouterr().out
+    assert "Tickets read: 1" in output and "verdict                1/1" in output
+
+
+def test_runs_folder_uses_the_one_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(sc, "RUNS_DIR", tmp_path)
+    assert sc.runs_folder(str(tmp_path / "v9")) == tmp_path / "v9"
+    assert sc.runs_folder() == tmp_path   # no folders yet
+
+
 def test_load_test_set_excludes_heldout_and_adds_extras(tmp_path, monkeypatch):
     base = sc.load_test_set()
     ids = [a["alert_id"] for a in base]

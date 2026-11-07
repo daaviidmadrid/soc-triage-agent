@@ -518,6 +518,35 @@ def test_search_that_is_not_built_yet_does_not_stop_the_triage():
     assert any("no está disponible" in event.summary for event in events)
 
 
+def test_false_positive_with_no_log_rows_cant_close():
+    context = make_context(logs=[])
+    ticket, events = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), context=context)
+    assert ticket.verdict == "needs_more_info" and ticket.escalation.escalate is True
+    assert any("ningún log" in event.summary for event in events if event.type == "note")
+
+
+def test_rows_from_the_extra_search_count_as_data():
+    context = make_context(logs=[])
+    request = {"action": "search_logs", "source": "proxy", "value": "x"}
+    llm = FakeLLM(request, answer(verdict="false_positive", evidence=[{"source": "proxy", "event_id": "EVT-9", "finding": "x"}]))
+    ticket, _ = run(llm, context=context, search_logs=lambda **a: [{"event_id": "EVT-9"}])
+    assert ticket.verdict == "false_positive" and ticket.escalation.escalate is False
+
+
+def test_high_severity_false_positive_needs_a_cited_event():
+    high = lambda *_a, **_k: {"final": "high", "reason": "prueba"}
+    ticket, _ = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), compute_severity=high)
+    assert ticket.verdict == "needs_more_info" and ticket.escalation.escalate is True
+    ticket, _ = run(FakeLLM(answer(verdict="false_positive")), compute_severity=high)
+    assert ticket.verdict == "false_positive" and ticket.escalation.escalate is False
+
+
+def test_low_severity_false_positive_can_rest_on_the_alert_when_logs_exist():
+    low = lambda *_a, **_k: {"final": "low", "reason": "prueba"}
+    ticket, _ = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), compute_severity=low)
+    assert ticket.verdict == "false_positive" and ticket.escalation.escalate is False
+
+
 def test_llm_has_no_tool_that_changes_anything():
     llm = FakeLLM({"action": "run_containment", "target": "HOST-1"}, answer())
     ticket, events = run(llm)

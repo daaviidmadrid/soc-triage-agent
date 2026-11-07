@@ -81,7 +81,7 @@ export const L = {
 
   // Import
   importTitle: "Importar alertas",
-  importHelp: "Fichero JSON o JSONL con alertas (cada una con alert_id). Máximo 2 MB.",
+  importHelp: "Fichero JSON, JSONL o CSV con alertas. Máximo 2 MB.",
   importButton: "Elegir fichero…",
   importing: "Importando…",
   importTooBig: "El fichero supera 2 MB.",
