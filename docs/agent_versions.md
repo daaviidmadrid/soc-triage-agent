@@ -17,7 +17,6 @@ Never choose between versions with `--set final`. Those 40 alerts are scored onc
 | v3 | Defines each verdict: a blocked attempt is `true_positive`, harmless is `false_positive`, `benign_true_positive` needs a change or trip ID. A false claim of authorisation gets one correction. Up to 3 calls per alert |
 | v4 | v3, plus a prompt rule to look for the −1 whenever something was blocked, plus code that sends a close under 85% confidence to a person |
 | v5 | v4 without the low-confidence rule |
-| v5 | v4 without the 85% confidence rule. The prompt rule for the −1 stays |
 
 ## Results on the 80 practice alerts
 Model `ornith` on the UAB server, 7 Nov 2026. Marked against `eval/labels.csv`, still Claude's draft with no row reviewed by a person. These 80 alerts were used to choose the changes, so the figures are optimistic.
@@ -36,11 +35,8 @@ Model `ornith` on the UAB server, 7 Nov 2026. Marked against `eval/labels.csv`, 
 | v4, reasoning on | normal | 100% | 86% | 92% | 0 | 3 |
 | v5, reasoning on | hard | 95% | 94% | 95% | 2 | 0 |
 | v5, reasoning on | normal | 92% | 91% | 92% | 0 | 3 |
-| v4, reasoning on | hard | 95% | 91% | 90% | 2 | 2 |
-| v4, reasoning on | normal | 100% | 86% | 92% | 0 | 3 |
-| v5, reasoning on | hard | 95% | 94% | 95% | 2 | 0 |
 
-v5's normal set was still running at 23:41 (12 of 40 done), so it has no row yet. v2's missed attacks and needless escalations were counted before the scorer was fixed to accept a blocked attack that closes, so they aren't comparable. The model doesn't answer the same way twice, so a difference of one or two alerts can be chance.
+v2's missed attacks and needless escalations were counted before the scorer was fixed to accept a blocked attack that closes, so they aren't comparable. The model doesn't answer the same way twice, so a difference of one or two alerts can be chance.
 
 ## What we learned
 - Reasoning on is the biggest gain, at 2 to 4 minutes per model call instead of seconds.

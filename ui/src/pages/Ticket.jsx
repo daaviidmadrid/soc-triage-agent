@@ -2,140 +2,23 @@
 // Everything from the data is shown as plain text. How a ticket looks never depends on what its text says.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
-import { Clip, ErrorBox, Field, ModeTag, NA, Notice, Severity, Skeleton, asText, formatSeconds, formatTime, isBlank, obj } from "../components.jsx";
-import { EVENT_TYPE, L, RUN_STATUS } from "../labels.js";
-import { agentMessages, isFallback, quotaState, retrievedBy } from "../ticket/runState.js";
+import { ErrorBox, Skeleton, asText, obj } from "../components.jsx";
+import { L } from "../labels.js";
+import { isFallback, retrievedBy } from "../ticket/runState.js";
 import Icon from "../icons.jsx";
 import DecisionBar from "../ticket/DecisionBar.jsx";
-import Steps from "../ticket/Steps.jsx";
-import TicketView from "../ticket/TicketView.jsx";
+import TriageWorkspace from "../ticket/TriageWorkspace.jsx";
 import { useRunEvents } from "../useRunEvents.js";
-
-// How long a jumped-to step stays highlighted.
-const HIGHLIGHT_MS = 2500;
-
-function AlertSummary({ alert, run }) {
-  return (
-    <section className="panel alert-summary" aria-label={L.alertTitle}>
-      <dl className="kv kv-row">
-        <Field label={L.colRule}>
-          <Clip value={alert.rule_name} max={120} />
-          {alert.rule_id && <div className="sub id-plain">{asText(alert.rule_id)}</div>}
-        </Field>
-        <Field label={L.colProduct}>{isBlank(alert.source_product) ? <NA /> : asText(alert.source_product)}</Field>
-        <Field label={L.colTime}>
-          <span className="num">{formatTime(alert.created_at) || <NA />}</span>
-        </Field>
-        <Field label={L.colRuleSeverity}>
-          <Severity value={alert.severity} />
-        </Field>
-        <Field label={L.colState}>
-          {run ? (
-            <span className={`state state-${run.status}`}>
-              {RUN_STATUS[run.status] || asText(run.status)} <ModeTag mode={run.mode} />
-            </span>
-          ) : (
-            <span className="state state-none">{L.stateNone}</span>
-          )}
-        </Field>
-      </dl>
-      <dl className="kv">
-        <Field label={L.description}>
-          <Clip value={alert.description} max={300} />
-        </Field>
-      </dl>
-    </section>
-  );
-}
-
-// Quota state and the agent's own notes. A failed run is shown in the decision bar, with its next step.
-function RunNotices({ events, running, onJumpToStep }) {
-  const quota = quotaState(events, running);
-  const messages = agentMessages(events);
-  return (
-    <>
-      {quota === "waiting" && (
-        <Notice kind="warn" role="status" icon="clock" title={`${L.quotaWaiting}.`}>
-          {L.quotaWaitingText}
-        </Notice>
-      )}
-      {quota === "exhausted" && (
-        <Notice kind="warn" role="status" icon="alert" title={`${L.quotaExhausted}.`}>
-          {L.quotaExhaustedText}
-        </Notice>
-      )}
-      {messages.length > 0 && (
-        <Notice title={`${L.agentErrors}:`}>
-          <ul className="list">
-            {messages.map((e) => (
-              <li key={e.seq}>
-                <span className={`step-type type-${e.type}`}>{EVENT_TYPE[e.type]}</span> <Clip value={e.summary} max={240} />
-                <button type="button" className="link-btn" onClick={() => onJumpToStep(e.seq)}>
-                  {L.seeStep(e.seq)}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Notice>
-      )}
-    </>
-  );
-}
-
-function RunHistory({ runs }) {
-  if (!runs || runs.length < 2) return null;
-  return (
-    <details className="panel disclosure">
-      <summary>
-        {L.runsHistory} <span className="muted num">({runs.length})</span>
-      </summary>
-      <ul className="list">
-        {runs.map((r) => (
-          <li key={r.run_id}>
-            <code className="id">{r.run_id}</code> <ModeTag mode={r.mode} /> {RUN_STATUS[r.status] || r.status}{" "}
-            <span className="muted num">
-              {formatTime(r.started_at)} UTC · {formatSeconds(r.duration_seconds) || "—"}
-            </span>
-            {r.error && (
-              <div className="sub">
-                <Clip value={r.error} max={160} />
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-// Holds the ticket's place while the run streams, so nothing jumps when the ticket arrives.
-function TicketPending() {
-  return (
-    <section className="panel ticket-pending" aria-labelledby="pending-title">
-      <h2 id="pending-title">{L.pendingTicketTitle}</h2>
-      <p className="hint">{L.pendingTicketText}</p>
-      <Skeleton rows={4} cols={3} label={L.pendingTicketText} />
-    </section>
-  );
-}
-
-// Scroll an element into view and move focus to it. Instant: these jumps are often keyboard-triggered.
-function goTo(id, block = "start") {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.scrollIntoView({ block });
-  el.focus({ preventScroll: true });
-}
 
 export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents, onOpenReport }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
   const [targetSeq, setTargetSeq] = useState(null);
+  const [tab, setTab] = useState("summary");
   const [finished, setFinished] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [next, setNext] = useState({ busy: false, none: false });
-  const rawAlert = useRef(null);
   const live = useRef(false);
   const prevStatus = useRef(null);
 
@@ -176,40 +59,9 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
     return () => clearInterval(timer);
   }, [running]);
 
-  // A jumped-to step stays highlighted for a moment.
-  useEffect(() => {
-    if (targetSeq === null) return undefined;
-    const timer = setTimeout(() => setTargetSeq(null), HIGHLIGHT_MS);
-    return () => clearTimeout(timer);
-  }, [targetSeq]);
-
-  const jumpToStep = useCallback((seq) => {
-    setTargetSeq(seq);
-    goTo(`step-${seq}`, "center");
-  }, []);
-
-  const go = useCallback((id) => {
-    if (id === "sec-decision") {
-      // Straight to the first choice of the form when it is open; otherwise to the saved decision.
-      const section = document.getElementById(id);
-      const first = section && section.querySelector("input[name='decision']");
-      if (first) {
-        section.scrollIntoView({ block: "start" });
-        first.focus({ preventScroll: true });
-        return;
-      }
-    }
-    goTo(id);
-  }, []);
-
-  const reviewByHand = useCallback(() => {
-    const el = rawAlert.current;
-    if (!el) return;
-    el.open = true;
-    el.scrollIntoView({ block: "start" });
-    const summary = el.querySelector("summary");
-    if (summary) summary.focus({ preventScroll: true });
-  }, []);
+  const jumpToStep = useCallback(seq => { setTargetSeq(seq); setTab("activity"); }, []);
+  const go = useCallback(id => setTab(({ "steps-title": "activity", "sec-evidence": "evidence", "sec-proposal": "policy", "sec-decision": "decision", "injection-title": "notes" })[id] || "summary"), []);
+  const reviewByHand = useCallback(() => setTab("original"), []);
 
   const goNext = useCallback(async () => {
     setNext({ busy: true, none: false });
@@ -262,7 +114,7 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
   const fallback = Boolean(ticketRow && !running && isFallback(obj(ticketRow.ticket), events));
 
   return (
-    <div className="ticket-page" data-live={live.current || undefined}>
+    <div className="ticket-page triage-page" data-live={live.current || undefined}>
       <header className="page-head">
         <div className="page-title">
           {back}
@@ -281,7 +133,7 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
       </header>
 
       {error && <ErrorBox message={error} onRetry={load} />}
-      <DecisionBar
+      <DecisionBar compact
         run={run}
         ticketRow={ticketRow}
         decision={decision}
@@ -298,57 +150,10 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
         onNext={goNext}
         next={next}
       />
-      <AlertSummary alert={{ ...alert, ...obj(detail.shown) }} run={run} />
-      {detail.incident_id && (
-        <Notice role="status">
-          {L.partOfIncident(detail.incident_id)}{" "}
-          <button type="button" className="btn btn-sm notice-action" onClick={onIncidents}>
-            {L.viewIncidents}
-          </button>
-          {detail.report_key && (
-            <button type="button" className="btn btn-sm notice-action" onClick={() => onOpenReport(detail.report_key)}>
-              {L.reportFromIncident}
-            </button>
-          )}
-        </Notice>
-      )}
-      {!detail.incident_id && detail.report_key && !running && (
-        <Notice role="status">
-          {L.reportForTicket}.{" "}
-          <button type="button" className="btn btn-sm notice-action" onClick={() => onOpenReport(detail.report_key)}>
-            {L.reportFromTicket}
-          </button>
-        </Notice>
-      )}
-      <RunNotices events={events} running={running} onJumpToStep={jumpToStep} />
+      <TriageWorkspace alert={{ ...alert, ...obj(detail.shown) }} detail={detail} run={run} running={running} stream={stream} events={events} live={live.current}
+        tab={tab} onTab={setTab} targetSeq={targetSeq} onSelectStep={jumpToStep} ticketRow={ticketRow} decision={decision} decisions={decisions}
+        fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} onIncidents={onIncidents} onOpenReport={onOpenReport} />
 
-      <div className="ticket-layout">
-        {run && <Steps events={events} running={running} stream={stream} live={live.current} targetSeq={targetSeq} />}
-        {running && <TicketPending />}
-        {ticketRow && !running && (
-          <TicketView
-            ticketRow={ticketRow}
-            run={run}
-            decision={decision}
-            decisions={decisions}
-            fallback={fallback}
-            retrieved={retrieved}
-            traceComplete={stream === "ended"}
-            onJumpToStep={jumpToStep}
-            onSaved={load}
-            onNext={goNext}
-            next={next}
-          />
-        )}
-      </div>
-
-      <details className="panel disclosure raw-alert" ref={rawAlert}>
-        <summary>{L.rawAlert}</summary>
-        <p className="hint">{L.rawAlertHelp}</p>
-        <Clip value={detail.alert} max={4000} pre />
-      </details>
-
-      <RunHistory runs={detail.runs} />
     </div>
   );
 }
