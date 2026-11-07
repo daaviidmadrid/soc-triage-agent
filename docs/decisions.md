@@ -9,6 +9,7 @@ Change "proposed" to "agreed" once the team confirms it.
 | Live test | 10 alerts | From the deck |
 | Main LLM | `gemini-3.6-flash` on Gemini's free tier | Proposed |
 | LLM calls | One per alert, one follow-up at most | Proposed |
+| UI | Python backend, React and CSS frontend | For now |
 | Ticket language | Spanish text, English field names | Proposed |
 | Contracts | Pydantic models in `contracts/models.py`, examples in `contracts/examples/` | Proposed |
 | Tickets | Each alert in one ticket, grouping merges tickets, one report per escalated ticket | Proposed |
