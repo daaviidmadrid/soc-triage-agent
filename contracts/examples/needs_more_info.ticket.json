@@ -1,0 +1,35 @@
+{
+  "ticket_id": "TKT-EXAMPLE-NMI-0003",
+  "alert_ids": ["ALR-EXAMPLE-0004"],
+  "title": "EJEMPLO · Triaje automático sin completar: Navegación a dominio de categoría no permitida (ficticio)",
+  "verdict": "needs_more_info",
+  "confidence": 0.0,
+  "severity": "medium",
+  "severity_rationale": "EJEMPLO. Regla medium con criticidad Media (default): resultado medium. Sin ajustes.",
+  "affected": {"users": [], "hosts": [], "business_services": [], "customers": []},
+  "summary": "EJEMPLO escrito a mano para probar la interfaz. El sistema no pudo completar el triaje: El LLM no está disponible. Debe revisarlo una persona.",
+  "evidence": [],
+  "enrichment": [],
+  "mitre": [],
+  "recommended_actions": [
+    {"action": "escalate", "target": "Analista SOC (revisión humana)", "requires_approval": false, "justification": "El LLM no está disponible."}
+  ],
+  "executed_actions": [],
+  "escalation": {"escalate": true, "to": "Analista SOC (revisión humana)", "reason": "El LLM no está disponible."},
+  "open_questions": [
+    "El LLM no está disponible.",
+    "Algunos resultados de log estaban truncados (proxy): la evidencia puede estar incompleta."
+  ],
+  "triage_seconds": 71.0,
+  "severity_inputs": {
+    "rule_severity": "medium",
+    "criticality": "Media",
+    "criticality_source": "default",
+    "adjustments": [],
+    "runbook_floor": null,
+    "authorised": false
+  },
+  "injection_flags": [],
+  "authorised_by": null,
+  "merged_into": null
+}

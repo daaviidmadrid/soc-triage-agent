@@ -1,0 +1,41 @@
+{
+  "ticket_id": "TKT-EXAMPLE-AUT-0002",
+  "alert_ids": ["ALR-EXAMPLE-0002", "ALR-EXAMPLE-0003"],
+  "title": "EJEMPLO · Escaneo interno dentro de una ventana de cambio aprobada (ficticio)",
+  "verdict": "benign_true_positive",
+  "confidence": 0.91,
+  "severity": "informational",
+  "severity_rationale": "EJEMPLO. Regla low con criticidad Media (default): resultado low. Actividad autorizada por un cambio aprobado: informational.",
+  "affected": {
+    "users": [],
+    "hosts": ["SCAN-EXAMPLE-01", "SRV-EXAMPLE-07"],
+    "business_services": [],
+    "customers": []
+  },
+  "summary": "EJEMPLO escrito a mano para probar la interfaz. Dos alertas ficticias de escaneo desde SCAN-EXAMPLE-01 caen dentro de la ventana del cambio CHG-EXAMPLE-0001, que existe en el calendario de cambios de ejemplo y cubre ese origen. No hay actividad posterior. No describe ninguna alerta real del dataset.",
+  "evidence": [
+    {"source": "changes", "event_id": "", "finding": "Cambio aprobado CHG-EXAMPLE-0001: escaneo de vulnerabilidades, ventana 01:00-05:00"},
+    {"source": "firewall", "event_id": "FW-EXAMPLE-0001", "finding": "Conexiones desde SCAN-EXAMPLE-01 a SRV-EXAMPLE-07 dentro de la ventana"},
+    {"source": "edr_events", "event_id": "EDR-EXAMPLE-0001", "finding": "Sin procesos nuevos en SRV-EXAMPLE-07 tras el escaneo"}
+  ],
+  "enrichment": [],
+  "mitre": ["T1046"],
+  "recommended_actions": [
+    {"action": "close", "target": "ticket", "requires_approval": false, "justification": "Actividad autorizada por CHG-EXAMPLE-0001, sin efecto posterior"}
+  ],
+  "executed_actions": [],
+  "escalation": {"escalate": false, "to": "", "reason": ""},
+  "open_questions": [],
+  "triage_seconds": 24.9,
+  "severity_inputs": {
+    "rule_severity": "low",
+    "criticality": "Media",
+    "criticality_source": "default",
+    "adjustments": [],
+    "runbook_floor": null,
+    "authorised": true
+  },
+  "injection_flags": [],
+  "authorised_by": {"type": "change", "id": "CHG-EXAMPLE-0001"},
+  "merged_into": null
+}

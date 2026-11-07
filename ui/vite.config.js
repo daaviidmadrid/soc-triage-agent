@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": "http://localhost:8001",
+      // API_PROXY_TARGET lets a second copy run against another backend port; the default is the usual backend.
+      "/api": process.env.API_PROXY_TARGET || "http://localhost:8001",
     },
   },
 });
