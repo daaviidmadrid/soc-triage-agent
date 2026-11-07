@@ -10,9 +10,14 @@ git clone https://github.com/dttdfr/DTT-UAB-The-Hack.git data
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 ```
-Put your API key in `.env`.
+Create a `.env` file with your own key:
+```text
+LLM_API_KEY=your_key
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+LLM_MODEL=gemini-3.6-flash
+MOCK_API_URL=http://localhost:8000
+```
 
 ## Run
 Mock API:
@@ -33,7 +38,12 @@ src/agent/    llm, triage
 src/app/      backend
 ui/           frontend
 eval/         labels, scoring
-docs/         one-pager, demo script
+docs/         notes, one-pager, demo script
 scripts/      quick tests
 data/         deloitte dataset (not in git)
 ```
+
+## Docs
+- [Overview](docs/overview.md): what we're building
+- [Decisions](docs/decisions.md): what's decided and what's open
+- [AGENTS.md](AGENTS.md): rules for coding agents
