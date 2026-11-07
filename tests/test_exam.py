@@ -47,9 +47,35 @@ def test_sets_have_the_expected_sizes_and_no_held_out_alerts():
     held_out = set(score._read_ids(score.HELDOUT_FILE))
     chosen = exam.choose_ids("exam")
     assert len(chosen) == 40 and not held_out & set(chosen)
+    normal = exam.choose_ids("normal")
+    assert len(normal) == 40 and not set(normal) & set(chosen) and not held_out & set(normal)
+    assert exam.choose_ids("scored") == chosen + normal
     extra = exam.choose_ids("extra")
-    assert len(extra) == 142 and not set(extra) & set(chosen) and not held_out & set(extra)
-    assert exam.choose_ids("all") == chosen + extra
+    assert len(extra) == 102 and not set(extra) & set(chosen + normal) and not held_out & set(extra)
+    assert exam.choose_ids("all") == chosen + normal + extra
+
+
+def test_progress_bar_counts_saved_alerts_and_names_failures(capsys):
+    bar, show = exam.progress_bar(2)
+    with bar:
+        show("A", "done", 1.0)
+        show("B", "failed", 1.0)
+        show("C", "skipped", 0.0)
+    assert bar.n == 1
+    assert "B failed" in capsys.readouterr().out
+
+
+def test_a_laptop_without_tqdm_still_runs(monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "tqdm", None)
+    bar, show = exam.progress_bar(1)
+    with bar:
+        show("A", "done", 1.0)
+    assert bar.n == 1 and "1/1" in capsys.readouterr().out
+
+
+def test_no_thinking_gets_its_own_folder(runs, monkeypatch):
+    monkeypatch.setenv("LLM_ENABLE_THINKING", "false")
+    assert exam.results_folder("ornith").name.endswith("-ornith-nothink")
 
 
 def test_a_file_of_ids_is_accepted_but_never_held_out_alerts(tmp_path):
@@ -146,7 +172,7 @@ def test_run_does_only_what_is_missing_and_says_when_it_is_finished(runs, monkey
     (folder / f"{ids[0]}.json").write_text(json.dumps(ticket(ids[0])), encoding="utf-8")
     seen = []
 
-    def fake_batch(todo, alerts, out_dir, pace_seconds, max_calls, on_result):
+    def fake_batch(todo, alerts, out_dir, pace_seconds, max_calls, on_result, workers):
         seen.extend(todo)
         for alert_id in todo:
             (Path(out_dir) / f"{alert_id}.json").write_text(json.dumps(ticket(alert_id)), encoding="utf-8")
@@ -190,6 +216,17 @@ def test_score_marks_labelled_tickets_and_counts_the_rest(tmp_path, runs, monkey
     assert exam.command_score(exam.parser().parse_args(["score", "--folder", str(results)])) == 0
     output = capsys.readouterr().out
     assert "verdict                1/1" in output and "no answer to compare: 1" in output and "test-model" in output
+    assert "Disagreements" not in output
+
+
+def test_score_lists_disagreements_with_the_key(tmp_path, runs, monkeypatch, capsys):
+    from eval import score
+
+    results = make_laptop(tmp_path, "l1", ["A1"])
+    monkeypatch.setattr(score, "load_labels", lambda: [{"alert_id": "A1", "verdict": "false_positive", "severity": "", "escalate": "false"}])
+    exam.command_score(exam.parser().parse_args(["score", "--folder", str(results)]))
+    output = capsys.readouterr().out
+    assert "Disagreements with the key: 1" in output and "verdict: AI true_positive, key false_positive" in output
 
 
 def test_score_with_no_tickets_says_so(tmp_path, runs):

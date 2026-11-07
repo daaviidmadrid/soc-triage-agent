@@ -13,11 +13,13 @@ pip install -r requirements.txt
 ```
 Create a `.env` file with your own key:
 ```text
-LLM_API_KEY=your_key
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-LLM_MODEL=gemini-3.5-flash-lite
+LLM_API_KEY=uth-your_team_key
+LLM_BASE_URL=https://dcc-llm-gw.uab.cat/uabthehack/v1
+LLM_MODEL=ornith
+LLM_ENABLE_THINKING=false
 MOCK_API_URL=http://localhost:8000
 ```
+With `LLM_ENABLE_THINKING=false`, `ornith` answers in seconds. Without it, the model reasons first and an alert takes minutes.
 The UI also needs Node 22 or newer (on a Mac, `brew install node`):
 ```bash
 cd ui && npm install
@@ -73,7 +75,7 @@ python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_lapt
 ```bash
 python3 scripts/exam.py score
 ```
-All laptops must be on the same commit and model. `--set extra` runs the other 142 test alerts, which have no answers yet, and `--set all` runs both.
+All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `extra` is the other 102 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
 Analysis notebook:
 ```bash
 jupyter notebook analysis/explore.ipynb

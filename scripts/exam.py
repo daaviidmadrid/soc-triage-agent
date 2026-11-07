@@ -9,8 +9,9 @@
     python3 scripts/exam.py merge FILE.zip [FILE.zip]    adds other laptops' results to this one
     python3 scripts/exam.py score                        marks the tickets against eval/labels.csv
 
---set chooses the alerts: exam (the 40 with answers, the default), extra (the other test alerts, with
-no answers yet), all (both) or the path of a file with one alert ID per line.
+--set chooses the alerts: exam (40 hard cases with answers, the default), normal (40 alerts in a normal
+day's mix, with answers), scored (both), extra (the other test alerts, with no answers), all (everything)
+or the path of a file with one alert ID per line.
 
 If a run stops for any reason, run the same command again. Saved tickets are never redone.
 The .env file is read only by the program, and neither its key nor its contents are ever printed.
@@ -37,11 +38,13 @@ VENV_PYTHON = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 DATA_REPO = "https://github.com/dttdfr/DTT-UAB-The-Hack.git"
 ALERTS_FILE = ROOT / "data" / "03_alertas" / "alertas.jsonl"
 EXAM_FILE = ROOT / "eval" / "key40_alerts.txt"
+NORMAL_FILE = ROOT / "eval" / "key_normal40_alerts.txt"
 LABELS_FILE = ROOT / "eval" / "labels.csv"
 MOCK_FILE = ROOT / "data" / "06_herramientas" / "mock_soc_api.py"
 ENV_TEMPLATE = """LLM_API_KEY=
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-LLM_MODEL=gemini-3.5-flash-lite
+LLM_BASE_URL=https://dcc-llm-gw.uab.cat/uabthehack/v1
+LLM_MODEL=ornith
+LLM_ENABLE_THINKING=false
 MOCK_API_URL=http://localhost:8000
 """
 MIN_PYTHON = (3, 11)
@@ -81,9 +84,11 @@ def _model():
 
 
 def results_folder(model=None):
+    """Tickets from different models, prompts or reasoning settings must never mix, so each gets its own folder."""
     from src.agent.prompts import PROMPT_VERSION
 
-    name = re.sub(r"[^A-Za-z0-9._-]", "_", f"{PROMPT_VERSION}-{model or _model()}")
+    thinking = "-nothink" if os.environ.get("LLM_ENABLE_THINKING", "").strip().lower() == "false" else ""
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", f"{PROMPT_VERSION}-{model or _model()}{thinking}")
     return RUNS_DIR / name
 
 
@@ -99,12 +104,17 @@ def choose_ids(name):
     from eval import score
 
     exam = score._read_ids(EXAM_FILE)
+    normal = score._read_ids(NORMAL_FILE)
     if name == "exam":
         ids = exam
+    elif name == "normal":
+        ids = normal
+    elif name == "scored":
+        ids = exam + normal
     elif name in ("extra", "all"):
-        chosen = set(exam)
+        chosen = set(exam + normal)
         extra = [alert["alert_id"] for alert in score.load_test_set() if alert["alert_id"] not in chosen]
-        ids = extra if name == "extra" else exam + extra
+        ids = extra if name == "extra" else exam + normal + extra
     else:
         path = Path(name)
         if not path.exists():
@@ -202,7 +212,8 @@ def _checks():
     yield bool(os.environ.get("LLM_API_KEY", "").strip()), "LLM key is set", "Put your own key after LLM_API_KEY= in .env"
     yield bool(os.environ.get("LLM_BASE_URL", "").strip()), "LLM address is set", "Copy LLM_BASE_URL from the README into .env"
     model = os.environ.get("LLM_MODEL", "").strip()
-    yield bool(model), f"model: {model or 'not set'}", "Put LLM_MODEL=gemini-3.5-flash-lite in .env"
+    yield bool(model), f"model: {model or 'not set'}", "Put LLM_MODEL=ornith in .env"
+    print(f"  --  reasoning: {'off' if os.environ.get('LLM_ENABLE_THINKING', '').strip().lower() == 'false' else 'on, which takes minutes per alert'}")
 
 
 def _commit():
@@ -247,7 +258,7 @@ def command_check(args):
         started = time.monotonic()
         rows = sum(len(items) for items in build_context(alert).logs.values())
         print(f"  ok  mock API answers: {rows} log rows for a test alert in {time.monotonic() - started:.1f} s")
-    print(f"  ok  {len(choose_ids('exam'))} exam alerts, {len(choose_ids('extra'))} extra alerts")
+    print(f"  ok  {len(choose_ids('exam'))} exam alerts, {len(choose_ids('normal'))} normal-day alerts, {len(choose_ids('extra'))} extra alerts")
     if args.ping:
         passed, message = _ping()
         print(f"  {'ok ' if passed else 'NO '} {message}")
@@ -265,8 +276,56 @@ def _unreviewed_answers():
     return sum(row.get("labelled_by") == "claude-draft" for row in score.load_labels())
 
 
+class _PlainBar:
+    """Stands in for tqdm on a laptop that hasn't installed it yet, so a run never fails for lack of a bar."""
+
+    def __init__(self, total):
+        self.n, self.total = 0, total
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def update(self, step=1):
+        self.n += step
+        print(f"  {self.n}/{self.total}", flush=True)
+
+    def set_postfix(self, **_):
+        pass
+
+    def write(self, text):
+        print(text, flush=True)
+
+
+def progress_bar(total):
+    """Returns (bar, on_result). The bar counts saved alerts. Failures are named above it, and they are tried again."""
+    try:
+        from tqdm import tqdm
+
+        bar = tqdm(total=total, unit="alert", smoothing=0.1)
+    except ImportError:
+        bar = _PlainBar(total)
+    failed = {"count": 0}
+
+    def show(alert_id, status, seconds):
+        if status == "done":
+            bar.update(1)
+        elif status == "failed":
+            failed["count"] += 1
+            bar.set_postfix(failed=failed["count"])
+            bar.write(f"  {alert_id} failed, and will be tried again")
+        elif status == "not_found":
+            bar.write(f"  {alert_id} isn't in the dataset")
+
+    return bar, show
+
+
 def command_run(args):
     _use_project()
+    if args.no_thinking:
+        os.environ["LLM_ENABLE_THINKING"] = "false"
     model = _model()
     ids = split(choose_ids(args.set), args.laptop, args.laptops)
     folder = results_folder(model)
@@ -286,15 +345,10 @@ def command_run(args):
 
     alerts = load_alerts(pending)
     missing = [alert_id for alert_id in pending if alert_id not in alerts]
-    count = {"done": 0}
-
-    def show(alert_id, status, seconds):
-        if status == "done":
-            count["done"] += 1
-        print(f"  [{count['done']}/{len(pending)}] {alert_id} {status}" + (f" ({seconds:.1f} s)" if seconds else ""), flush=True)
+    bar, show = progress_bar(len(pending))
 
     report = {}
-    with running_mock():
+    with running_mock(), bar:
         for attempt in range(EXTRA_PASSES + 1):
             todo = [alert_id for alert_id in pending if not (folder / f"{alert_id}.json").exists() and alert_id in alerts]
             if not todo:
@@ -302,7 +356,7 @@ def command_run(args):
             if attempt:
                 print(f"Trying {len(todo)} failed alert(s) again in 30 s.", flush=True)
                 time.sleep(30)
-            report = run_batch(todo, alerts=alerts, out_dir=folder, pace_seconds=args.pace, max_calls=MAX_CALLS, on_result=show)
+            report = run_batch(todo, alerts=alerts, out_dir=folder, pace_seconds=args.pace, max_calls=MAX_CALLS, on_result=show, workers=args.workers)
             if report["quota_exhausted"]:
                 break
 
@@ -331,7 +385,7 @@ def command_status(args):
     _use_project()
     folder = _folder(args)
     print(f"Results in {folder}")
-    names = ("exam", "extra")
+    names = ("exam", "normal", "extra")
     for name in names:
         ids = choose_ids(name)
         done = sum((folder / f"{alert_id}.json").exists() for alert_id in ids)
@@ -425,6 +479,18 @@ def _trace_facts(folder):
     return models, seconds
 
 
+def _print_mistakes(report):
+    """Where the AI and the key disagree. The key can be wrong too, so each of these is worth a look."""
+    rows = []
+    for row in report["per_alert"]:
+        wrong = [f"{field}: AI {row[field][0]}, key {row[field][1]}" for field in ("verdict", "severity", "escalate") if field in row and row[field][0] != row[field][1]]
+        if wrong:
+            rows.append(f"  {row['alert_id']}  " + "; ".join(wrong))
+    if rows:
+        print(f"Disagreements with the key: {len(rows)}")
+        print("\n".join(rows))
+
+
 def command_score(args):
     _use_project()
     from eval import score
@@ -437,11 +503,15 @@ def command_score(args):
         raise Problem(f"There are no tickets in {folder} yet.")
     labels = score.load_labels()
     labelled = {label["alert_id"] for label in labels}
+    if args.set:
+        wanted = set(choose_ids(args.set))
+        labels = [label for label in labels if label["alert_id"] in wanted]
     report = score.score(tickets, labels)
-    print(f"Tickets read: {len(tickets)} from {folder}")
+    print(f"Tickets read: {len(tickets)} from {folder}" + (f". Marking only '{args.set}'." if args.set else ""))
     if report["no_ticket"]:
         print(f"Note: {len(report['no_ticket'])} labelled alerts have no ticket yet, and they count as missed below. Run or merge the rest first.")
     score._print(report)
+    _print_mistakes(report)
     other = [ticket for ticket in tickets if not set(ticket.get("alert_ids") or []) & labelled]
     if other:
         verdicts = collections.Counter(ticket.get("verdict") for ticket in other)
@@ -469,7 +539,9 @@ def parser():
     run.add_argument("--laptop", type=int, default=1)
     run.add_argument("--laptops", type=int, default=1)
     run.add_argument("--limit", type=int, default=0, help="only do this many alerts")
-    run.add_argument("--pace", type=float, default=2.0, help="seconds to wait between alerts")
+    run.add_argument("--pace", type=float, default=2.0, help="seconds to wait between alerts when --workers is 1")
+    run.add_argument("--workers", type=int, default=1, help="how many alerts to run at once")
+    run.add_argument("--no-thinking", action="store_true", help="turn off reasoning, on models that support it")
     run.set_defaults(run=command_run)
     status = commands.add_parser("status", help="show what is done")
     status.add_argument("--laptops", type=int, default=3)
@@ -484,6 +556,7 @@ def parser():
     merge.set_defaults(run=command_merge)
     score = commands.add_parser("score", help="mark the tickets")
     score.add_argument("--folder")
+    score.add_argument("--set", help="mark only this set, such as exam or normal")
     score.set_defaults(run=command_score)
     return main_parser
 

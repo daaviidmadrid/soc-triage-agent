@@ -33,7 +33,8 @@ from src.tools.alert_fields import normalise_alert
 from src.tools.context import build_context as default_build_context
 from src.tools.logs import search_logs as default_search_logs
 
-MAX_LLM_CALLS = 2
+# One to answer, one for an extra log search and one to correct a rejected answer.
+MAX_LLM_CALLS = 3
 
 SEVERITIES = ("informational", "low", "medium", "high", "critical")
 DEFAULT_RULE_SEVERITY = "medium"
@@ -174,6 +175,16 @@ def check_evidence(draft, ids):
     if any(not item.event_id and item.source not in NO_EVENT_ID_SOURCES for item in draft.evidence):
         errors.append("It had log evidence with no event ID.")
     return errors
+
+
+def check_authorisation(draft, context):
+    """Gives the model a chance to correct a claim of authorisation that nothing backs up."""
+    if draft.verdict != "benign_true_positive":
+        return []
+    if draft.authorised_by and draft.authorised_by.id in _authorising_ids(context):
+        return []
+    return ["benign_true_positive needs an authorised_by id copied from the changes or trips list, and this answer has none that is there. "
+            "Harmless isn't authorised: choose true_positive, false_positive or needs_more_info instead."]
 
 
 def _authorising_ids(context):
@@ -463,9 +474,12 @@ def _extra_search(request, context, search, emit):
 
 
 def _ask_llm(context, llm, search, emit, max_calls):
-    """Returns a checked draft, or None. The extra search and the retry share the same call limit."""
+    """Returns a checked draft, or None. The extra search and the retry share the same call limit.
+
+    A claim of authorisation the model never corrects still comes back, and build_ticket turns it into needs_more_info."""
     calls = 0
     feedback = None
+    unauthorised = None
     while calls < max_calls:
         can_search = calls == 0 and max_calls > 1
         system, user, omitted = build_prompt_with_info(context, allow_search=can_search, feedback=feedback)
@@ -497,10 +511,13 @@ def _ask_llm(context, llm, search, emit, max_calls):
         if not errors:
             errors = check_evidence(answer, retrieved_ids(context))
         if not errors:
+            errors = check_authorisation(answer, context)
+            unauthorised = answer if errors else unauthorised
+        if not errors:
             return answer
         feedback = errors
         yield emit("note", tool="llm", args={"call": calls}, summary="La respuesta no pasó las comprobaciones: " + " ".join(errors))
-    return None
+    return unauthorised
 
 
 def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS) -> Iterator[TraceEvent]:

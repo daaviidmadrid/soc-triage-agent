@@ -6,6 +6,7 @@ import re
 import time
 from dataclasses import dataclass
 from functools import lru_cache
+from types import SimpleNamespace
 
 import openai
 from dotenv import load_dotenv
@@ -13,7 +14,8 @@ from openai import OpenAI
 
 log = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 60
+# Some models reason before they answer, which can take minutes on a busy shared server.
+TIMEOUT_SECONDS = float(os.environ.get("LLM_TIMEOUT_SECONDS", 300))
 ATTEMPTS_PER_MODEL = 2
 RETRY_WAIT_SECONDS = 5
 # A per-minute limit tells us how long to wait, and that can be close to a minute.
@@ -21,9 +23,15 @@ MAX_RETRY_WAIT_SECONDS = 65
 DEFAULT_EXHAUSTED_SECONDS = 3600
 DEFAULT_BACKUP_MODEL = "gemini-3.5-flash-lite"
 
-RETRYABLE_ERRORS = (openai.RateLimitError, openai.InternalServerError, openai.APIConnectionError)
+
+class StreamCut(Exception):
+    """The connection broke in the middle of a streamed answer."""
+
+
+RETRYABLE_ERRORS = (openai.RateLimitError, openai.InternalServerError, openai.APIConnectionError, StreamCut)
 BLOCK_WORDS = ("content_filter", "safety", "blocked", "prohibited")
 RETRY_DELAY = re.compile(r'retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?)s')
+THINKING = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 # Models that hit their daily limit, and when to try them again. Retrying before then wastes time.
 _exhausted = {}
@@ -117,8 +125,8 @@ def _read_response(response, model, attempts):
         raise LLMBlocked(f"{model} blocked the call (finish_reason {finish_reason})", attempts)
     if finish_reason != "stop":
         raise LLMError(f"{model} stopped early (finish_reason {finish_reason})", attempts)
-    text = choices[0].message.content
-    if not text or not text.strip():
+    text = THINKING.sub("", choices[0].message.content or "")
+    if not text.strip():
         raise LLMError(f"{model} returned an empty answer", attempts)
     usage = response.usage
     return LLMResult(
@@ -130,12 +138,47 @@ def _read_response(response, model, attempts):
     )
 
 
+def _use_streaming():
+    return os.environ.get("LLM_STREAM", "true").strip().lower() != "false"
+
+
+def _extra_options():
+    """Streaming is on by default because the UAB's server cuts a silent connection after 60 s, and a model
+    reasons silently for minutes. LLM_STREAM=false turns it off. LLM_ENABLE_THINKING=false turns off reasoning
+    on models that support it, such as the UAB's ornith."""
+    options = {}
+    if _use_streaming():
+        options.update(stream=True, stream_options={"include_usage": True})
+    if os.environ.get("LLM_ENABLE_THINKING", "").strip().lower() == "false":
+        options["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+    return options
+
+
+def _read_stream(stream, model, attempts):
+    """Puts a streamed answer back together, then checks it like any other answer."""
+    parts, finish_reason, usage, choices = [], None, None, False
+    try:
+        for chunk in stream:
+            usage = getattr(chunk, "usage", None) or usage
+            if chunk.choices:
+                choices = True
+                parts.append(chunk.choices[0].delta.content or "")
+                finish_reason = chunk.choices[0].finish_reason or finish_reason
+    except openai.OpenAIError:
+        raise
+    except Exception as error:
+        raise StreamCut(type(error).__name__) from None
+    answer = SimpleNamespace(finish_reason=finish_reason, message=SimpleNamespace(content="".join(parts)))
+    return _read_response(SimpleNamespace(choices=[answer] if choices else [], usage=usage), model, attempts)
+
+
 def complete(system: str, user: str, client=None, sleep=time.sleep) -> LLMResult:
     """Asks for a JSON answer. Retries, then falls back to the backup model."""
     client = client or _make_client()
     attempts = 0
     last_failure = "no attempt made"
     models = _models()
+    extra = _extra_options()
     for model in models:
         if _exhausted.get(model, 0) > time.monotonic():
             continue
@@ -146,7 +189,9 @@ def complete(system: str, user: str, client=None, sleep=time.sleep) -> LLMResult
                     model=model,
                     response_format={"type": "json_object"},
                     messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    **extra,
                 )
+                return _read_stream(response, model, attempts) if extra.get("stream") else _read_response(response, model, attempts)
             except RETRYABLE_ERRORS as error:
                 last_failure = f"{model}: {type(error).__name__}"
                 log.warning("LLM call failed, %s", last_failure)
@@ -162,8 +207,6 @@ def complete(system: str, user: str, client=None, sleep=time.sleep) -> LLMResult
                 raise LLMError(f"{model}: {type(error).__name__}: {message}", attempts) from None
             except UnicodeError:
                 raise LLMError("LLM_API_KEY contains a character that can't be sent. Check it in .env", attempts) from None
-            else:
-                return _read_response(response, model, attempts)
     waits = [_exhausted.get(model, 0) - time.monotonic() for model in models]
     if all(wait > 0 for wait in waits):
         raise LLMQuotaExhausted(f"Daily limit reached on {', '.join(models)}. It resets in about {min(waits) / 3600:.1f} h.", attempts)
