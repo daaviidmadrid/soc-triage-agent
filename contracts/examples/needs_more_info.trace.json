@@ -1,0 +1,16 @@
+{
+  "scenario": "needs_more_info",
+  "note": "EXAMPLE. Hand-written, fictional. Not a finding about the dataset.",
+  "events": [
+    {"type": "started", "args": {"alert_id": "ALR-EXAMPLE-0004"}, "summary": "Triaje de ALR-EXAMPLE-0004 (EJEMPLO)"},
+    {"type": "tool_call", "tool": "build_context", "args": {"alert_id": "ALR-EXAMPLE-0004"}, "summary": "Reuniendo el contexto de la alerta"},
+    {"type": "tool_result", "tool": "users", "summary": "1 resultado(s)"},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "proxy"}, "summary": "200 fila(s) de proxy", "event_ids": ["PRX-EXAMPLE-0001", "PRX-EXAMPLE-0002", "PRX-EXAMPLE-0003"], "truncated": true},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "dns"}, "summary": "4 fila(s) de dns", "event_ids": ["DNS-EXAMPLE-0001"]},
+    {"type": "note", "args": {"omitted": 120}, "summary": "Parte del contexto no cabe en el prompt"},
+    {"type": "tool_call", "tool": "llm", "args": {"call": 1}, "summary": "Consultando al modelo"},
+    {"type": "note", "tool": "llm", "args": {"kind": "rate_limited", "wait_seconds": 5}, "summary": "EJEMPLO: el proveedor del LLM devolvió límite de cuota (429). Reintento en 5 s."},
+    {"type": "error", "tool": "llm", "args": {"kind": "unavailable", "attempts": 4}, "summary": "All models failed. Last failure: EXAMPLE-model: RateLimitError"},
+    {"type": "ticket_ready", "summary": "needs_more_info, severidad medium", "event_ids": []}
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "ticket_id": "TKT-EXAMPLE-ESC-0001",
+  "alert_ids": ["ALR-EXAMPLE-0001"],
+  "title": "EJEMPLO · Phishing seguido de inicio de sesión desde IP desconocida (ficticio)",
+  "verdict": "true_positive",
+  "confidence": 0.86,
+  "severity": "high",
+  "severity_rationale": "EJEMPLO. Regla medium con criticidad Alta (asset:WS-EXAMPLE-01): resultado medium. +1 por acceso confirmado: high.",
+  "affected": {
+    "users": ["usuario.ejemplo@tarvia.example"],
+    "hosts": ["WS-EXAMPLE-01"],
+    "business_services": [],
+    "customers": []
+  },
+  "summary": "EJEMPLO escrito a mano para probar la interfaz. Un usuario ficticio abre un enlace a login-ejemplo.example y, siete minutos después, hay un inicio de sesión correcto desde 192.0.2.10 sin MFA. No describe ninguna alerta real del dataset.",
+  "evidence": [
+    {"source": "email", "event_id": "EML-EXAMPLE-0001", "finding": "Correo ficticio con enlace a login-ejemplo.example"},
+    {"source": "email_clicks", "event_id": "CLK-EXAMPLE-0001", "finding": "El usuario ficticio pulsa el enlace"},
+    {"source": "idp_signins", "event_id": "SGN-EXAMPLE-0001", "finding": "Inicio de sesión correcto desde 192.0.2.10, sin MFA"}
+  ],
+  "enrichment": [
+    {"indicator": "login-ejemplo.example", "type": "domain", "source": "ti_feed", "result": "EJEMPLO: listado como phishing"},
+    {"indicator": "192.0.2.10", "type": "ip", "source": "ti_feed", "result": "EJEMPLO: sin coincidencias (desconocido no es limpio)"},
+    {"indicator": "192.0.2.10", "type": "ip", "source": "geoip_asn", "result": "EJEMPLO: hosting, país no habitual"}
+  ],
+  "mitre": ["T1566.002", "T1078"],
+  "recommended_actions": [
+    {"action": "escalate", "target": "N2", "requires_approval": false, "justification": "true_positive de severidad high; Robo de credenciales"},
+    {"action": "Revocar sesiones y forzar cambio de contraseña", "target": "usuario.ejemplo@tarvia.example", "requires_approval": true, "justification": "EJEMPLO: la sesión pudo ser robada"},
+    {"action": "Bloquear dominio", "target": "login-ejemplo.example", "requires_approval": true, "justification": "EJEMPLO: dominio de phishing"}
+  ],
+  "executed_actions": [],
+  "escalation": {"escalate": true, "to": "N2", "reason": "true_positive de severidad high; Robo de credenciales"},
+  "open_questions": ["EJEMPLO: ¿se crearon reglas de buzón después del inicio de sesión?"],
+  "triage_seconds": 38.4,
+  "severity_inputs": {
+    "rule_severity": "medium",
+    "criticality": "Alta",
+    "criticality_source": "asset:WS-EXAMPLE-01",
+    "adjustments": [{"delta": 1, "reason": "Acceso confirmado, no solo intento"}],
+    "runbook_floor": null,
+    "authorised": false
+  },
+  "injection_flags": [],
+  "authorised_by": null,
+  "merged_into": null
+}
