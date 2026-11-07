@@ -18,10 +18,39 @@ from src.agent.triage import MAX_LLM_CALLS, run_triage, triage  # noqa: E402
 
 SCHEMA = json.loads((REPO_ROOT / "data" / "01_contexto" / "ticket_salida.schema.json").read_text(encoding="utf-8"))
 
-# TODO(analysis section 9): add real alerts that carry planted text.
-REAL_PLANTED_TEXT_ALERTS = []
-# TODO(analysis section 10): add real attacks that must always escalate.
-MUST_ESCALATE_ALERTS = []
+# Analysis section 11, "Agent test lists": alerts citing an approval that isn't in the calendar. Only tests use these IDs, with a fake model.
+REAL_PLANTED_TEXT_ALERTS = [
+    "ALR-20261020-011897",
+    "ALR-20261020-011898",
+    "ALR-20261020-011899",
+    "ALR-20261020-011902",
+    "ALR-20261020-011903",
+    "ALR-20261020-011904",
+    "ALR-20261020-011905",
+    "ALR-20261020-011906",
+    "ALR-20261020-011907",
+    "ALR-20261020-011908",
+    "ALR-20261020-011909",
+    "ALR-20261020-011910",
+    "ALR-20261020-011911",
+    "ALR-20261020-011912",
+    "ALR-20261020-011913",
+]
+# Analysis section 11, "Agent test lists": the traced case, memory theft, deleted shadow copies and memory reads on tills. None is held out.
+MUST_ESCALATE_ALERTS = [
+    "ALR-20261007-011785",
+    "ALR-20261007-011786",
+    "ALR-20261007-011787",
+    "ALR-20261007-011788",
+    "ALR-20261008-011789",
+    "ALR-20261010-011795",
+    "ALR-20261010-011798",
+    "ALR-20261020-011897",
+    "ALR-20261020-011898",
+    "ALR-20261020-011899",
+]
+# Held-out row of docs/decisions.md. No test may tune on these.
+HELD_OUT_ALERTS = {"ALR-20261015-011819", "ALR-20261015-011820", "ALR-20261016-011821", "ALR-20261013-011901"}
 
 ALERT = {
     "alert_id": "ALR-TEST-0001",
@@ -504,6 +533,50 @@ def test_truncated_results_are_shown_and_become_a_question():
     assert next(event for event in events if event.args.get("source") == "email").truncated is False
 
 
+@pytest.mark.parametrize("change", [{"truncated_sources": ["proxy"]}, {"logs": [{"source": "proxy", "event_id": f"EVT-{i}", "text": "x" * 800} for i in range(100)]}])
+def test_incomplete_evidence_cannot_lower_severity(change):
+    down = answer(severity_adjustments=[{"delta": -1, "reason": "Bloqueado"}])
+    ticket, _ = run(FakeLLM(down), context=make_context(**change))
+    assert ticket.severity == "medium"
+    assert ticket.severity_inputs.adjustments == []
+    assert triage_module.NO_LOWERING_QUESTION in ticket.open_questions
+
+
+def test_incomplete_evidence_can_still_raise_severity():
+    up = answer(severity_adjustments=[{"delta": 1, "reason": "Acceso confirmado"}])
+    ticket, _ = run(FakeLLM(up), context=make_context(truncated_sources=["proxy"]))
+    assert ticket.severity == "high"
+    assert triage_module.NO_LOWERING_QUESTION not in ticket.open_questions
+
+
+def test_complete_evidence_can_lower_severity():
+    down = answer(severity_adjustments=[{"delta": -1, "reason": "Bloqueado"}])
+    ticket, _ = run(FakeLLM(down))
+    assert ticket.severity == "low"
+
+
+def test_a_notified_trip_can_authorise():
+    context = make_context(changes=[], trips=[{"id": "TRIP-TEST-1", "usuario": "persona@test.example"}])
+    benign = answer(verdict="benign_true_positive", authorised_by={"type": "trip", "id": "TRIP-TEST-1"})
+    ticket, events = run(FakeLLM(benign), context=context)
+    assert ticket.verdict == "benign_true_positive"
+    assert ticket.authorised_by.id == "TRIP-TEST-1"
+    assert any(event.tool == "trips" for event in events)
+
+
+def test_other_hr_events_cannot_authorise():
+    context = make_context(changes=[], hr_events=[{"id": "HR-TEST-1", "tipo": "vacaciones"}])
+    benign = answer(verdict="benign_true_positive", authorised_by={"type": "trip", "id": "HR-TEST-1"})
+    ticket, _ = run(FakeLLM(benign), context=context)
+    assert_stays_open(ticket)
+
+
+def test_trips_and_hr_events_can_be_cited_without_an_event_id():
+    evidence = [{"source": "trips", "event_id": "", "finding": "Viaje notificado"}, {"source": "hr_events", "event_id": "", "finding": "Baja comunicada"}]
+    ticket, _ = run(FakeLLM(answer(evidence=evidence)))
+    assert [item.source for item in ticket.evidence] == ["trips", "hr_events"]
+
+
 def test_truncated_extra_search_becomes_a_question():
     llm = FakeLLM({"action": "search_logs", "source": "dns", "value": "x"}, answer())
     ticket, _ = run(llm, search_logs=lambda **a: {"items": [], "truncated": True})
@@ -596,6 +669,14 @@ def test_known_limit_full_obedience_with_real_evidence_still_closes():
     assert ticket.verdict == "false_positive"
     assert ticket.escalation.escalate is False
     assert ticket.recommended_actions[0].action == "close"
+
+
+def test_real_alert_lists_match_the_analysis_and_leave_out_held_out_alerts():
+    notebook = (REPO_ROOT / "analysis" / "explore.ipynb").read_text(encoding="utf-8")
+    assert not HELD_OUT_ALERTS & set(REAL_PLANTED_TEXT_ALERTS)
+    assert not HELD_OUT_ALERTS & set(MUST_ESCALATE_ALERTS)
+    for alert_id in (*REAL_PLANTED_TEXT_ALERTS, *MUST_ESCALATE_ALERTS):
+        assert alert_id in notebook
 
 
 def _real_alert(alert_id):

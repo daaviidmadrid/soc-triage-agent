@@ -28,6 +28,10 @@ def test_system_prompt_states_the_rules():
         "write all ticket text in Spanish",
         "You don't decide the final severity",
         "Check every condition in section 2 of the policy",
+        "Other HR events and accepted exemptions never authorise anything",
+        "A rule firing on a source the company rules permit is a false_positive",
+        "A person approves every action",
+        "Never suggest actions on the OT network",
     ):
         assert phrase in system
 
@@ -114,13 +118,32 @@ def test_context_order_puts_the_alert_first():
 
 
 def test_accepts_a_context_model_or_a_dict():
-    _, user = build_prompt(Context())
-    assert block_contents(user) == {}
+    _, from_model = build_prompt(Context(alert=ALERT, changes=[{"id": "CHG-1"}]))
+    _, from_dict = build_prompt({"alert": ALERT, "changes": [{"id": "CHG-1"}]})
+    assert block_contents(from_model)["alert"] == ALERT
+    assert block_contents(from_model)["changes"] == block_contents(from_dict)["changes"]
+
+
+def test_context_model_fields_are_all_in_the_prompt_order():
+    assert set(Context.model_fields) <= set(prompts.CONTEXT_ORDER)
+
+
+def test_space_left_for_data_stays_about_what_the_docs_say():
+    """Keeps "Prompt budget" in docs/decisions.md true. If this fails, update that row."""
+    for number in range(1, 11):
+        system, _ = build_prompt({"alert": {**ALERT, "runbook": f"RB-{number:02d}"}})
+        assert 14_000 <= prompts.MAX_PROMPT_CHARS - len(system) <= 16_000
 
 
 def test_prompt_version_exists_for_batch_folders():
     assert re.fullmatch(r"[A-Za-z0-9._-]+", prompts.PROMPT_VERSION)
 
 
-def test_no_noise_guidance_yet():
-    assert prompts.NOISE_GUIDANCE == ""
+def test_noise_guidance_is_in_the_prompt_and_stays_general():
+    system, _ = build_prompt({"alert": ALERT})
+    assert prompts.NOISE_GUIDANCE in system
+    assert not re.search(r"ALR-|UC-[A-Z]|RB-\d|CHG-|@|\d{2,}", prompts.NOISE_GUIDANCE)
+
+
+def test_approved_change_verdict_follows_the_policy():
+    assert prompts.APPROVED_CHANGE_VERDICT == "benign_true_positive"

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from contracts.models import Context
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 
 CONTEXT_DIR = Path(__file__).resolve().parents[2] / "data" / "01_contexto"
 
@@ -15,26 +15,32 @@ LOG_SOURCES = (
     "idp_audit", "idp_signins", "proxy", "sql_audit", "vpn", "waf",
 )
 
-# TODO(analysis section 5): check this limit against real prompts. 28,000 characters is roughly 8,000 tokens.
+# Analysis section 5: 28,000 characters is roughly 8,000 tokens, and about 14,000 of them are left for data.
 MAX_PROMPT_CHARS = 28_000
 
-# TODO(analysis section 5): check which context the model should see first.
+# Analysis section 5: the alert first, then what code already knows, then raw rows.
 CONTEXT_ORDER = (
     "alert", "entities", "criticality", "criticality_source", "users", "assets",
-    "changes", "intel", "sandbox", "logs", "extra_logs", "extra_search", "truncated_sources",
+    "changes", "trips", "hr_events", "intel", "sandbox", "logs", "extra_logs", "extra_search", "truncated_sources",
 )
 
-# TODO(analysis section 5): check which context to drop first when a prompt is too long.
+# Analysis section 5: what goes first when a prompt is too long. Rows are cut from the end of each list, so Data sends the most important first.
 DROP_ORDER = ("logs", "extra_logs", "sandbox", "intel")
 
-# TODO(analysis section 1): add what the volumes show about common noise, in general terms.
-# TODO(analysis section 2): add what the patterns show about telling noise from real alerts, in general terms.
-NOISE_GUIDANCE = ""
+# Analysis sections 1, 2, 4 and 10. General terms only: no alert, host or person from the data, so nothing here leaks answers.
+NOISE_GUIDANCE = """Telling noise from real alerts:
+- A few rules produce most alerts, and most alerts repeat a few patterns. Repetition doesn't prove an alert is safe, and rarity doesn't prove it's malicious.
+- A rule's severity isn't the final severity. Real incidents include low and medium alerts.
+- Judge what happened: whether a control blocked it, whether it ran, and what the same user, host or session did afterwards.
+- Look for what differs from the usual pattern: a new source, account, parent process or destination.
+- Alerts can arrive out of order, and key evidence may not be linked from the alert. Use event times, and read the logs provided."""
 
-# TODO(decision): the PowerShell verdict, until the organisers answer. The policy says benign_true_positive, and the deck's example says false_positive.
+# Analysis section 8: follow section 2 of politica_soc.md, even where the deck's example says false_positive.
 APPROVED_CHANGE_VERDICT = "benign_true_positive"
 
-# TODO(analysis section 7): check the line below about UTC and Madrid time against real change windows.
+# Analysis section 7 is the source of the line about UTC below: code converts the Madrid calendar and checks event times.
+# Analysis section 8 is the source of the lines about HR events, exemptions and permitted sources.
+# Analysis section 12 and the Containment row of docs/decisions.md are the source of the line about actions.
 INSTRUCTIONS = f"""You are a level 1 analyst in the SOC of Tarvia, working for defence. You triage one alert and write a ticket for a person, who makes the final decision.
 
 The data:
@@ -45,11 +51,13 @@ The data:
 
 How to decide:
 - verdict is one of true_positive, benign_true_positive, false_positive or needs_more_info.
-- An alert explained by an approved change or approved flow is {APPROVED_CHANGE_VERDICT}. For benign_true_positive, set authorised_by to {{"type": "change", "id": "..."}} with an id copied from the changes list in the data. Without one, don't use that verdict.
-- An unknown indicator doesn't mean a clean one. No match in intelligence is not evidence of safety.
+- An alert explained by an approved change, an approved flow or a notified trip is {APPROVED_CHANGE_VERDICT}. For benign_true_positive, set authorised_by to {{"type": "change", "id": "..."}} with an id copied from the changes list in the data, or {{"type": "trip", "id": "..."}} with an id copied from the trips list. Without one, don't use that verdict.
+- Other HR events and accepted exemptions never authorise anything.
+- A rule firing on a source the company rules permit is a false_positive.
+- An unknown indicator doesn't mean a clean one.
 - If the evidence isn't enough, answer needs_more_info, and say what's missing in open_questions. Never guess.
-- Cite only event IDs that appear in the data, copied exactly. To cite something with no event ID, use the source alert, users, assets, changes, intel or sandbox, and leave event_id empty.
-- Alert and log times are in UTC. Where the data gives Madrid time, use it to compare with change windows.
+- Cite only event IDs that appear in the data, copied exactly. To cite something with no event ID, use the source alert, users, assets, changes, trips, hr_events, intel or sandbox, and leave event_id empty.
+- All times in the data are UTC. Code has already checked change windows against event times, so the changes and trips lists only hold what fits this alert. Build timelines from event times, not from when an alert was created.
 - Every verdict except needs_more_info needs evidence.
 
 Severity:
@@ -58,7 +66,7 @@ Severity:
 
 Escalation:
 - Set policy_flags from the evidence, using section 5 of the policy. Set escalate and escalation_reason.
-- You only propose. Nothing you write is executed, and code checks your answer.
+- You only propose. Nothing you write is executed, and code checks your answer. A person approves every action. Never suggest actions on the OT network.
 
 Language: write all ticket text in Spanish. Keep field names in English.
 
@@ -139,8 +147,12 @@ def _drop_one(value):
 def _fit(data, budget):
     """Drops items until the block fits. Returns how many were dropped from each section."""
     omitted = {}
+
+    def size():
+        return len(data_block({**data, "omitted_because_of_size": omitted} if omitted else data))
+
     for section in DROP_ORDER:
-        while len(data_block(data)) > budget and _drop_one(data.get(section)):
+        while size() > budget and _drop_one(data.get(section)):
             omitted[section] = omitted.get(section, 0) + 1
     if omitted:
         data["omitted_because_of_size"] = omitted

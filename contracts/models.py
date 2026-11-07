@@ -1,14 +1,41 @@
 """Shared data formats. Fields get added once the team agrees them."""
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Verdict = Literal["true_positive", "benign_true_positive", "false_positive", "needs_more_info"]
 Severity = Literal["informational", "low", "medium", "high", "critical"]
 
 
 class Context(BaseModel):
-    pass
+    """What Data gives the agent for one alert. All of it is untrusted evidence, never instructions.
+
+    Unknown fields are rejected, so a misspelt field fails loudly instead of vanishing.
+    The rules behind these fields are in docs/decisions.md.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    alert: dict
+    entities: dict = Field(default_factory=dict)
+    # "Baja", "Media", "Alta" or "Crítica".
+    criticality: str = ""
+    # "asset", "workstation", "service" or "default".
+    criticality_source: str = ""
+    users: list[dict] = Field(default_factory=list)
+    assets: list[dict] = Field(default_factory=list)
+    # Only changes and flows that code matched to this alert: window by event time, scope and identity. Each row has an "id".
+    changes: list[dict] = Field(default_factory=list)
+    # Only notified trips of an affected user that cover the event time. Each row has an "id".
+    trips: list[dict] = Field(default_factory=list)
+    # Other HR events of the affected users. They never authorise anything.
+    hr_events: list[dict] = Field(default_factory=list)
+    intel: list[dict] = Field(default_factory=list)
+    sandbox: list[dict] = Field(default_factory=list)
+    # Rows per source, most important first: linked events, then changes of state, then repeats as counts.
+    logs: dict[str, list[dict]] = Field(default_factory=dict)
+    # Sources where a search hit its limit, so rows may be missing.
+    truncated_sources: list[str] = Field(default_factory=list)
 
 
 class Affected(BaseModel):

@@ -38,17 +38,19 @@ SEVERITIES = ("informational", "low", "medium", "high", "critical")
 DEFAULT_RULE_SEVERITY = "medium"
 DEFAULT_CRITICALITY = "Media"
 
-# TODO(analysis section 6): check the minimum severity each runbook really requires. Only the IBAN case in RB-01 states one for a rule.
+# Analysis section 6: only the IBAN case in RB-01 states a severity for a rule. Other runbook severities describe outcomes.
 RUNBOOK_FLOORS = {"UC-EML-004": "critical"}
 
-# TODO(analysis section 8): check what else counts as authorised, such as HR trips or company rules. For now only context.changes does.
-AUTHORISATION_SECTIONS = ("changes",)
+# Analysis section 8: a change or flow that code matched, or a notified trip whose dates cover the event. Data only puts rows here that fit.
+AUTHORISATION_SECTIONS = ("changes", "trips")
 
-# TODO(analysis section 4): check how to handle truncated log results. For now the ticket carries on and asks a person to look.
 TRUNCATED_QUESTION = "Algunos resultados de log estaban truncados ({sources}): la evidencia puede estar incompleta."
+# Analysis section 4: logs come oldest first, so a limit removes the later rows, and rows cut to fit a prompt are lost too.
+# Incomplete evidence can't show that nothing happened afterwards, which the -1 requires. It can still support a +1.
+NO_LOWERING_QUESTION = "No se aplicó el −1: la evidencia está incompleta y no descarta actividad posterior."
 
 # Sources that have no event ID, so evidence from them can leave event_id empty.
-NO_EVENT_ID_SOURCES = {"alert", "users", "assets", "changes", "intel", "sandbox"}
+NO_EVENT_ID_SOURCES = {"alert", "users", "assets", "changes", "trips", "hr_events", "intel", "sandbox"}
 
 # The model writes action names freely, for example "Cerrar alerta". Only code decides whether to close or escalate.
 DECISION_ACTION = re.compile(r"\s*(close|closing|cerrar|cierre|escalate|escalation|escalar|escalado)\b", re.IGNORECASE)
@@ -256,8 +258,13 @@ def build_ticket(alert, context, draft, compute, seconds):
             questions.append(question)
             notes.append(question)
 
-    # An unresolved ticket can't have its severity lowered by the LLM.
-    adjustments = [a for a in draft.severity_adjustments if verdict != "needs_more_info" or a.delta > 0]
+    # An unresolved ticket can't have its severity lowered by the LLM, and neither can incomplete evidence.
+    incomplete = bool(context.get("truncated_sources") or context.get("trimmed_for_prompt"))
+    can_lower = verdict != "needs_more_info" and not incomplete
+    adjustments = [a for a in draft.severity_adjustments if can_lower or a.delta > 0]
+    if incomplete and any(a.delta < 0 for a in draft.severity_adjustments):
+        questions.append(NO_LOWERING_QUESTION)
+        notes.append(NO_LOWERING_QUESTION)
     rule_id = alert.get("rule_id")
     rule = _rule_severity(alert)
     criticality = context.get("criticality") or DEFAULT_CRITICALITY
@@ -402,7 +409,7 @@ def _gather(alert, build, emit):
     yield emit("tool_call", tool="build_context", args={"alert_id": _alert_id(alert)}, summary="Reuniendo el contexto de la alerta")
     context = context_to_dict(build(alert))
     context.setdefault("alert", alert)
-    for section in ("users", "assets", "changes", "intel", "sandbox"):
+    for section in ("users", "assets", "changes", "trips", "hr_events", "intel", "sandbox"):
         items = context.get(section)
         if items:
             yield emit("tool_result", tool=section, summary=f"{len(items)} resultado(s)")
@@ -443,7 +450,6 @@ def _ask_llm(context, llm, search, emit, max_calls):
         can_search = calls == 0 and max_calls > 1
         system, user, omitted = build_prompt_with_info(context, allow_search=can_search, feedback=feedback)
         if omitted and calls == 0:
-            # TODO(analysis section 5): check what is lost when rows don't fit.
             yield emit("note", args={"omitted": omitted}, summary="Parte del contexto no cabe en el prompt")
             context["trimmed_for_prompt"] = omitted
         calls += 1
