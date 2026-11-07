@@ -333,7 +333,7 @@ export default function Ticket({ alertId, onBack, onNext, onReport }) {
         onNext={goNext}
         next={next}
       />
-      <AlertSummary alert={alert} run={run} />
+      <AlertSummary alert={{ ...alert, ...obj(detail.shown) }} run={run} />
       <RunNotices events={events} running={running} onJumpToStep={jumpToStep} />
 
       <div className="ticket-layout">

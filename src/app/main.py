@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
 from src.app.store import Store, now_iso
+from src.tools.alert_fields import fill_from_catalogue
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "runs" / "app.sqlite3"
@@ -62,18 +63,23 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
     store = Store(db_path or os.environ.get("APP_DB_PATH") or DEFAULT_DB)
     store.mark_interrupted_runs()
     run_fn = run_fn or runner.run_triage
-    sample_path = Path(sample_path or DEFAULT_SAMPLE)
-    sample = {"path": sample_path.name, "loaded": 0, "error": None}
-    try:
-        alerts, errors = load_alerts(sample_path)
-        store.add_alerts(alerts, "sample")
-        sample["loaded"] = len(alerts)
-        if errors:
-            sample["error"] = f"{len(errors)} fila(s) de la muestra no se pudieron leer."
-    except FileNotFoundError:
-        sample["error"] = "No se encontró la muestra de alertas en data/03_alertas/."
-    except (OSError, ImportProblem) as error:
-        sample["error"] = f"No se pudo leer la muestra de alertas ({type(error).__name__})."
+    # APP_SAMPLE=none starts with an empty queue, so it holds only the alerts you import.
+    sample_setting = sample_path or os.environ.get("APP_SAMPLE") or DEFAULT_SAMPLE
+    if str(sample_setting).lower() == "none":
+        sample = {"path": None, "loaded": 0, "error": None}
+    else:
+        sample_path = Path(sample_setting)
+        sample = {"path": sample_path.name, "loaded": 0, "error": None}
+        try:
+            alerts, errors = load_alerts(sample_path)
+            store.add_alerts(alerts, "sample")
+            sample["loaded"] = len(alerts)
+            if errors:
+                sample["error"] = f"{len(errors)} fila(s) de la muestra no se pudieron leer."
+        except FileNotFoundError:
+            sample["error"] = "No se encontró la muestra de alertas en data/03_alertas/."
+        except (OSError, ImportProblem) as error:
+            sample["error"] = f"No se pudo leer la muestra de alertas ({type(error).__name__})."
 
     app = FastAPI(title="Tarvia triage")
     app.state.store = store
@@ -123,14 +129,15 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
         items = []
         for row in store.list_alerts():
             alert = row["alert"]
+            shown = fill_from_catalogue(alert)[0]
             run = runs.get(alert["alert_id"])
             ticket = ticket_summary(store.ticket_for_run(run["run_id"]), run) if run else None
             items.append({
                 "alert_id": alert["alert_id"],
                 "created_at": _text(alert.get("created_at")),
-                "source_product": _text(alert.get("source_product")),
-                "rule_id": _text(alert.get("rule_id")),
-                "rule_name": _text(alert.get("rule_name")),
+                "source_product": _text(shown.get("source_product")),
+                "rule_id": _text(shown.get("rule_id")),
+                "rule_name": _text(shown.get("rule_name")),
                 "rule_severity": _text(alert.get("severity")),
                 "origin": row["origin"],
                 "run": run_view(run),
@@ -152,9 +159,12 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
         runs = store.runs_for_alert(alert_id)
         latest = runs[0] if runs else None
         ticket_row = store.ticket_for_run(latest["run_id"]) if latest else None
+        shown = fill_from_catalogue(row["alert"])[0]
         return {
             "mode": runner.current_mode(),
             "alert": row["alert"],
+            # For the page's header only. The alert above stays exactly as it arrived.
+            "shown": {key: _text(shown.get(key)) for key in ("rule_id", "rule_name", "source_product")},
             "origin": row["origin"],
             "runs": [run_view(run) for run in runs],
             "latest_run": run_view(latest),

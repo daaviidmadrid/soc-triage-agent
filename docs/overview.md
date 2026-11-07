@@ -20,7 +20,7 @@ We build them in order and finish each one before moving up. Level 1 has to work
 
 ## What we present
 - A visual demo: the queue, what the system looks up, why it decides, where the person steps in
-- The same 10 alerts every team gets, triaged live
+- The same 10 alerts every team gets, published at 09:00 on Sunday, shown in a 3-minute video made by noon
 - The level we reached and how we built it
 - One page for Tarvia's executive committee
 

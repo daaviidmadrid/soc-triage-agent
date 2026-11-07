@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.agent import llm  # noqa: E402
-from src.agent.llm import LLMBlocked, LLMError, LLMUnavailable, complete  # noqa: E402
+from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, LLMUnavailable, complete  # noqa: E402
 
 REQUEST = httpx2.Request("POST", "https://llm.test/chat/completions")
 
@@ -58,6 +58,8 @@ def settings(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "main-model")
     monkeypatch.setenv("LLM_BACKUP_MODEL", "backup-model")
     monkeypatch.setenv("LLM_API_KEY", "secret-test-key")
+    monkeypatch.setenv("LLM_STREAM", "false")
+    monkeypatch.delenv("LLM_ENABLE_THINKING", raising=False)
 
 
 def no_sleep(_seconds):
@@ -114,6 +116,145 @@ def test_does_not_call_the_same_model_twice_as_backup(monkeypatch):
     with pytest.raises(LLMUnavailable):
         complete("s", "u", client=client, sleep=no_sleep)
     assert len(client.models) == 2
+
+
+def daily_limit(seconds="44107s"):
+    body = [{"error": {"details": [{"violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}]},
+                                   {"retryDelay": seconds}]}}]
+    return openai.RateLimitError("quota", response=httpx2.Response(429, request=REQUEST), body=body)
+
+
+def per_minute_limit(seconds="40s"):
+    body = [{"error": {"details": [{"violations": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}, {"retryDelay": seconds}]}}]
+    return openai.RateLimitError("quota", response=httpx2.Response(429, request=REQUEST), body=body)
+
+
+@pytest.fixture
+def no_exhausted_models(monkeypatch):
+    monkeypatch.setattr(llm, "_exhausted", {})
+
+
+def test_daily_limit_skips_retries_and_goes_to_the_backup(no_exhausted_models):
+    waits = []
+    client = FakeClient(daily_limit(), reply())
+    result = complete("s", "u", client=client, sleep=waits.append)
+    assert client.models == ["main-model", "backup-model"] and result.model == "backup-model"
+    assert waits == []
+
+
+def test_a_model_at_its_daily_limit_isnt_called_again(no_exhausted_models):
+    first = FakeClient(daily_limit(), reply())
+    complete("s", "u", client=first, sleep=no_sleep)
+    second = FakeClient(reply())
+    assert complete("s", "u", client=second, sleep=no_sleep).model == "backup-model"
+    assert second.models == ["backup-model"]
+
+
+def test_every_model_at_its_daily_limit_says_so(monkeypatch, no_exhausted_models):
+    monkeypatch.setenv("LLM_BACKUP_MODEL", "main-model")
+    client = FakeClient(daily_limit("7200s"))
+    with pytest.raises(LLMQuotaExhausted, match="2.0 h"):
+        complete("s", "u", client=client, sleep=no_sleep)
+    assert len(client.models) == 1
+    with pytest.raises(LLMQuotaExhausted):
+        complete("s", "u", client=FakeClient(), sleep=no_sleep)
+
+
+def test_per_minute_limit_waits_as_long_as_asked_then_retries(no_exhausted_models):
+    waits = []
+    client = FakeClient(per_minute_limit("40s"), reply())
+    assert complete("s", "u", client=client, sleep=waits.append).model == "main-model"
+    assert waits == [40.0]
+
+
+def test_a_daily_limit_is_tried_again_once_its_time_has_passed(monkeypatch, no_exhausted_models):
+    llm._exhausted["main-model"] = llm.time.monotonic() - 1
+    assert complete("s", "u", client=FakeClient(reply()), sleep=no_sleep).model == "main-model"
+
+
+def test_the_client_is_reused_between_calls(monkeypatch):
+    made = []
+    monkeypatch.setattr(llm, "load_dotenv", lambda: None)
+    monkeypatch.setattr(llm, "OpenAI", lambda **options: made.append(options) or FakeClient(reply(), reply()))
+    complete("s", "u", sleep=no_sleep)
+    complete("s", "u", sleep=no_sleep)
+    assert len(made) == 1
+
+
+def chunk(text=None, finish_reason=None, usage=None):
+    if text is None and finish_reason is None:
+        return SimpleNamespace(choices=[], usage=usage)
+    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text), finish_reason=finish_reason)], usage=usage)
+
+
+def streamed(*chunks, then=None):
+    def generate():
+        yield from chunks
+        if then:
+            raise then
+    return generate()
+
+
+@pytest.fixture
+def streaming(monkeypatch):
+    monkeypatch.delenv("LLM_STREAM")
+
+
+def test_streams_by_default_and_rebuilds_the_answer(streaming):
+    usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+    client = FakeClient(streamed(chunk('{"ok"'), chunk(": true}"), chunk("", "stop"), chunk(usage=usage)))
+    result = complete("s", "u", client=client, sleep=no_sleep)
+    assert (result.text, result.prompt_tokens, result.completion_tokens) == ('{"ok": true}', 10, 5)
+    assert client.last_request["stream"] is True
+
+
+def test_streaming_can_be_turned_off(monkeypatch):
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep)
+    assert "stream" not in client.last_request
+
+
+def test_a_stream_cut_halfway_is_retried(streaming):
+    client = FakeClient(streamed(chunk('{"ok"'), then=ConnectionResetError("cut")), streamed(chunk('{"ok": true}'), chunk("", "stop")))
+    result = complete("s", "u", client=client, sleep=no_sleep)
+    assert result.text == '{"ok": true}' and result.attempts == 2
+
+
+def test_a_provider_error_inside_a_stream_is_retried(streaming):
+    client = FakeClient(streamed(then=overloaded()), streamed(chunk('{"ok": true}'), chunk("", "stop")))
+    assert complete("s", "u", client=client, sleep=no_sleep).attempts == 2
+
+
+def test_a_stream_is_checked_like_any_other_answer(streaming):
+    with pytest.raises(LLMBlocked):
+        complete("s", "u", client=FakeClient(streamed(chunk("", "content_filter"))), sleep=no_sleep)
+    with pytest.raises(LLMBlocked):
+        complete("s", "u", client=FakeClient(streamed(chunk(usage=None))), sleep=no_sleep)
+    with pytest.raises(LLMError, match="stopped early"):
+        complete("s", "u", client=FakeClient(streamed(chunk("{", "length"))), sleep=no_sleep)
+    with pytest.raises(LLMError, match="empty"):
+        complete("s", "u", client=FakeClient(streamed(chunk("", "stop"))), sleep=no_sleep)
+
+
+def test_reasoning_stays_on_unless_turned_off(monkeypatch):
+    monkeypatch.delenv("LLM_ENABLE_THINKING", raising=False)
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep)
+    assert "extra_body" not in client.last_request
+    monkeypatch.setenv("LLM_ENABLE_THINKING", "false")
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep)
+    assert client.last_request["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_reasoning_text_is_removed_from_the_answer():
+    client = FakeClient(reply(text='<think>maybe {"a": 1}\nor not</think>\n{"ok": true}'))
+    assert complete("s", "u", client=client, sleep=no_sleep).text == '{"ok": true}'
+
+
+def test_only_reasoning_counts_as_an_empty_answer():
+    with pytest.raises(LLMError, match="empty"):
+        complete("s", "u", client=FakeClient(reply(text="<think>hmm</think>")), sleep=no_sleep)
 
 
 def test_waits_between_retries_and_caps_retry_after():
