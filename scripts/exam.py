@@ -556,7 +556,7 @@ def command_score(args):
     if args.set:
         wanted = set(choose_ids(args.set))
         labels = [label for label in labels if label["alert_id"] in wanted]
-    report = score.score(tickets, labels)
+    report = score.score(tickets, labels, score.load_planted())
     print(f"Tickets read: {len(tickets)} from {folder}" + (f". Marking only '{args.set}'." if args.set else ""))
     if report["no_ticket"]:
         print(f"Note: {len(report['no_ticket'])} labelled alerts have no ticket yet, and they count as missed below. Run or merge the rest first.")
