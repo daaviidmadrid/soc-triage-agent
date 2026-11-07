@@ -42,5 +42,7 @@ export const api = {
   importAlerts: (text) => request("POST", "/api/alerts/import", text, "application/json"),
   decide: (ticketId, body) =>
     request("POST", `/api/tickets/${encodeURIComponent(ticketId)}/decision`, JSON.stringify(body)),
+  incidents: () => request("GET", "/api/incidents"),
+  buildIncidents: () => request("POST", "/api/incidents/build"),
   eventsUrl: (runId) => `/api/runs/${encodeURIComponent(runId)}/events`,
 };

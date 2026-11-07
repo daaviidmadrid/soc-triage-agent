@@ -162,7 +162,7 @@ function goTo(id, block = "start") {
   el.focus({ preventScroll: true });
 }
 
-export default function Ticket({ alertId, onBack, onNext, onReport }) {
+export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
@@ -334,6 +334,14 @@ export default function Ticket({ alertId, onBack, onNext, onReport }) {
         next={next}
       />
       <AlertSummary alert={{ ...alert, ...obj(detail.shown) }} run={run} />
+      {detail.incident_id && (
+        <Notice role="status">
+          {L.partOfIncident(detail.incident_id)}{" "}
+          <button type="button" className="btn btn-sm notice-action" onClick={onIncidents}>
+            {L.viewIncidents}
+          </button>
+        </Notice>
+      )}
       <RunNotices events={events} running={running} onJumpToStep={jumpToStep} />
 
       <div className="ticket-layout">
