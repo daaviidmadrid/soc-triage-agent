@@ -1,8 +1,10 @@
 """Backend for the UI. Local only: run it with `uvicorn src.app.main:app --port 8001` (binds 127.0.0.1).
 
 Alert and ticket text may be written by attackers. It is stored and returned as plain data,
-and nothing here acts on it. The LLM never approves or runs containment, and this backend
-has no containment routes: a person's decision on a ticket is only recorded.
+and nothing here acts on it. The LLM never approves or runs containment. The containment
+routes build proposals with plain code (src/policy/containment.py), record each person's
+approval, and call the mock only when a person clicks run after every required role has
+approved. A person's decision on a ticket is only recorded.
 """
 import asyncio
 import json
