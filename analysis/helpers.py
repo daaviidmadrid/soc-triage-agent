@@ -1,8 +1,40 @@
 """Small, deterministic analysis helpers; no network or model calls."""
+import collections
 import json
 import re
 
+import numpy as np
 import pandas as pd
+
+DAY_NS = pd.Timedelta(hours=24).value
+
+
+def indexed_source(frame, wanted):
+    """Row positions for each wanted value, with event times and row sizes in characters."""
+    ordered = frame.sort_values("timestamp_utc", kind="stable").reset_index(drop=True)
+    records = raw_records(ordered)
+    positions = collections.defaultdict(list)
+    for row, record in enumerate(records):
+        for value in {str(v).casefold() for _, v in leaves(record)} & wanted:
+            positions[value].append(row)
+    times = ordered.timestamp_utc.dt.tz_convert("UTC").dt.tz_localize(None).astype("datetime64[ns]").astype("int64")
+    return {
+        "times": times.to_numpy(),
+        "sizes": np.array([len(encoded(r)) for r in records]),
+        "positions": {value: np.array(rows) for value, rows in positions.items()},
+    }
+
+
+def context_for(center, values, index):
+    """Rows and characters within 24 hours of center that hold any of the values."""
+    found = [index["positions"][v] for v in values if v in index["positions"]]
+    if not found:
+        return 0, 0
+    rows = np.unique(np.concatenate(found))
+    center = pd.Timestamp(center).tz_convert("UTC").tz_localize(None).as_unit("ns").value
+    times = index["times"][rows]
+    keep = rows[(times >= center - DAY_NS) & (times <= center + DAY_NS)]
+    return len(keep), int(index["sizes"][keep].sum())
 
 
 def leaves(value, path=""):
