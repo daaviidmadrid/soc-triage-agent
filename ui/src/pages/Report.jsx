@@ -1,14 +1,18 @@
 // Level 3: the incident report of an escalated incident or ticket, with its timeline.
 // Who wrote what is fixed per field: code sets every time, the order, the approvers and the related incidents;
 // the model writes the analysis; a person approves any containment. Everything from the data is plain text.
+// The page uses the same layout as an alert: a summary bar, short notices, then a workspace with tabs.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, Field, Ids, List, NA, Notice, Skeleton, arr, asText, formatSeconds, formatTime, isBlank, obj } from "../components.jsx";
+import { Chip, ErrorBox, Field, Ids, NA, None, Skeleton, arr, asText, formatSeconds, formatTime, isBlank, obj } from "../components.jsx";
 import Icon from "../icons.jsx";
-import { EVENT_TYPE, L, RUN_STATUS } from "../labels.js";
+import { L, RUN_STATUS } from "../labels.js";
 import { agentMessages, retrievedBy } from "../ticket/runState.js";
 import Containment from "../ticket/Containment.jsx";
+import { Fact } from "../ticket/DecisionBar.jsx";
 import Steps from "../ticket/Steps.jsx";
+import { InjectionFlags } from "../ticket/TicketView.jsx";
+import Workspace, { Section, TextList, workspacePanel } from "../ticket/Workspace.jsx";
 import { useRunEvents } from "../useRunEvents.js";
 
 const SIMILAR_SHOWN = 60;
@@ -24,13 +28,8 @@ function By({ who }) {
   return <Chip kind="person">{L.tagPerson}</Chip>;
 }
 
-function SectionTitle({ id, children, who }) {
-  return (
-    <div className="role-title">
-      <h3 id={id}>{children}</h3>
-      {who && <By who={who} />}
-    </div>
-  );
+function Prose({ value }) {
+  return isBlank(value) ? <NA /> : <p className="prose">{asText(value)}</p>;
 }
 
 // An event ID of the timeline. If a step of the run returned it, it jumps to that step.
@@ -57,9 +56,9 @@ function TimelineStep({ step, retrieved, onJump }) {
   return (
     <li className={`tl-step${found ? " is-found" : ""}`}>
       <div className="tl-time num">
-        <span>{utc.time}</span>
+        <span>{utc.time} UTC</span>
         {madrid.time && (
-          <span className="muted" title={L.timelineMadrid}>
+          <span className="muted">
             {madrid.time} {L.timelineMadrid}
           </span>
         )}
@@ -82,9 +81,7 @@ function TimelineStep({ step, retrieved, onJump }) {
             </Chip>
           )}
         </div>
-        <p className="tl-desc">
-          <Clip value={s.description} max={400} />
-        </p>
+        <p className="tl-desc prose">{asText(s.description)}</p>
         {similar.length > 0 && (
           <details className="tl-similar">
             <summary>{L.timelineSimilar(similar.length)}</summary>
@@ -104,7 +101,7 @@ function Timeline({ steps, retrieved, onJump }) {
     if (!days.length || days[days.length - 1].day !== day) days.push({ day, steps: [] });
     days[days.length - 1].steps.push(step);
   }
-  if (!days.length) return <p className="muted">{L.none}</p>;
+  if (!days.length) return <None />;
   return (
     <div className="timeline">
       {days.map((d) => (
@@ -121,30 +118,11 @@ function Timeline({ steps, retrieved, onJump }) {
   );
 }
 
-// Level 4 on the report: the same approvals as a ticket. A person approves each role and runs the action once.
-function ReportContainment({ reportKey, fallback }) {
-  return (
-    <div className="role role-person">
-      {fallback ? (
-        <>
-          <h3>{L.containmentTitle}</h3>
-          <p className="muted">{L.none}</p>
-        </>
-      ) : (
-        <Containment reportKey={reportKey} headingLevel={3} />
-      )}
-    </div>
-  );
-}
-
 function People({ people }) {
   const rows = arr(people).map(obj);
   if (!rows.length) return null;
   return (
-    <>
-      <h4>
-        {L.peopleTitle} <By who="code" />
-      </h4>
+    <Section title={L.peopleTitle} who={<By who="code" />}>
       <ul className="list">
         {rows.map((p) => (
           <li key={p.upn}>
@@ -159,7 +137,7 @@ function People({ people }) {
           </li>
         ))}
       </ul>
-    </>
+    </Section>
   );
 }
 
@@ -174,7 +152,7 @@ function LinkRow({ link }) {
           · <code className="id">{asText(l.incident_id)}</code>
         </>
       )}{" "}
-      <span className="muted num">{formatTime(l.created_at)}</span> <Clip value={l.rule_name || l.rule_id} max={80} />
+      <span className="muted num">{formatTime(l.created_at)}</span> {asText(l.rule_name || l.rule_id)}
       <div className="sub">{arr(l.shared).map(asText).join("; ")}</div>
     </li>
   );
@@ -185,14 +163,9 @@ function Related({ report }) {
   const strong = links.filter((l) => l.strength === "specific");
   const leads = links.filter((l) => l.strength !== "specific");
   return (
-    <section className="role role-code" aria-labelledby="rep-related">
-      <SectionTitle id="rep-related" who="code">
-        {L.relatedTitle}
-      </SectionTitle>
+    <Section title={L.relatedTitle} who={<By who="code" />}>
       <p className="hint">{L.relatedHelp}</p>
-      <p className="report-narrative">
-        <Clip value={report.related_note} max={400} />
-      </p>
+      <Prose value={report.related_note} />
       {strong.length > 0 && (
         <>
           <h4>{L.relatedStrong}</h4>
@@ -213,7 +186,7 @@ function Related({ report }) {
           </ul>
         </details>
       )}
-    </section>
+    </Section>
   );
 }
 
@@ -221,11 +194,8 @@ function EvidenceFacts({ report }) {
   const e = obj(report.evidence_summary);
   const bySource = Object.entries(obj(e.rows_by_source));
   return (
-    <section className="role role-code" aria-labelledby="rep-evidence">
-      <SectionTitle id="rep-evidence" who="code">
-        {L.evidenceTitle}
-      </SectionTitle>
-      <dl className="kv kv-grid">
+    <Section title={L.evidenceTitle} who={<By who="code" />}>
+      <dl className="kv">
         <Field label={L.evidenceWindow}>
           <span className="num">
             {formatTime(e.window_from) || <NA />} → {formatTime(e.window_to) || <NA />}
@@ -237,162 +207,16 @@ function EvidenceFacts({ report }) {
         <Field label={L.evidenceSent}>
           <span className="num">{e.rows_sent_to_llm ?? 0}</span>
         </Field>
-        {!isBlank(report.report_seconds) && <Field label={L.reportSeconds}>{formatSeconds(report.report_seconds)}</Field>}
+        {bySource.length > 0 && (
+          <Field label={L.evidenceBySource}>
+            <span className="num">{bySource.map(([source, n]) => `${source} ${n}`).join(" · ")}</span>
+          </Field>
+        )}
+        {arr(e.truncated_sources).length > 0 && <Field label={L.evidenceTruncated}>{arr(e.truncated_sources).map(asText).join(", ")}</Field>}
+        {arr(e.skipped_pivots).length > 0 && <Field label={L.evidenceSkipped}>{arr(e.skipped_pivots).map(asText).join("; ")}</Field>}
       </dl>
-      {bySource.length > 0 && (
-        <p className="sub num">
-          {L.evidenceBySource}: {bySource.map(([source, n]) => `${source} ${n}`).join(" · ")}
-        </p>
-      )}
-      {arr(e.truncated_sources).length > 0 && (
-        <Notice kind="warn" icon="alert" title={`${L.evidenceTruncated}:`}>
-          {arr(e.truncated_sources).join(", ")}
-        </Notice>
-      )}
-      {arr(e.skipped_pivots).length > 0 && (
-        <p className="sub">
-          {L.evidenceSkipped}: {arr(e.skipped_pivots).map(asText).join("; ")}
-        </p>
-      )}
-      {arr(report.code_notes).length > 0 && (
-        <>
-          <h4>{L.codeNotes}</h4>
-          <List items={report.code_notes} />
-        </>
-      )}
-    </section>
+    </Section>
   );
-}
-
-function ReportView({ row, reportKey, retrieved, onJump }) {
-  const report = obj(row.report);
-  const scope = obj(report.scope);
-  const steps = arr(report.timeline);
-  const found = steps.filter((s) => arr(obj(s).linked_by_alerts).length === 0).length;
-  const confidence = typeof report.confidence === "number" ? Math.round(report.confidence * 100) : null;
-  return (
-    <article className="panel report" aria-labelledby="report-title">
-      <header className="ticket-head">
-        <div className="ticket-head-row">
-          <h2 id="report-title">{L.reportTitle}</h2>
-          <code className="id">{asText(report.incident_id)}</code>
-        </div>
-        {report.fallback && (
-          <Notice kind="warn" icon="alert" title={`${L.reportFallbackTitle}.`}>
-            {L.reportFallbackText}
-          </Notice>
-        )}
-        <p className="ticket-title">
-          <Clip value={report.title} max={240} />
-        </p>
-        <dl className="kv kv-grid">
-          <Field label={L.alertIds}>
-            <Ids ids={report.alert_ids} />
-          </Field>
-          <Field label={L.confidence}>
-            {confidence === null ? <NA /> : <span className="num">{L.confidenceValue(confidence)}</span>} <By who="llm" />
-          </Field>
-          <Field label={L.timelineTitle}>
-            <span className="num">{L.timelineCount(steps.length, found)}</span>
-          </Field>
-        </dl>
-      </header>
-
-      <section className="role role-llm" aria-labelledby="rep-start">
-        <SectionTitle id="rep-start" who="llm">
-          {L.howItStarted}
-        </SectionTitle>
-        <dl className="kv">
-          <Field label={L.patientZero}>
-            <Clip value={report.patient_zero} max={400} />
-          </Field>
-          <Field label={L.initialAccess}>
-            <Clip value={report.initial_access} max={400} />
-          </Field>
-          <Field label={L.rootCause}>
-            <Clip value={report.root_cause} max={400} />
-          </Field>
-        </dl>
-        {!isBlank(report.narrative) && (
-          <>
-            <h4>{L.narrative}</h4>
-            <p className="report-narrative">
-              <Clip value={report.narrative} max={1400} />
-            </p>
-          </>
-        )}
-      </section>
-
-      <section className="role" aria-labelledby="rep-timeline">
-        <div className="role-title">
-          <h3 id="rep-timeline">{L.timelineTitle}</h3>
-          <By who="code" />
-          <By who="llm" />
-        </div>
-        <p className="hint">{L.timelineHelp}</p>
-        <Timeline steps={steps} retrieved={retrieved} onJump={onJump} />
-      </section>
-
-      <section className="role role-llm" aria-labelledby="rep-scope">
-        <SectionTitle id="rep-scope" who="llm">
-          {L.scopeTitle}
-        </SectionTitle>
-        <dl className="kv kv-grid">
-          <Field label={L.affectedUsers}>{arr(scope.users).length ? <Ids ids={scope.users} /> : <NA />}</Field>
-          <Field label={L.affectedHosts}>{arr(scope.hosts).length ? <Ids ids={scope.hosts} /> : <NA />}</Field>
-        </dl>
-        <dl className="kv">
-          <Field label={L.scopeData}>
-            <Clip value={scope.data} max={400} />
-          </Field>
-          <Field label={L.scopeImpact}>
-            <Clip value={scope.business_impact} max={400} />
-          </Field>
-        </dl>
-        <People people={report.people} />
-      </section>
-
-      <ReportContainment reportKey={reportKey} fallback={report.fallback} />
-      <Related report={report} />
-
-      <section className="role role-llm" aria-labelledby="rep-next">
-        <SectionTitle id="rep-next" who="llm">
-          {L.openQuestions}
-        </SectionTitle>
-        <List items={report.open_questions} />
-        <h4>{L.eradication}</h4>
-        <List items={report.eradication_and_recovery} />
-        <h4>{L.notifications}</h4>
-        <List items={report.notifications} />
-        <h4>{L.detectionGaps}</h4>
-        <List items={report.detection_gaps} />
-      </section>
-
-      {arr(report.injection_flags).length > 0 && (
-        <section className="role injection" aria-labelledby="rep-injection">
-          <h3 id="rep-injection">{L.injection}</h3>
-          <p className="hint">{L.injectionHelp}</p>
-          <List
-            items={report.injection_flags}
-            render={(f) => (
-              <>
-                {obj(f).event_id && <code className="id">{asText(obj(f).event_id)}</code>} <Clip value={obj(f).description} max={300} />
-              </>
-            )}
-          />
-        </section>
-      )}
-
-      <EvidenceFacts report={report} />
-    </article>
-  );
-}
-
-function goTo(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.scrollIntoView({ block: "center" });
-  el.focus({ preventScroll: true });
 }
 
 export default function Report({ reportKey, onBack }) {
@@ -400,6 +224,7 @@ export default function Report({ reportKey, onBack }) {
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
   const [targetSeq, setTargetSeq] = useState(null);
+  const [tab, setTab] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -418,17 +243,11 @@ export default function Report({ reportKey, onBack }) {
   const running = Boolean(run && run.status === "running");
   const { events, stream } = useRunEvents(run ? run.run_id : null, load);
   const retrieved = useMemo(() => retrievedBy(events), [events]);
-  const messages = agentMessages(events).filter((e) => e.type === "error");
-
-  useEffect(() => {
-    if (targetSeq === null) return undefined;
-    const timer = setTimeout(() => setTargetSeq(null), 2500);
-    return () => clearTimeout(timer);
-  }, [targetSeq]);
-
+  const errors = agentMessages(events).filter((e) => e.type === "error");
+  // An event ID in the timeline or the flags opens the step of the run that returned it.
   const jump = useCallback((seq) => {
     setTargetSeq(seq);
-    goTo(`step-${seq}`);
+    setTab("activity");
   }, []);
 
   async function start() {
@@ -436,6 +255,7 @@ export default function Report({ reportKey, onBack }) {
     setStarting(true);
     try {
       await api.investigate(reportKey);
+      setTab("activity");
       await load();
     } catch (e) {
       setError(e.message);
@@ -463,10 +283,38 @@ export default function Report({ reportKey, onBack }) {
 
   const subject = obj(data.subject);
   const row = data.report;
+  const ready = Boolean(row && !running);
+  const report = obj(row && row.report);
+  const scope = obj(report.scope);
+  const steps = arr(report.timeline);
+  const found = steps.filter((s) => arr(obj(s).linked_by_alerts).length === 0).length;
+  const confidence = typeof report.confidence === "number" ? Math.round(report.confidence * 100) : null;
+  const flags = arr(report.injection_flags).map(obj);
+  const truncated = arr(obj(report.evidence_summary).truncated_sources);
   const canRun = Boolean(data.subject && subject.escalated);
+  const trace = { retrieved, complete: stream === "ended", onJump: jump };
+
+  // While a run streams, the analyst watches its steps; otherwise the report opens on its summary.
+  const current = tab || (running ? "activity" : "summary");
+  const tabs = [
+    ["summary", L.summary],
+    ["timeline", L.reportTimelineTitle],
+    ["scope", L.reportTabScope],
+    ["containment", L.reportTabContainment],
+    ["next", L.reportTabNext],
+    ["activity", L.activity],
+    ["evidence", L.reportTabEvidence],
+  ];
+  const panel = workspacePanel(current);
+  const pending = (
+    <div className="workspace-empty">
+      <p>{running ? L.reportPending : L.reportNone}</p>
+      {!row && !run && <p className="hint">{L.reportNoneHelp}</p>}
+    </div>
+  );
 
   return (
-    <div className="report-page">
+    <div className="ticket-page triage-page report-page">
       <header className="page-head">
         <div className="page-title">
           {back}
@@ -483,55 +331,228 @@ export default function Report({ reportKey, onBack }) {
         )}
       </header>
       {error && <ErrorBox message={error} onRetry={load} />}
-      <Notice>{L.reportIntro}</Notice>
 
-      <section className="panel" aria-labelledby="subject-title">
-        <h2 id="subject-title">{L.reportSubject}</h2>
-        <dl className="kv kv-grid">
-          <Field label={subject.kind === "ticket" ? L.reportForTicket : L.reportForIncident}>
-            {subject.title ? <Clip value={subject.title} max={160} /> : <NA />}
-          </Field>
-          <Field label={L.alertIds}>{arr(subject.alert_ids).length ? <Ids ids={subject.alert_ids} /> : <NA />}</Field>
-          {run && (
-            <Field label={L.colState}>
-              <span className={`state state-${run.status}`}>{RUN_STATUS[run.status] || asText(run.status)}</span>{" "}
-              <span className="muted num">{formatSeconds(run.duration_seconds)}</span>
-            </Field>
-          )}
-        </dl>
-        {data.subject && <p className="hint">{L.reportLeads(subject.leads || 0)}</p>}
-        {!row && !run && <p className="hint">{L.reportNoneHelp}</p>}
+      <section className="panel bar" aria-label={L.reportSubject}>
+        <div className="bar-body">
+          <dl className="facts">
+            <Fact label={subject.kind === "ticket" ? L.reportForTicket : L.reportForIncident}>
+              <strong>{asText(subject.title) || L.na}</strong>
+            </Fact>
+            <Fact label={L.reportAlerts}>
+              <span className="num">{arr(subject.alert_ids).length}</span>
+            </Fact>
+            <Fact label={L.colState}>
+              {run ? (
+                <span className={`state state-${run.status}`}>
+                  {RUN_STATUS[run.status] || asText(run.status)}
+                  {run.duration_seconds != null && <span className="muted num"> · {formatSeconds(run.duration_seconds)}</span>}
+                </span>
+              ) : (
+                <span className="state state-none">{L.reportNone}</span>
+              )}
+            </Fact>
+            {ready && (
+              <Fact label={L.confidence}>
+                {confidence === null ? <NA /> : <span className="num">{L.confidenceValue(confidence)}</span>}
+              </Fact>
+            )}
+            {ready && (
+              <Fact label={L.reportTimelineTitle}>
+                <span className="num">{L.timelineCount(steps.length, found)}</span>
+              </Fact>
+            )}
+          </dl>
+        </div>
       </section>
 
-      {run && run.status === "failed" && (
-        <Notice kind="error" role="alert" icon="alert" title={`${L.reportFailedTitle}:`}>
-          <Clip value={run.error} max={300} />
-        </Notice>
-      )}
-      {messages.length > 0 && (
-        <Notice kind="warn" title={`${L.agentErrors}:`}>
-          <ul className="list">
-            {messages.map((e) => (
-              <li key={e.seq}>
-                <span className={`step-type type-${e.type}`}>{EVENT_TYPE[e.type]}</span> <Clip value={e.summary} max={240} />
-              </li>
-            ))}
-          </ul>
-        </Notice>
-      )}
-
-      <div className="ticket-layout">
-        {run && <Steps events={events} running={running} stream={stream} live={running} targetSeq={targetSeq} />}
-        {running && (
-          <section className="panel ticket-pending" aria-labelledby="report-pending">
-            <h2 id="report-pending">{L.reportTitle}</h2>
-            <p className="hint">{L.reportPending}</p>
-            <Skeleton rows={6} cols={3} label={L.reportPending} />
-          </section>
+      <div className="triage-notices">
+        {run && run.status === "failed" && (
+          <p className="compact-notice" role="alert">
+            <strong>{L.reportFailedTitle}</strong> {asText(run.error)}
+          </p>
         )}
-        {!running && row && <ReportView row={row} reportKey={reportKey} retrieved={retrieved} onJump={jump} />}
-        {!running && !row && !run && <Notice>{L.reportNone}</Notice>}
+        {ready && report.fallback && (
+          <p className="compact-notice" role="status">
+            <strong>{L.reportFallbackTitle}</strong> {L.reportFallbackText}
+          </p>
+        )}
+        {errors.length > 0 && (
+          <p className="compact-notice" role="status">
+            <strong>{L.agentErrors}</strong>
+            <button type="button" className="link-btn" onClick={() => jump(errors[0].seq)}>
+              {L.seeStep(errors[0].seq)}
+            </button>
+          </p>
+        )}
+        {ready && flags.length > 0 && (
+          <p className="compact-notice">
+            <strong>{L.barInjections(flags.length)}</strong>
+            <button type="button" className="link-btn" onClick={() => setTab("evidence")}>
+              {L.reviewNotices}
+            </button>
+          </p>
+        )}
+        {ready && truncated.length > 0 && (
+          <p className="compact-notice">
+            <strong>{L.evidenceTruncated}</strong> {truncated.map(asText).join(", ")}
+            <button type="button" className="link-btn" onClick={() => setTab("evidence")}>
+              {L.reportTabEvidence}
+            </button>
+          </p>
+        )}
       </div>
+
+      <Workspace tabs={tabs} current={current} onTab={setTab} label={L.reportTabs}>
+        {panel(
+          "summary",
+          ready ? (
+            <>
+              <div className="workspace-alert">
+                <h2>{asText(report.title) || L.reportTitle}</h2>
+              </div>
+              <div className="analysis-layout">
+                <div className="analysis-body">
+                  <Section title={L.howItStarted} who={<By who="llm" />}>
+                    <dl className="kv">
+                      <Field label={L.patientZero}>
+                        <Prose value={report.patient_zero} />
+                      </Field>
+                      <Field label={L.initialAccess}>
+                        <Prose value={report.initial_access} />
+                      </Field>
+                      <Field label={L.rootCause}>
+                        <Prose value={report.root_cause} />
+                      </Field>
+                    </dl>
+                  </Section>
+                  {!isBlank(report.narrative) && (
+                    <Section title={L.narrative} who={<By who="llm" />}>
+                      <Prose value={report.narrative} />
+                    </Section>
+                  )}
+                </div>
+                <aside className="analysis-facts" aria-label={L.details}>
+                  <dl className="kv reading-metadata">
+                    <Field label={L.reportForIncident}>
+                      <code className="id">{asText(report.incident_id) || L.na}</code>
+                    </Field>
+                    <Field label={L.reportAlerts}>
+                      <Ids ids={report.alert_ids} />
+                    </Field>
+                    <Field label={L.confidence}>
+                      {confidence === null ? <NA /> : <span className="num">{L.confidenceValue(confidence)}</span>} <By who="llm" />
+                    </Field>
+                    {!isBlank(report.report_seconds) && <Field label={L.reportSeconds}>{formatSeconds(report.report_seconds)}</Field>}
+                    {data.subject && <Field label={L.reportSubject}>{L.reportLeads(subject.leads || 0)}</Field>}
+                  </dl>
+                </aside>
+              </div>
+            </>
+          ) : (
+            pending
+          ),
+        )}
+        {panel(
+          "timeline",
+          ready ? (
+            <Section
+              title={L.reportTimelineTitle}
+              who={
+                <>
+                  <By who="code" />
+                  <By who="llm" />
+                </>
+              }
+            >
+              <p className="hint">{L.timelineHelp}</p>
+              <Timeline steps={steps} retrieved={retrieved} onJump={jump} />
+            </Section>
+          ) : (
+            pending
+          ),
+        )}
+        {panel(
+          "scope",
+          ready ? (
+            <>
+              <Section title={L.scopeTitle} who={<By who="llm" />}>
+                <dl className="kv">
+                  <Field label={L.affectedUsers}>{arr(scope.users).length ? <Ids ids={scope.users} /> : <NA />}</Field>
+                  <Field label={L.affectedHosts}>{arr(scope.hosts).length ? <Ids ids={scope.hosts} /> : <NA />}</Field>
+                  <Field label={L.scopeData}>
+                    <Prose value={scope.data} />
+                  </Field>
+                  <Field label={L.scopeImpact}>
+                    <Prose value={scope.business_impact} />
+                  </Field>
+                </dl>
+              </Section>
+              <People people={report.people} />
+              <Related report={report} />
+            </>
+          ) : (
+            pending
+          ),
+        )}
+        {panel(
+          "containment",
+          ready ? (
+            report.fallback ? (
+              <Section title={L.containmentTitle}>
+                <None />
+              </Section>
+            ) : (
+              // The same approvals as a ticket's: a person approves each role, then runs the action once
+              <Containment key={row.run_id} reportKey={reportKey} />
+            )
+          ) : (
+            pending
+          ),
+        )}
+        {panel(
+          "next",
+          ready ? (
+            <>
+              <Section title={L.openQuestions} who={<By who="llm" />}>
+                <TextList items={arr(report.open_questions)} />
+              </Section>
+              <Section title={L.eradication} who={<By who="llm" />}>
+                <TextList items={arr(report.eradication_and_recovery)} />
+              </Section>
+              <Section title={L.notifications} who={<By who="llm" />}>
+                <TextList items={arr(report.notifications)} />
+              </Section>
+              <Section title={L.detectionGaps} who={<By who="llm" />}>
+                <TextList items={arr(report.detection_gaps)} />
+              </Section>
+            </>
+          ) : (
+            pending
+          ),
+        )}
+        {panel("activity", <Steps events={events} running={running} stream={stream} live={running} targetSeq={targetSeq} active={current === "activity"} />)}
+        {panel(
+          "evidence",
+          <>
+            <p className="hint">{L.reportIntro}</p>
+            {ready && (
+              <>
+                {flags.length > 0 && (
+                  <Section title={L.notes}>
+                    <InjectionFlags continuous flags={flags} trace={trace} />
+                  </Section>
+                )}
+                <EvidenceFacts report={report} />
+                {arr(report.code_notes).length > 0 && (
+                  <Section title={L.codeNotes} who={<By who="code" />}>
+                    <TextList items={arr(report.code_notes)} />
+                  </Section>
+                )}
+              </>
+            )}
+          </>,
+        )}
+      </Workspace>
     </div>
   );
 }

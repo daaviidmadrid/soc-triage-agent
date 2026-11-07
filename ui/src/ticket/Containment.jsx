@@ -3,7 +3,7 @@
 // Only these buttons, after every required person has approved, reach the mock API's /approvals and /containment.
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, formatTime } from "../components.jsx";
+import { Chip, ErrorBox, asText, formatTime } from "../components.jsx";
 import Icon from "../icons.jsx";
 import { ACTION_NAME, CONTAINMENT_STATUS, L } from "../labels.js";
 
@@ -158,9 +158,7 @@ function ProposalCard({ proposal, onChange }) {
             <dt>
               <Chip kind="llm">{L.tagLlm}</Chip> {L.fromSuggestion}
             </dt>
-            <dd>
-              <Clip value={proposal.suggestion} max={200} />
-            </dd>
+            <dd className="prose">{asText(proposal.suggestion)}</dd>
           </>
         )}
       </dl>
@@ -236,7 +234,7 @@ function Log({ entries, ticketId }) {
 
 // For a ticket, pass ticketRow. For an incident report (level 3), pass reportKey: its proposed steps go through
 // the same approvals, checked again by the backend with the same policy rules.
-export default function Containment({ ticketRow, reportKey, headingLevel = 4 }) {
+export default function Containment({ ticketRow, reportKey, headingLevel = 3 }) {
   const [data, setData] = useState(null);
   const [log, setLog] = useState([]);
   const [error, setError] = useState(null);
@@ -261,7 +259,7 @@ export default function Containment({ ticketRow, reportKey, headingLevel = 4 }) 
   }, [load]);
 
   return (
-    <section className="containment" aria-labelledby="containment-title">
+    <section className="reading-section containment" id="sec-proposal" aria-labelledby="containment-title">
       <Heading id="containment-title">{L.containmentTitle}</Heading>
       <p className="hint">{L.containmentHelp}</p>
       {error && <ErrorBox message={error} onRetry={load} />}
@@ -279,7 +277,7 @@ export default function Containment({ ticketRow, reportKey, headingLevel = 4 }) 
           <ul className="list">
             {data.not_proposed.map((item, i) => (
               <li key={i}>
-                <Clip value={item.suggestion} max={160} /> <span className="muted">— {item.reason}</span>
+                <span className="prose">{asText(item.suggestion)}</span> <span className="muted">— {item.reason}</span>
               </li>
             ))}
           </ul>
