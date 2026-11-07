@@ -50,5 +50,8 @@ export const api = {
   rejectAction: (id, body) => request("POST", `/api/containment/${encodeURIComponent(id)}/reject`, JSON.stringify(body)),
   executeAction: (id) => request("POST", `/api/containment/${encodeURIComponent(id)}/execute`, JSON.stringify({})),
   containmentLog: () => request("GET", "/api/containment/log"),
+  report: (key) => request("GET", `/api/reports/${encodeURIComponent(key)}`),
+  investigate: (key) => request("POST", `/api/reports/${encodeURIComponent(key)}`),
+  reportContainment: (key) => request("GET", `/api/reports/${encodeURIComponent(key)}/containment`),
   eventsUrl: (runId) => `/api/runs/${encodeURIComponent(runId)}/events`,
 };

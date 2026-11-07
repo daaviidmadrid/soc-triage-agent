@@ -1819,3 +1819,152 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+.incident-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Incident report (level 3). The timeline reads top to bottom by event time; a dot marks each step,
+   and steps only the investigation found get the accent so they stand out from what alerts linked. */
+.step-report_ready {
+  --dot: var(--ok);
+}
+.type-report_ready {
+  color: var(--ok);
+}
+.chip-found {
+  color: var(--accent);
+}
+.report > .role {
+  margin-top: var(--s4);
+}
+.report > .role-person {
+  margin-top: var(--s4);
+}
+.report-narrative {
+  margin: 0;
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+.timeline {
+  margin-top: var(--s3);
+}
+.tl-day + .tl-day {
+  margin-top: var(--s4);
+}
+.tl-date {
+  margin: 0 0 var(--s2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl-step {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--s3);
+  position: relative;
+  padding: var(--s2) 0 var(--s3);
+}
+/* The line joins the steps; the dot sits on it, at the start of each step. */
+.tl-step::before {
+  content: "";
+  position: absolute;
+  left: 118px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.tl-step::after {
+  content: "";
+  position: absolute;
+  left: 114px;
+  top: 14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--text-3);
+}
+.tl-step.is-found::after {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.tl-time {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  padding-top: var(--s1);
+}
+.tl-time .muted {
+  font-size: var(--fs-xs);
+}
+.tl-body {
+  min-width: 0;
+  padding-left: var(--s4);
+}
+.tl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+}
+.tl-source {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+.tl-linked {
+  font-size: var(--fs-xs);
+}
+.tl-desc {
+  margin: var(--s1) 0 0;
+  max-width: 80ch;
+  text-wrap: pretty;
+}
+.tl-similar {
+  margin-top: var(--s1);
+  font-size: var(--fs-sm);
+}
+.tl-similar summary,
+.disclosure-inline summary {
+  cursor: pointer;
+  color: var(--accent);
+  width: fit-content;
+}
+.tl-similar .ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-top: var(--s1);
+}
+.disclosure-inline {
+  margin-top: var(--s3);
+}
+@media (max-width: 600px) {
+  .tl-step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s1);
+    padding-left: var(--s4);
+  }
+  .tl-step::before {
+    left: 4px;
+  }
+  .tl-step::after {
+    left: 0;
+    top: 12px;
+  }
+  .tl-time {
+    flex-direction: row;
+    gap: var(--s2);
+  }
+  .tl-body {
+    padding-left: 0;
+  }
+}

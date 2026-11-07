@@ -9,45 +9,10 @@ import Icon from "../icons.jsx";
 import DecisionBar from "../ticket/DecisionBar.jsx";
 import Steps from "../ticket/Steps.jsx";
 import TicketView from "../ticket/TicketView.jsx";
+import { useRunEvents } from "../useRunEvents.js";
 
 // How long a jumped-to step stays highlighted.
 const HIGHLIGHT_MS = 2500;
-
-// Live steps. The server replays every stored event first, so a reload shows the whole run again.
-function useRunEvents(runId, onEnd) {
-  const [events, setEvents] = useState([]);
-  const [stream, setStream] = useState("idle");
-
-  useEffect(() => {
-    if (!runId) return undefined;
-    setEvents([]);
-    setStream("connecting");
-    const source = new EventSource(api.eventsUrl(runId));
-    source.onopen = () => setStream("live");
-    source.addEventListener("trace", (message) => {
-      let event;
-      try {
-        event = JSON.parse(message.data);
-      } catch {
-        return;
-      }
-      if (!event || typeof event !== "object") return;
-      setStream("live");
-      setEvents((prev) => (prev.some((p) => p.seq === event.seq) ? prev : [...prev, event].sort((a, b) => a.seq - b.seq)));
-    });
-    source.addEventListener("end", () => {
-      source.close();
-      setStream("ended");
-      onEnd();
-    });
-    source.onerror = () => {
-      if (source.readyState !== EventSource.CLOSED) setStream("lost");
-    };
-    return () => source.close();
-  }, [runId, onEnd]);
-
-  return { events, stream };
-}
 
 function AlertSummary({ alert, run }) {
   return (
@@ -162,7 +127,7 @@ function goTo(id, block = "start") {
   el.focus({ preventScroll: true });
 }
 
-export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents }) {
+export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents, onOpenReport }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
@@ -339,6 +304,19 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents 
           {L.partOfIncident(detail.incident_id)}{" "}
           <button type="button" className="btn btn-sm notice-action" onClick={onIncidents}>
             {L.viewIncidents}
+          </button>
+          {detail.report_key && (
+            <button type="button" className="btn btn-sm notice-action" onClick={() => onOpenReport(detail.report_key)}>
+              {L.reportFromIncident}
+            </button>
+          )}
+        </Notice>
+      )}
+      {!detail.incident_id && detail.report_key && !running && (
+        <Notice role="status">
+          {L.reportForTicket}.{" "}
+          <button type="button" className="btn btn-sm notice-action" onClick={() => onOpenReport(detail.report_key)}>
+            {L.reportFromTicket}
           </button>
         </Notice>
       )}
