@@ -494,3 +494,50 @@ def test_db_file_is_created_where_asked(tmp_path):
     create_app(db_path=db, sample_path=write_jsonl(tmp_path / "s.jsonl", SAMPLE))
     assert db.exists()
     assert Path(__file__).resolve().parents[1].joinpath("runs", "app.sqlite3") != db
+
+
+# Incidents (level 2)
+
+GROUPABLE = [
+    {"alert_id": "ALR-GRP-1", "created_at": "2026-10-07T07:44:52.000Z", "rule_id": "UC-IDP-004", "severity": "high",
+     "entities": {"users": [{"upn": "zz-grp@tarvia.example", "display_name": "Misma Persona"}], "ips": ["203.0.113.77"]}},
+    {"alert_id": "ALR-GRP-2", "created_at": "2026-10-07T08:03:49.000Z", "rule_id": "UC-IDP-005", "severity": "high",
+     "entities": {"users": [{"upn": "zz-grp@tarvia.example", "display_name": "Misma Persona"}], "ips": ["203.0.113.77"]}},
+    {"alert_id": "ALR-GRP-3", "created_at": "2026-10-07T09:00:00.000Z", "rule_id": "UC-IDP-004", "severity": "high",
+     "entities": {"users": [{"upn": "zz-other@tarvia.example", "display_name": "Misma Persona"}]}},
+]
+
+
+def escalating_runner(alert, mode=None):
+    alert_id = alert["alert_id"]
+    yield {"type": "started", "summary": "x"}
+    yield {"type": "ticket_ready", "summary": "x", "ticket": {
+        "ticket_id": f"TKT-{alert_id}", "alert_ids": [alert_id], "title": "t", "verdict": "true_positive", "confidence": 0.9,
+        "severity": "high", "summary": "s", "evidence": [], "recommended_actions": [],
+        "escalation": {"escalate": True, "to": "N2", "reason": "r"}}}
+
+
+def test_incidents_group_triaged_alerts_and_keep_the_reasons(tmp_path):
+    with make_client(tmp_path, run_fn=escalating_runner, rows=GROUPABLE) as c:
+        empty = c.get("/api/incidents").json()
+        assert empty["built_at"] is None and empty["incidents"] == []
+        for row in GROUPABLE:
+            c.post(f"/api/triage/{row['alert_id']}")
+            wait_for_run(c, row["alert_id"])
+        assert c.get("/api/incidents").json()["stale"] is True
+        built = c.post("/api/incidents/build").json()
+        assert built["alerts"] == 3 and built["incidents"] == 1 and built["grouped_alerts"] == 2
+        data = c.get("/api/incidents").json()
+        incident = data["incidents"][0]
+        assert incident["ticket"]["alert_ids"] == ["ALR-GRP-1", "ALR-GRP-2"] and data["stale"] is False
+        reasons = incident["ticket"]["group_links"][0]["reasons"]
+        assert "misma cuenta (zz-grp@tarvia.example)" in reasons and "misma IP externa (203.0.113.77)" in reasons
+        queue = {row["alert_id"]: row["incident_id"] for row in c.get("/api/queue").json()["alerts"]}
+        assert queue == {"ALR-GRP-1": incident["incident_id"], "ALR-GRP-2": incident["incident_id"], "ALR-GRP-3": None}
+        assert c.get("/api/alerts/ALR-GRP-2").json()["incident_id"] == incident["incident_id"]
+
+
+def test_building_incidents_needs_the_ui_header(tmp_path):
+    with TestClient(create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "s.jsonl", SAMPLE))) as c:
+        assert c.post("/api/incidents/build").status_code == 403
+        assert c.get("/api/incidents").status_code == 200

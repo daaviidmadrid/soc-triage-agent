@@ -1696,3 +1696,50 @@ kbd {
     animation: none;
   }
 }
+
+/* Incidents (level 2) */
+.view-switch {
+  display: inline-flex;
+  gap: 0;
+}
+.view-switch .btn {
+  border-radius: 0;
+}
+.view-switch .btn:first-child {
+  border-radius: var(--r1) 0 0 var(--r1);
+}
+.view-switch .btn:last-child {
+  border-radius: 0 var(--r1) var(--r1) 0;
+  margin-left: -1px;
+}
+.view-switch .btn[aria-pressed="true"] {
+  background: var(--surface);
+  border-color: var(--text);
+  cursor: default;
+}
+.incident-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+.incident-head h2 {
+  margin: 0;
+}
+.incident-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s2) 0;
+}
+.incident h3 {
+  margin: var(--s4) 0 var(--s2);
+}
+.incident-summary {
+  margin: var(--s2) 0;
+}
+.links li {
+  overflow-wrap: anywhere;
+}

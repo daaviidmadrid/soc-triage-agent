@@ -95,8 +95,16 @@ class AuthorisedBy(BaseModel):
     id: str
 
 
+class GroupLink(BaseModel):
+    """Why an alert joined an incident: the alert it shares something with, and what they share."""
+
+    alert_id: str
+    linked_to: str
+    reasons: list[str]
+
+
 class Ticket(BaseModel):
-    """Follows data/01_contexto/ticket_salida.schema.json. The last four fields are our additions."""
+    """Follows data/01_contexto/ticket_salida.schema.json. The last five fields are our additions."""
 
     ticket_id: str
     alert_ids: list[str]
@@ -119,6 +127,7 @@ class Ticket(BaseModel):
     injection_flags: list[InjectionFlag] = Field(default_factory=list)
     authorised_by: AuthorisedBy | None = None
     merged_into: str | None = None
+    group_links: list[GroupLink] = Field(default_factory=list)
 
 
 class TraceEvent(BaseModel):
