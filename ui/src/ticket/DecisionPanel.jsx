@@ -1,9 +1,10 @@
-// Where the person steps in: the close-or-escalate decision, its history, and the actions waiting for approval.
-// Nothing here runs containment. The mock API's /approvals and /containment are never called.
+// Where the person steps in: the close-or-escalate decision, its history, and the containment a person approves.
+// Containment runs only from the approval screen in Containment.jsx, after every required person has approved.
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import { Chip, Clip, ErrorBox, List, None, arr, asText, formatTime, isBlank, obj } from "../components.jsx";
 import Icon from "../icons.jsx";
+import Containment from "./Containment.jsx";
 import { DECISION, L, OUTCOME } from "../labels.js";
 
 const ANALYST_KEY = "tarvia.analyst";
@@ -215,17 +216,7 @@ export default function DecisionPanel({ ticketRow, current, onNext, next, decisi
       <h4>{L.decisionsHistory}</h4>
       <History decisions={decisions} runId={ticketRow.run_id} />
 
-      <h4>{L.actionsWaiting}</h4>
-      <p className="hint">{L.actionsWaitingHelp}</p>
-      {waiting.length === 0 ? (
-        <None />
-      ) : (
-        <ul className="actions-list">
-          {waiting.map((a, i) => (
-            <ActionItem key={i} action={a} waiting />
-          ))}
-        </ul>
-      )}
+      <Containment ticketRow={ticketRow} />
 
       {others.length > 0 && (
         <>
@@ -238,8 +229,6 @@ export default function DecisionPanel({ ticketRow, current, onNext, next, decisi
         </>
       )}
 
-      <h4>{L.executedActions}</h4>
-      {arr(executed).length === 0 ? <p className="muted">{L.noneExecuted}</p> : <List items={arr(executed)} />}
     </>
   );
 }

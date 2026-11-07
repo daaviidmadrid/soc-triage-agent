@@ -21,7 +21,10 @@ from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
 from src.agent.correlate import correlate
 from src.app.store import Store, now_iso
+from src.policy.containment import ApprovalProblem, approve, approver_record, propose, ready_to_run
+from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
+from contracts.models import ActionProposal
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "runs" / "app.sqlite3"
@@ -50,6 +53,16 @@ def _text(value):
 
 def _severity(value):
     return value if value in SEVERITIES else None
+
+
+class ApproveIn(BaseModel):
+    role: str = Field(min_length=1, max_length=200)
+    approver: str = Field(min_length=1, max_length=100)
+
+
+class RejectIn(BaseModel):
+    approver: str = Field(min_length=1, max_length=100)
+    reason: str = Field(default="", max_length=1000)
 
 
 class DecisionIn(BaseModel):
@@ -190,6 +203,92 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
             "decisions": store.decisions_for(ticket_row["ticket_id"]) if ticket_row else [],
             "incident_id": memberships().get(alert_id),
         }
+
+    # Containment (level 4). The LLM's suggestions become proposals by plain code. Only these routes, called by a
+    # person's click in the UI, ever reach the mock's /approvals and /containment, and only after every role approved.
+    containment_lock = threading.Lock()
+
+    def mock_problem(error):
+        if isinstance(error, api_client.APIError):
+            return f"La API simulada respondió {error.status}: {error.detail}"
+        return f"La API simulada no responde ({type(error).__name__})."
+
+    def load_proposal(proposal_id):
+        stored = store.get_proposal(proposal_id)
+        if not stored:
+            raise HTTPException(404, "Propuesta no encontrada.")
+        return ActionProposal.model_validate(stored)
+
+    @app.get("/api/tickets/{ticket_id}/containment")
+    def containment(ticket_id: str, run_id: str | None = None):
+        row = store.ticket_version(ticket_id, run_id) if run_id else store.get_ticket(ticket_id)
+        if not row:
+            raise HTTPException(404, "Ticket no encontrado.")
+        alert_row = store.get_alert(row["alert_id"])
+        try:
+            built, not_proposed = propose(row["ticket"], alert_row["alert"] if alert_row else {}, api_client.get_asset, api_client.get_user, run_id=row["run_id"])
+        except Exception as error:  # the mock API is down or answered oddly
+            raise HTTPException(503, mock_problem(error)) from None
+        with containment_lock:
+            saved = store.proposals_for_run(row["run_id"])
+            proposals = []
+            for proposal in built:
+                if proposal.proposal_id not in saved:
+                    store.save_proposal(proposal.model_dump(mode="json"))
+                proposals.append(saved.get(proposal.proposal_id) or proposal.model_dump(mode="json"))
+        return {"ticket_id": ticket_id, "run_id": row["run_id"], "proposals": proposals, "not_proposed": not_proposed}
+
+    @app.post("/api/containment/{proposal_id}/approve")
+    def approve_proposal(proposal_id: str, body: ApproveIn):
+        with containment_lock:
+            proposal = load_proposal(proposal_id)
+            try:
+                approve(proposal, body.role, body.approver, now_iso())
+            except ApprovalProblem as problem:
+                raise HTTPException(400, str(problem)) from None
+            store.save_proposal(proposal.model_dump(mode="json"))
+        return proposal.model_dump(mode="json")
+
+    @app.post("/api/containment/{proposal_id}/reject")
+    def reject_proposal(proposal_id: str, body: RejectIn):
+        with containment_lock:
+            proposal = load_proposal(proposal_id)
+            if proposal.status == "executed":
+                raise HTTPException(409, "Esta acción ya se ejecutó.")
+            proposal.status, proposal.decided_by, proposal.error = "rejected", body.approver.strip(), body.reason.strip()
+            store.save_proposal(proposal.model_dump(mode="json"))
+        return proposal.model_dump(mode="json")
+
+    @app.post("/api/containment/{proposal_id}/execute")
+    def execute_proposal(proposal_id: str):
+        """Runs one approved action against the mock, once. The lock stops two clicks from running it twice."""
+        with containment_lock:
+            proposal = load_proposal(proposal_id)
+            try:
+                ready_to_run(proposal)
+            except ApprovalProblem as problem:
+                raise HTTPException(409, str(problem)) from None
+            reason = proposal.justification or proposal.suggestion
+            try:
+                approval = api_client.request_approval(proposal.action, proposal.target, approver_record(proposal), reason)
+                record = api_client.run_containment(proposal.action, proposal.target, reason, approval["approval_token"], proposal.ticket_id)
+            except api_client.ContainmentRefused as refused:
+                proposal.status, proposal.error = "refused", str(refused)
+            except Exception as error:
+                proposal.status, proposal.error = "refused", mock_problem(error)
+            else:
+                proposal.status, proposal.result = "executed", record
+            store.save_proposal(proposal.model_dump(mode="json"))
+        if proposal.status != "executed":
+            raise HTTPException(409, f"La acción no se ejecutó: {proposal.error}")
+        return proposal.model_dump(mode="json")
+
+    @app.get("/api/containment/log")
+    def containment_log():
+        try:
+            return {"entries": api_client.get_containment_log()}
+        except Exception as error:
+            raise HTTPException(503, mock_problem(error)) from None
 
     @app.post("/api/incidents/build")
     def build_incidents():
