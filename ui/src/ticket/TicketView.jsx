@@ -84,7 +84,7 @@ function Header({ ticketRow, ticket, example }) {
   );
 }
 
-function InjectionFlags({ flags, trace }) {
+function InjectionFlags({ flags, trace, continuous = false }) {
   if (flags.length === 0) return null;
   return (
     <section className="injection" aria-labelledby="injection-title" role="note">
@@ -96,7 +96,7 @@ function InjectionFlags({ flags, trace }) {
       <ul className="list">
         {flags.map((f, i) => (
           <li key={i}>
-            {!isBlank(f.event_id) && <EventRef id={f.event_id} trace={trace} />} <Clip value={f.description} max={300} />
+            {!isBlank(f.event_id) && <EventRef id={f.event_id} trace={trace} />} {continuous ? <span className="prose">{asText(f.description)}</span> : <Clip value={f.description} max={300} />}
           </li>
         ))}
       </ul>
@@ -128,7 +128,7 @@ function Affected({ affected }) {
 
 // Evidence as stacked rows: source and event on one line, the finding below at the column's full width.
 // (A three-column table squeezed the finding into a sliver in the narrow LLM column.)
-function EvidenceList({ evidence, trace }) {
+function EvidenceList({ evidence, trace, continuous = false }) {
   if (evidence.length === 0) return <None />;
   return (
     <ul className="rows-list">
@@ -142,7 +142,7 @@ function EvidenceList({ evidence, trace }) {
           </div>
           <div className="rows-body">
             <span className="visually-hidden">{L.evidenceFinding}: </span>
-            <Clip value={ev.finding} max={200} />
+            {continuous ? <p className="prose">{asText(ev.finding) || L.na}</p> : <Clip value={ev.finding} max={200} />}
           </div>
         </li>
       ))}
@@ -150,7 +150,7 @@ function EvidenceList({ evidence, trace }) {
   );
 }
 
-function EnrichmentList({ enrichment }) {
+function EnrichmentList({ enrichment, continuous = false }) {
   if (enrichment.length === 0) return <None />;
   return (
     <>
@@ -165,7 +165,7 @@ function EnrichmentList({ enrichment }) {
             </div>
             <div className="rows-body">
               <span className="visually-hidden">{L.enrichResult}: </span>
-              <Clip value={en.result} max={160} />
+              {continuous ? <p className="prose">{asText(en.result) || L.na}</p> : <Clip value={en.result} max={160} />}
             </div>
           </li>
         ))}
@@ -175,27 +175,24 @@ function EnrichmentList({ enrichment }) {
   );
 }
 
-function RoleHeading({ kind, tag, title, help }) {
+function RoleHeading({ title }) {
   return (
     <>
-      <h3 className="role-title">
-        <Chip kind={kind}>{tag}</Chip> {title}
-      </h3>
-      <p className="hint">{help}</p>
+      <h3 className="role-title">{title}</h3>
     </>
   );
 }
 
 // A ticket a fixed rule closed: which rule, every condition that held, and the events it relied on.
-function RuleClosure({ rule, trace }) {
+function RuleClosure({ rule, trace, continuous = false }) {
   return (
     <>
       <Field label={L.ruleName}>
-        <Chip kind="code">{L.closedByRuleId(asText(rule.rule_id))}</Chip> <Clip value={rule.name} max={120} />{" "}
+        <Chip kind="code">{L.closedByRuleId(asText(rule.rule_id))}</Chip> {continuous ? asText(rule.name) : <Clip value={rule.name} max={120} />}{" "}
         {!isBlank(rule.detection_rule) && <code className="id">{asText(rule.detection_rule)}</code>}
       </Field>
       <Field label={L.ruleConditions}>
-        <List items={arr(rule.conditions)} />
+        {continuous ? <ul className="list">{arr(rule.conditions).map((c, i) => <li key={i} className="prose">{asText(c)}</li>)}</ul> : <List items={arr(rule.conditions)} />}
       </Field>
       <Field label={L.ruleEvents}>
         {arr(rule.event_ids).length ? (
@@ -319,3 +316,5 @@ export default function TicketView({ ticketRow, run, decision: personDecision, d
     </section>
   );
 }
+
+export { Affected, EventRef, splitActions, EvidenceList, EnrichmentList, InjectionFlags, RuleClosure };

@@ -158,14 +158,21 @@ def _use_streaming():
     return os.environ.get("LLM_STREAM", "true").strip().lower() != "false"
 
 
-def _extra_options():
+def _thinking_on(thinking=None):
+    """An explicit True or False from the caller wins. Otherwise LLM_ENABLE_THINKING=false turns reasoning off."""
+    if thinking is not None:
+        return bool(thinking)
+    return os.environ.get("LLM_ENABLE_THINKING", "").strip().lower() != "false"
+
+
+def _extra_options(thinking=None):
     """Streaming is on by default because the UAB's server cuts a silent connection after 60 s, and a model
     reasons silently for minutes. LLM_STREAM=false turns it off. LLM_ENABLE_THINKING=false turns off reasoning
-    on models that support it, such as the UAB's ornith."""
+    on models that support it, such as the UAB's ornith; a caller can pass thinking=True to keep it on for one call."""
     options = {}
     if _use_streaming():
         options.update(stream=True, stream_options={"include_usage": True})
-    if os.environ.get("LLM_ENABLE_THINKING", "").strip().lower() == "false":
+    if not _thinking_on(thinking):
         options["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
     return options
 
@@ -190,13 +197,15 @@ def _read_stream(stream, model, attempts):
     return _read_response(SimpleNamespace(choices=[answer] if choices else [], usage=usage), model, attempts)
 
 
-def complete(system: str, user: str, client=None, sleep=time.sleep) -> LLMResult:
-    """Asks for a JSON answer. Retries, then falls back to the backup model."""
+def complete(system: str, user: str, client=None, sleep=time.sleep, thinking=None) -> LLMResult:
+    """Asks for a JSON answer. Retries, then falls back to the backup model.
+
+    thinking=None follows LLM_ENABLE_THINKING; True or False overrides it for this call only."""
     client = client or _make_client()
     attempts = 0
     last_failure = "no attempt made"
     models = _models()
-    extra = _extra_options()
+    extra = _extra_options(thinking)
     for model in models:
         if _exhausted.get(model, 0) > time.monotonic():
             continue

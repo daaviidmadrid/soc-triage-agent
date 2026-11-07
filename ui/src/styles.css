@@ -1,53 +1,79 @@
-/* Tarvia triage console. Plain CSS, no library.
+/* Tarvia security operations. Blue identity, neutral surfaces, red severity scale.
    Standards: dense and calm; one spacing and radius scale; text as well as colour for meaning;
    motion only for feedback and new information, under 300ms, transform and opacity only. */
 
 /* 1. Tokens */
 :root {
-  color-scheme: dark;
+  /* Blue identity. Legacy token names are retained for component compatibility. */
+  --deloitte-green: #758BFD;
+  --deloitte-black: #08022C;
+  --deloitte-gray: #27187E;
+  --deloitte-white: #F1F2F6;
+  --deloitte-border: #AEB8FE;
+  --deloitte-navy: #08022C;
+  --deloitte-blue: #758BFD;
+  --deloitte-sky: #AEB8FE;
+
+  color-scheme: light;
 
   /* Neutrals */
-  --bg: #0d1117;
-  --surface: #141a22;
-  --surface-2: #1a212b;
-  --line: #262f3b;
-  --line-strong: #36414f;
-  --text: #e4e9ef;
-  --text-2: #b3bdc9;
-  --text-3: #9ea8b5;
+  --bg: var(--deloitte-white);
+  --surface: var(--deloitte-white);
+  --surface-2: var(--deloitte-white);
+  --line: color-mix(in srgb, var(--deloitte-gray) 16%, var(--deloitte-white));
+  --line-strong: color-mix(in srgb, var(--deloitte-gray) 42%, var(--deloitte-white));
+  --text: var(--deloitte-gray);
+  --text-2: var(--deloitte-gray);
+  --text-3: var(--deloitte-gray);
 
   /* Interaction */
-  --accent: #6aa8ff;
-  --primary: #2f6bd0;
-  --primary-hover: #3a78de;
-  --focus: #ffd866;
-  --on-primary: #fff;
-  --indicator: #f2c48d;
+  --accent: var(--deloitte-gray);
+  --primary: var(--deloitte-green);
+  --primary-hover: var(--deloitte-green);
+  --brand-orange: var(--deloitte-green);
+  --focus: var(--deloitte-navy);
+  --on-primary: var(--deloitte-black);
+  --indicator: var(--deloitte-navy);
 
   /* Status */
-  --ok: #4ac16a;
-  --bad: #ff8a82;
-  --bad-text: #ffb3ad;
-  --warn: #e0a83a;
+  --ok: var(--deloitte-gray);
+  --bad: var(--deloitte-black);
+  --bad-text: var(--deloitte-black);
+  --warn: var(--deloitte-navy);
 
-  /* Severity (always paired with its name) */
-  --sev-critical: #ff5a52;
-  --sev-high: #f08a3c;
-  --sev-medium: #dcb43c;
-  --sev-low: #5aa3ff;
-  --sev-informational: #8d98a6;
+  /* Severity is the only semantic exception to the blue identity. */
+  --sev-informational: #777E8B;
+  --sev-informational-bg: #FFFFFF;
+  --sev-informational-border: #CCD0D9;
+  --sev-informational-ink: #53565A;
+  --sev-low: #C2867E;
+  --sev-low-bg: #FFF8F7;
+  --sev-low-border: #E8C5BF;
+  --sev-low-ink: #7C3C34;
+  --sev-medium: #CD6F60;
+  --sev-medium-bg: #FFF0EC;
+  --sev-medium-border: #DDA397;
+  --sev-medium-ink: #8F3023;
+  --sev-high: #BA4432;
+  --sev-high-bg: #FDE5DF;
+  --sev-high-border: #C77666;
+  --sev-high-ink: #982A1D;
+  --sev-critical: #9B2116;
+  --sev-critical-bg: #FAD6CE;
+  --sev-critical-border: #B34736;
+  --sev-critical-ink: #851D13;
 
   /* Who decided what */
-  --llm: #a9b8ff;
-  --code: #6fc7c0;
-  --person: #e0a83a;
-  --person-tint: rgba(224, 168, 58, 0.06);
+  --llm: var(--deloitte-gray);
+  --code: var(--deloitte-blue);
+  --person: var(--deloitte-navy);
+  --person-tint: var(--deloitte-white);
 
   /* Example data: a light "paper" marker that nothing else in the UI uses */
-  --example-paper: #ece3cb;
-  --example-ink: #2a2312;
-  --example-line: #b8a679;
-  --example-tint: rgba(236, 227, 203, 0.045);
+  --example-paper: var(--deloitte-white);
+  --example-ink: var(--deloitte-gray);
+  --example-line: var(--deloitte-border);
+  --example-tint: var(--deloitte-white);
 
   /* Spacing scale */
   --s1: 4px;
@@ -59,7 +85,7 @@
 
   /* Radius scale */
   --r1: 4px;
-  --r2: 6px;
+  --r2: 10px;
 
   /* Type */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
@@ -75,6 +101,7 @@
   --dur-press: 160ms;
   --dur-hover: 150ms;
   --dur-enter: 200ms;
+  --sidebar-width: 224px;
 }
 
 /* 2. Base */
@@ -131,7 +158,7 @@ html {
   scrollbar-color: var(--line-strong) var(--bg);
 }
 ::selection {
-  background: rgba(106, 168, 255, 0.35);
+  background: rgba(8, 2, 44, 0.35);
   color: var(--text);
 }
 input,
@@ -474,12 +501,12 @@ fieldset {
   font-weight: 600;
 }
 .notice-warn {
-  border-color: rgba(224, 168, 58, 0.45);
-  background: rgba(224, 168, 58, 0.08);
+  border-color: rgba(8, 2, 44, 0.45);
+  background: rgba(8, 2, 44, 0.08);
 }
 .notice-error {
-  border-color: rgba(255, 123, 114, 0.5);
-  background: rgba(255, 123, 114, 0.08);
+  border-color: rgba(8, 2, 44, 0.5);
+  background: rgba(8, 2, 44, 0.08);
 }
 .notice-action {
   margin-left: var(--s2);
@@ -551,7 +578,7 @@ fieldset {
   border-radius: var(--r1);
   border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
   background: color-mix(in srgb, var(--c) 14%, transparent);
-  color: color-mix(in srgb, var(--c) 35%, #fff);
+  color: var(--c);
   font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1.5;
@@ -957,7 +984,7 @@ ol.steps::before {
   border: 1px dashed var(--example-line);
 }
 .ticket.is-real {
-  border-color: rgba(74, 193, 106, 0.55);
+  border-color: rgba(8, 2, 44, 0.55);
 }
 .ticket-head {
   padding-bottom: var(--s4);
@@ -984,7 +1011,7 @@ ol.steps::before {
 .injection {
   margin: 0 calc(-1 * var(--s4));
   padding: var(--s4);
-  background: rgba(255, 123, 114, 0.09);
+  background: rgba(8, 2, 44, 0.09);
 }
 .injection h3 {
   color: var(--bad-text);
@@ -1582,8 +1609,8 @@ kbd {
   position: absolute;
   inset: -4px -6px 4px 8px;
   border-radius: var(--r1);
-  background: rgba(106, 168, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(106, 168, 255, 0.55);
+  background: rgba(8, 2, 44, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(8, 2, 44, 0.55);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur-enter) ease;
@@ -1697,26 +1724,874 @@ kbd {
   }
 }
 
-/* Incidents (level 2) */
-.view-switch {
-  display: inline-flex;
-  gap: 0;
+/* 15. Application frame. One vertical page scroll. */
+html { scroll-padding-top: 90px; scrollbar-gutter: stable; }
+body { font-size: 13px; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { touch-action: manipulation; }
+::selection { background: var(--deloitte-white); color: var(--deloitte-navy); }
+:focus-visible { outline: 3px solid var(--deloitte-blue); outline-offset: 3px; }
+.console-shell { min-height: 100dvh; }
+.sidebar { width: var(--sidebar-width); position: fixed; inset: 0 auto 0 0; z-index: 40; background: var(--deloitte-white); border-right: 1px solid var(--line); padding: 0 14px; display: flex; flex-direction: column; }
+.console-brand { height: 82px; display: flex; align-items: center; gap: 11px; padding: 0 10px; text-decoration: none; color: var(--deloitte-navy); font-size: 26px; font-weight: 730; letter-spacing: -.8px; }
+.console-mark { display: grid; place-items: center; width: 35px; height: 39px; color: var(--brand-orange); }
+.console-mark .icon { width: 35px; height: 35px; stroke-width: 1.4; }
+.sidebar nav { display: grid; gap: 5px; }
+.sidebar-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 11px 14px; border-radius: 7px; color: var(--deloitte-gray); text-decoration: none; font-weight: 500; font-size: 13px; transition: background-color 140ms ease, color 140ms ease; }
+.sidebar-link .icon { width: 18px; height: 18px; stroke-width: 1.5; }
+.sidebar-link.selected { background: var(--deloitte-white); color: var(--deloitte-gray); font-weight: 650; }
+.sidebar-bottom { display: flex; align-items: center; gap: 10px; padding: 19px 10px; border-top: 1px solid var(--line); margin-top: auto; }
+.sidebar-bottom strong { display: block; font-size: 11px; color: var(--deloitte-gray); font-weight: 600; }
+.sidebar-bottom div > span { display: block; font-size: 9px; color: var(--deloitte-gray); margin-top: 2px; }
+.workspace-symbol { display: grid; place-items: center; width: 32px; height: 32px; color: var(--deloitte-sky); background: var(--deloitte-white); border-radius: 7px; }
+.console-workspace { margin-left: var(--sidebar-width); min-width: 0; }
+.console-shell .topbar { height: 66px; padding: 0 30px; background: var(--deloitte-white); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 15px; position: relative; }
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.topbar-left { font-size: 12px; }
+.topbar-workspace { color: var(--deloitte-gray); }
+.topbar-left strong { font-weight: 550; }
+.breadcrumb-divider { color: var(--deloitte-border); }
+.topbar-right { gap: 18px; }
+.console-shell .mode { border: 0; display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 0; color: var(--deloitte-gray); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--deloitte-blue); display: inline-block; flex: none; }
+.console-shell .banner-example { margin: 0; padding: 9px 30px; border: 0; border-bottom: 1px solid var(--deloitte-border); font-size: 11px; line-height: 1.45; gap: 10px; display: flex; align-items: baseline; background: var(--deloitte-white); color: var(--deloitte-gray); }
+.console-shell .banner-label { font-size: 9px; font-weight: 650; text-transform: uppercase; letter-spacing: .5px; color: var(--deloitte-gray); }
+.console-shell .content { padding: 28px 30px 34px; max-width: 1900px; width: 100%; margin: 0 auto; min-width: 0; }
+.console-shell h1 { font-size: 25px; letter-spacing: -.6px; font-weight: 650; color: var(--deloitte-navy); }
+.console-shell h2 { font-weight: 620; }
+.page-head { margin-bottom: 24px; gap: 20px; }
+.page-subtitle { margin-top: 5px; font-size: 12px; color: var(--text-3); }
+.page-title { gap: 12px; }
+.page-actions { gap: 9px; }
+.btn { min-height: 36px; border-radius: 6px; padding: 8px 13px; font-weight: 550; font-size: 12px; gap: 7px; }
+.btn-sm { min-height: 30px; padding: 5px 10px; font-size: 11px; }
+.btn-ghost { color: var(--deloitte-gray); }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--deloitte-white); }
+.btn-icon { padding: 8px; width: 36px; }
+.btn .icon { width: 15px; height: 15px; }
+.mobile-menu, .menu-scrim, .sidebar-close { display: none; }
+.skip-link { z-index: 100; }
+.panel { border: 1px solid var(--line); border-radius: 10px; background: var(--deloitte-white); }
+.control-label { font-size: 11px; font-weight: 550; color: var(--deloitte-gray); }
+input[type='text'], input[type='search'], select, textarea { border-radius: 6px; padding: 8px 10px; min-height: 36px; background: var(--deloitte-white); border-color: var(--deloitte-border); font-size: 12px; }
+input[type='radio'] { accent-color: var(--deloitte-gray); }
+.link-btn { text-underline-offset: 3px; }
+.disclosure { padding: 16px 20px; }
+.chip { border-radius: 4px; font-size: 9px; letter-spacing: .2px; }
+.sev { font-size: 11px; padding: 3px 7px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+.sev-critical { background: var(--deloitte-white); border-color: var(--deloitte-border); }
+.sev-high { background: var(--deloitte-white); border-color: var(--deloitte-border); }
+.sev-medium { background: var(--deloitte-white); border-color: var(--deloitte-border); }
+.sev-low { background: var(--deloitte-white); border-color: var(--deloitte-border); }
+.sev-informational { background: var(--deloitte-white); border-color: var(--deloitte-border); }
+.sev-mark { width: 5px; height: 5px; border-radius: 50%; }
+.id { background: var(--deloitte-white); color: var(--deloitte-gray); border-color: var(--deloitte-white); font-size: 10px; }
+.id-lg { font-size: 15px; }
+
+/* 16. Dashboard: metrics and charts are computed from the existing queue response. */
+.dashboard { display: grid; gap: 22px; }
+.dashboard-head { margin-bottom: 0; }
+.period-label { display: inline-flex; align-items: center; gap: 8px; color: var(--deloitte-gray); font-size: 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--deloitte-white); padding: 9px 12px; white-space: nowrap; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--line); }
+.kpi-card { text-align: left; padding: 22px 24px; min-height: 164px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: transparent; font: inherit; color: var(--text); cursor: pointer; }
+.kpi-card:last-child { border-right: 0; }
+.kpi-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--deloitte-gray); font-size: 12px; font-weight: 500; }
+.kpi-value { display: block; font-size: 43px; font-weight: 600; letter-spacing: -1.8px; line-height: 1.1; margin: 13px 0 13px; font-variant-numeric: tabular-nums; color: var(--deloitte-navy); }
+.kpi-note { display: flex; align-items: center; justify-content: space-between; gap: 5px; font-size: 12px; color: var(--deloitte-gray); }
+.dashboard-panel { border: 0; border-top: 1px solid var(--line); border-radius: 0; min-width: 0; background: transparent; }
+.priority-panel { border: 1px solid var(--line); border-radius: 8px; }
+.chart-heading { padding: 20px 22px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.chart-heading h2 { font-size: 15px; color: var(--deloitte-gray); font-weight: 600; }
+.chart-detail { display: inline-block; font-size: 12px; color: var(--deloitte-gray); margin-top: 4px; }
+.chart-heading .link-btn { display: inline-flex; gap: 8px; align-items: center; color: var(--deloitte-gray); font-size: 11px; text-decoration: none; min-height: 32px; }
+.dashboard-main-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 20px; }
+.timeline-chart { padding: 14px 20px 15px; }
+.timeline-chart svg { display: block; width: 100%; height: 205px; overflow: visible; }
+.timeline-chart text { fill: var(--deloitte-gray); font-size: 10px; font-family: var(--font); }
+.timeline-chart circle:focus-visible { outline: 2px solid var(--deloitte-gray); }
+.chart-key { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--deloitte-gray); padding: 3px 10px 0; }
+.key-dot { width: 7px; height: 7px; display: inline-block; flex: none; border-radius: 2px; }
+.key-dot.blue { background: var(--deloitte-sky); }
+.chart-key-right { margin-left: auto; }
+.state-chart { display: flex; align-items: center; gap: 19px; padding: 24px 22px 25px; min-height: 244px; }
+.donut-wrap { position: relative; width: 142px; flex: none; }
+.donut-wrap svg { width: 100%; display: block; }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.donut-center strong { font-size: 30px; font-weight: 600; color: var(--deloitte-gray); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.donut-center span { font-size: 10px; color: var(--deloitte-gray); }
+.state-legend { display: grid; gap: 5px; flex: 1; min-width: 0; }
+.legend-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border: 0; background: transparent; color: var(--deloitte-gray); font: inherit; font-size: 11px; cursor: pointer; text-align: left; min-height: 30px; }
+.legend-row > span:nth-child(2) { flex: 1; }
+.legend-row strong { font-size: 11px; color: var(--deloitte-gray); font-weight: 600; }
+.dashboard-bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .85fr); gap: 20px; }
+.severity-bars, .product-bars { padding: 20px 22px 23px; display: grid; gap: 14px; }
+.distribution-row, .product-row { width: 100%; padding: 0; display: grid; align-items: center; gap: 11px; border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; min-height: 25px; }
+.distribution-row { grid-template-columns: 90px 1fr 26px; }
+.distribution-name { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--deloitte-gray); }
+.distribution-track, .product-track { height: 6px; background: var(--deloitte-white); border-radius: 4px; overflow: hidden; }
+.distribution-track > span, .product-track > span { display: block; height: 100%; border-radius: inherit; min-width: 0; }
+.distribution-row strong, .product-row strong { font-size: 11px; color: var(--deloitte-gray); font-weight: 550; text-align: right; font-variant-numeric: tabular-nums; }
+.product-row { grid-template-columns: 65px minmax(0, 1fr) 25px; }
+.product-label { font-size: 10px; color: var(--deloitte-gray); overflow: hidden; text-overflow: ellipsis; }
+.product-track > span { background: var(--deloitte-sky); }
+.resolution-number { display: flex; flex-direction: column; gap: 4px; padding: 15px 22px 14px; }
+.resolution-number > strong { font-size: 36px; font-weight: 550; letter-spacing: -1.1px; color: var(--deloitte-gray); line-height: 1.2; }
+.resolution-number strong span { font-size: 21px; padding-left: 3px; color: var(--deloitte-sky); }
+.resolution-number > span { color: var(--deloitte-gray); font-size: 10px; }
+.completion-track { margin: 0 22px; height: 5px; border-radius: 3px; background: var(--deloitte-white); overflow: hidden; }
+.completion-track > span { display: block; height: 100%; background: var(--deloitte-gray); border-radius: inherit; }
+.resolution-facts { padding: 17px 22px 18px; margin: 0; display: grid; gap: 8px; }
+.resolution-facts > div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--deloitte-gray); }
+.resolution-facts dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--deloitte-gray); }
+.priority-table-wrap { margin-top: 16px; overflow-x: auto; }
+.priority-table { border-collapse: collapse; width: 100%; text-align: left; }
+.priority-table th { font-weight: 500; font-size: 10px; color: var(--deloitte-gray); background: var(--deloitte-white); padding: 11px 22px; border-top: 1px solid var(--deloitte-white); border-bottom: 1px solid var(--deloitte-white); }
+.priority-table td { padding: 13px 22px; font-size: 11px; border-bottom: 1px solid var(--deloitte-white); }
+.priority-table tr:last-child td { border: 0; }
+.priority-table td:first-child { width: 195px; }
+.priority-id { padding: 0; font-size: 10px; border: 0; background: transparent; cursor: pointer; text-align: left; }
+.source-tag { display: inline-block; padding: 3px 6px; background: var(--deloitte-white); border-radius: 4px; color: var(--deloitte-gray); font-size: 10px; }
+.dashboard-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: var(--deloitte-gray); font-size: 10px; }
+.dashboard-footer > span:first-child { display: flex; align-items: center; gap: 7px; }
+.dashboard-footer .status-dot { width: 5px; height: 5px; }
+.chart-empty { padding: 28px 22px; color: var(--text-3); font-size: 12px; }
+
+/* 17. Existing workflows keep their contracts and gain the same visual system. */
+.queue .counts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.queue .count { min-height: 48px; padding: 10px 12px; display: flex; align-items: center; justify-content: flex-start; flex-direction: row; gap: 8px; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--deloitte-gray); font-size: 12px; opacity: 1; }
+.queue .count .count-n { font-size: 20px; font-weight: 600; color: var(--deloitte-gray); letter-spacing: -.6px; line-height: 1; }
+.queue .count.is-zero .count-n { color: var(--deloitte-gray); }
+.queue .count[aria-pressed='true'] { background: var(--deloitte-white); border-color: var(--deloitte-border); color: var(--deloitte-gray); }
+.queue .count-injection .icon { display: none; }
+.queue .counts > .link-btn { min-height: 30px; }
+.queue .filters { padding: 16px 0; background: transparent; border: 0; border-radius: 0; gap: 16px; margin-bottom: 16px; align-items: end; }
+.queue .filters .control { display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 7px; flex: 1; min-width: 120px; }
+.queue .filters .control:first-child { flex: 2; }
+.queue .filters input, .queue .filters select { width: 100%; }
+.queue .page-head .import { gap: 8px; }
+.import .hint { display: none; }
+.queue .table-wrap { border-radius: 9px; border: 1px solid var(--line); background: var(--deloitte-white); overflow: auto; max-height: max(360px, calc(100dvh - 400px)); scrollbar-gutter: stable; }
+.table-caption { font-size: 10px; padding: 11px 15px; background: var(--deloitte-white); color: var(--deloitte-gray); border-bottom: 1px solid var(--line); position: static; }
+.grid { min-width: 1100px; }
+.grid th { top: 0; z-index: 3; padding: 12px 14px; font-size: 10px; font-weight: 600; color: var(--deloitte-gray); background: var(--deloitte-white); }
+.grid td { padding: 14px; font-size: 11px; background: var(--deloitte-white); border-color: var(--deloitte-white); }
+.grid .rule { min-width: 220px; max-width: 310px; }
+.grid .actions { white-space: nowrap; background: var(--deloitte-white); z-index: 2; }
+.grid th.actions { background: var(--deloitte-white); z-index: 4; }
+.grid .actions .btn-primary { background: var(--deloitte-white); border-color: var(--deloitte-border); color: var(--deloitte-gray); }
+.grid .row-example td { background: var(--deloitte-white); }
+.grid td .id { white-space: nowrap; background: transparent; border: 0; padding: 0; font-size: 10px; }
+.grid tbody tr.is-active td:first-child { box-shadow: inset 2px 0 var(--deloitte-gray); }
+.grid .actions { box-shadow: -5px 0 8px -6px var(--deloitte-border); }
+.state { font-size: 11px; }
+.state-pending { color: var(--deloitte-gray); }
+.sla { font-size: 10px; }
+.ticket-page .page-head .page-title { align-items: flex-start; flex-direction: column; gap: 10px; }
+.ticket-page .page-title > .btn { padding-left: 0; min-height: 24px; font-size: 11px; }
+.ticket-page h1 { font-size: 21px; }
+.ticket-page .ticket-layout { grid-template-columns: 260px minmax(0, 1fr); gap: 20px; }
+.ticket-page .steps-panel { top: 20px; max-height: min(740px, calc(100dvh - 40px)); overflow: auto; padding: 20px; scrollbar-width: thin; }
+.steps-panel h2 { font-size: 13px; margin-bottom: 20px; }
+.step { padding-bottom: 20px; }
+.step-type { font-size: 9px; letter-spacing: .2px; text-transform: none; font-weight: 600; }
+.step-tool { font-size: 10px; }
+.step-meta { font-size: 9px; }
+.step-summary, .step-args, .step-ids { font-size: 11px; }
+.step-args { display: flex; flex-direction: column; gap: 3px; }
+.step-args .arg { max-width: 100%; }
+.step-ids { line-height: 1.8; }
+.ticket-page .roles { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: none; gap: 0; }
+.ticket-page .role { grid-area: auto; padding: 22px; border: 0; border-top: 1px solid var(--line); background: white; }
+.ticket-page .role-title { color: var(--deloitte-gray); margin-bottom: 18px; font-size: 14px; }
+.ticket-page .role-person { background: var(--deloitte-white); }
+.ticket-page .ticket { padding: 0; overflow: hidden; }
+.ticket-head { padding: 22px; }
+.ticket-head-row { margin-bottom: 9px; }
+.ticket-title { font-size: 15px; font-weight: 600; color: var(--deloitte-gray); margin-top: 14px; }
+.ticket-page .kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ticket-page .role .field + .field { margin-top: 19px; }
+.ticket-page .field dt { font-size: 10px; color: var(--deloitte-gray); margin-bottom: 6px; }
+.ticket-page .field dd { font-size: 12px; line-height: 1.7; }
+.ticket-page .role .field dd { max-width: none; }
+.ticket-page .rows-list { margin-top: 8px; }
+.ticket-page .rows-list > li { padding: 12px 0; }
+.ticket-page .injection { margin: 0 22px 20px; padding: 14px; }
+.ticket-page .raw-alert, .ticket-page .disclosure { margin-top: 20px; }
+.decision-form .control { margin-top: 14px; }
+.decision-form .choices { margin: 12px 0 16px; gap: 7px; }
+.choice { font-size: 12px; min-height: 34px; }
+.decision-bar { border-radius: 9px; }
+.stage-btn { padding: 12px 16px; }
+.stage-name { font-size: 11px; }
+.stage-state { font-size: 9px; }
+.stage-n { width: 20px; height: 20px; font-size: 10px; }
+.bar-body { padding: 18px 20px; }
+.legend { display: none; }
+.fact dd { font-size: 13px; }
+.bar-status .finished { font-size: 11px; font-weight: 500; }
+.example-note { font-size: 10px; }
+.ticket-page .ticket .role { transition-delay: 0ms; }
+
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-link:hover { background: var(--deloitte-white); color: var(--deloitte-gray); }
+  .sidebar-link.selected:hover { background: var(--deloitte-white); color: var(--deloitte-gray); }
+  .legend-row:hover, .distribution-row:hover, .product-row:hover { color: var(--deloitte-navy); }
+  .priority-id:hover { color: var(--primary); }
+  .priority-table tbody tr:hover td { background: var(--deloitte-white); }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 }
-.view-switch .btn {
-  border-radius: 0;
+.kpi-card:active { transform: scale(.985); }
+@media (min-width: 1700px) {
+  .console-shell .content { padding: 32px 40px 40px; }
+  .kpi-card { min-height: 176px; padding: 24px; }
+  .kpi-value { font-size: 49px; }
+  .state-chart { justify-content: center; gap: 28px; }
+  .donut-wrap { width: 164px; }
+  .state-legend { max-width: 200px; }
 }
-.view-switch .btn:first-child {
-  border-radius: var(--r1) 0 0 var(--r1);
+@media (max-width: 1250px) {
+  :root { --sidebar-width: 194px; }
+  .console-shell .content { padding: 24px; }
+  .console-shell .topbar { padding: 0 24px; }
+  .console-shell .banner-example { padding-left: 24px; padding-right: 24px; }
+  .kpi-grid { gap: 0; }
+  .kpi-card { padding: 16px; min-height: 149px; }
+  .kpi-value { font-size: 38px; }
+  .dashboard-main-grid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
+  .state-chart { flex-direction: column; padding: 16px 22px; gap: 8px; }
+  .donut-wrap { width: 112px; }
+  .state-legend { width: 100%; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  .legend-row { font-size: 10px; }
+  .chart-heading { padding-left: 18px; padding-right: 18px; }
+  .dashboard-bottom-grid { gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-bottom-grid > :last-child { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
+  .dashboard-bottom-grid > :last-child .chart-heading { grid-column: 1 / -1; }
+  .dashboard-bottom-grid > :last-child .completion-track { display: none; }
+  .resolution-facts { padding-top: 8px; }
+  .queue .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ticket-page .ticket-layout { grid-template-columns: 230px minmax(0, 1fr); gap: 16px; }
 }
-.view-switch .btn:last-child {
-  border-radius: 0 var(--r1) var(--r1) 0;
-  margin-left: -1px;
+@media (max-width: 980px) {
+  :root { --sidebar-width: 180px; }
+  .sidebar { padding: 0 9px; }
+  .console-brand { font-size: 24px; padding-left: 8px; gap: 5px; }
+  .sidebar-link { padding-left: 12px; font-size: 12px; }
+  .console-shell .content { padding: 22px; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+  .dashboard-main-grid { grid-template-columns: minmax(0, 1fr); }
+  .state-chart { flex-direction: row; padding: 20px 24px; min-height: auto; gap: 30px; }
+  .donut-wrap { width: 132px; }
+  .state-legend { display: grid; grid-template-columns: 1fr; max-width: 250px; }
+  .topbar-workspace, .breadcrumb-divider { display: none; }
+  .ticket-page .ticket-layout { grid-template-columns: minmax(0, 1fr); }
+  .ticket-page .steps-panel { position: relative; top: 0; max-height: 360px; }
+  .timeline-chart svg { height: 210px; }
 }
-.view-switch .btn[aria-pressed="true"] {
-  background: var(--surface);
-  border-color: var(--text);
-  cursor: default;
+@media (max-width: 700px) {
+  .sidebar { width: 232px; transform: translateX(-100%); visibility: hidden; transition: transform 180ms var(--ease-out); }
+  .menu-open .sidebar { transform: translateX(0); visibility: visible; }
+  .sidebar-close { display: inline-flex; position: absolute; top: 75px; right: 15px; padding: 6px; border: 0; background: none; width: 30px; min-height: 30px; }
+  .console-workspace { margin-left: 0; }
+  .menu-scrim { display: block; position: fixed; inset: 0; z-index: 35; border: 0; background: rgba(8, 2, 44, 0.314); width: 100%; cursor: pointer; }
+  .mobile-menu { display: inline-flex; }
+  .console-shell .topbar { padding: 0 18px; height: 62px; }
+  .topbar-left { gap: 10px; }
+  .topbar-right { gap: 10px; }
+  .console-shell .mode { font-size: 10px; }
+  .console-shell .content { padding: 23px 18px; }
+  .console-shell .banner-example { padding: 8px 18px; font-size: 10px; }
+  .console-shell .banner-label { font-size: 8px; }
+  .page-head { align-items: flex-start; gap: 15px; }
+  .console-shell h1 { font-size: 23px; }
+  .dashboard .page-head { flex-direction: column; }
+  .dashboard .page-head .page-actions { width: 100%; justify-content: space-between; }
+  .dashboard { gap: 18px; }
+  .dashboard-main-grid, .dashboard-bottom-grid { gap: 18px; }
+  .kpi-card { min-height: 150px; padding: 16px 18px; }
+  .kpi-value { font-size: 38px; }
+  .kpi-label { font-size: 11px; }
+  .kpi-note { font-size: 11px; }
+  .timeline-chart { padding: 10px 12px 16px; }
+  .timeline-chart svg { height: 170px; }
+  .dashboard-bottom-grid { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-bottom-grid > :last-child { display: block; }
+  .dashboard-bottom-grid > :last-child .completion-track { display: block; }
+  .severity-bars, .product-bars { gap: 12px; }
+  .distribution-row, .product-row, .legend-row { min-height: 36px; }
+  .chart-heading h2 { font-size: 14px; }
+  .chart-detail { font-size: 11px; }
+  .priority-table { min-width: 660px; }
+  .priority-table th, .priority-table td { padding-left: 18px; padding-right: 18px; }
+  .priority-panel .chart-heading { align-items: flex-start; }
+  .priority-panel .chart-heading .link-btn { font-size: 10px; }
+  .dashboard-footer { font-size: 9px; }
+  .queue .page-head { flex-direction: column; }
+  .queue .count { min-height: 82px; padding: 13px; font-size: 10px; }
+  .queue .counts { gap: 0; margin-bottom: 16px; }
+  .queue .filters { gap: 12px; padding: 14px; }
+  .queue .filters .control { flex-basis: calc(50% - 12px); min-width: 0; }
+  .queue .filters .control:first-child { flex-basis: 100%; }
+  .queue .table-wrap { max-height: 65dvh; }
+  .ticket-page h1 .id { display: block; margin-top: 5px; overflow-wrap: anywhere; }
+  .ticket-page .kv-grid { grid-template-columns: minmax(0, 1fr); }
+  .ticket-head, .ticket-page .role { padding: 18px; }
+  .stage-btn { padding: 10px 12px; }
+  .btn, .link-btn, .sidebar-link { min-height: 40px; }
 }
+@media (max-width: 370px) {
+  .console-shell .content { padding: 20px 12px; }
+  .console-shell .topbar { padding: 0 12px; }
+  .kpi-grid { gap: 0; }
+  .kpi-card { padding: 14px 12px; }
+  .kpi-note { font-size: 11px; }
+  .state-chart { gap: 15px; padding: 18px; }
+  .donut-wrap { width: 112px; }
+  .legend-row { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .kpi-card:hover, .kpi-card:active { transform: none; }
+}
+/* Keep chart coordinates at the rendered width, so labels remain legible on phones. */
+.timeline-chart svg { height: auto; }
+.example-note { color: var(--deloitte-gray); }
+@media (max-width: 700px) {
+  .chart-detail, .chart-key { font-size: 11px; }
+}
+.ticket-page .steps-panel h2 { position: sticky; top: 0; z-index: 3; background: var(--deloitte-white); margin: -20px -20px 18px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.ticket-page .step { scroll-margin-top: 65px; }
+@media (max-width: 700px) {
+  .btn, .link-btn, .legend-row, .distribution-row, .product-row { min-height: 44px; }
+  .btn-icon { width: 44px; }
+  .sidebar-close { top: 22px; right: 8px; width: 36px; min-height: 36px; }
+}
+
+/* 18. Deloitte identity and data interactions. No API behavior is changed. */
+:root {
+  --chart-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --chart-duration: 250ms;
+  --chart-shadow: 0 10px 25px rgba(8, 2, 44, 0.15);
+}
+.console-shell :is(h1, h2, h3, h4), .chart-heading h2, .ticket-page .role-title,
+.console-brand, .kpi-value, .donut-center strong, .resolution-number > strong { color: var(--deloitte-black); }
+body, .console-shell, .console-workspace, .console-shell .content { background: var(--deloitte-white); }
+.console-shell .sidebar, .console-shell .topbar { background: var(--deloitte-white); border-color: var(--deloitte-border); }
+.console-shell .sidebar { background: var(--deloitte-navy); border-color: var(--deloitte-gray); }
+.console-shell .topbar { background: var(--deloitte-gray); border-color: var(--deloitte-gray); }
+.sidebar .console-brand, .sidebar .console-mark, .sidebar-bottom strong,
+.topbar-left strong { color: var(--deloitte-white); }
+.sidebar .sidebar-link,
+.sidebar-bottom div > span, .console-shell .topbar .mode,
+.console-shell .topbar .topbar-workspace, .console-shell .topbar .breadcrumb-divider { color: var(--deloitte-sky); }
+.sidebar .sidebar-close { color: var(--deloitte-sky); }
+.sidebar .workspace-symbol { background: var(--deloitte-gray); color: var(--deloitte-sky); }
+.sidebar-link.selected .nav-active-dot { background: var(--deloitte-navy); }
+.console-mark { color: var(--deloitte-black); }
+.console-brand { position: relative; }
+.console-mark::after { content: ''; position: absolute; left: 37px; top: 46px; width: 7px; height: 7px; border: 1px solid var(--deloitte-white); border-radius: 50%; background: var(--deloitte-green); }
+.sidebar .sidebar-link.selected { background: var(--deloitte-green); color: var(--deloitte-black); box-shadow: inset 2px 0 var(--deloitte-sky); }
+.sidebar-link, .topbar-workspace,
+.chart-detail, .kpi-label, .kpi-note, .chart-key, .timeline-chart text { color: var(--deloitte-gray); }
+.timeline-chart text { fill: var(--deloitte-gray); }
+.console-shell .banner-example { background: var(--deloitte-white); border-color: var(--deloitte-border); color: var(--deloitte-gray); }
+.console-shell .banner-label { color: var(--deloitte-black); }
+.btn-primary, .grid .actions .btn-primary { background: var(--deloitte-green); border-color: var(--deloitte-green); color: var(--deloitte-black); }
+.btn-primary:disabled { background: var(--deloitte-border); border-color: var(--deloitte-border); color: var(--deloitte-gray); }
+.status-dot { background: var(--deloitte-blue); }
+.kpi-card.focal .kpi-label { font-weight: 700; color: var(--deloitte-black); }
+.key-dot.blue { background: var(--deloitte-blue); }
+.distribution-track, .product-track, .completion-track { background: var(--deloitte-border); }
+.product-track > span, .completion-track > span { background: var(--deloitte-navy); }
+.distribution-name, .product-label, .resolution-facts, .resolution-facts dd,
+.chart-heading .link-btn, .source-tag, .priority-id, .dashboard-footer { color: var(--deloitte-gray); }
+.source-tag { background: transparent; border: 0; padding: 0; font-size: 12px; }
+.sev-critical { color: var(--deloitte-navy); border-color: var(--deloitte-navy); font-weight: 750; }
+.sev-high, .sev-medium { color: var(--deloitte-blue); border-color: var(--deloitte-blue); }
+.sev-low, .sev-informational { color: var(--deloitte-gray); border-color: var(--deloitte-border); }
+.sev, .grid .row-example td, .role-person, .example-note, .state-pending { background: var(--deloitte-white); }
+.queue .count[aria-pressed='true'] { color: var(--deloitte-black); border-bottom-color: var(--deloitte-gray); background: color-mix(in srgb, var(--deloitte-blue) 10%, var(--deloitte-white)); box-shadow: none; }
+.grid tbody tr.is-active td:first-child { box-shadow: inset 2px 0 var(--deloitte-blue); }
+.step-error, .state-failed, .bad { color: var(--deloitte-black); }
+.state-failed { font-weight: 700; }
+::selection { background: var(--deloitte-sky); color: var(--deloitte-black); }
+
+/* Motion is property-specific; geometry and numeric values never tween. */
+.dashboard-panel, .kpi-card {
+  transition: transform var(--chart-duration) var(--chart-ease), box-shadow var(--chart-duration) var(--chart-ease), border-color var(--chart-duration) var(--chart-ease);
+}
+.distribution-track, .product-track, .completion-track { overflow: visible; }
+.distribution-track > span, .product-track > span, .completion-track > span,
+.donut-segment, .timeline-dot, .timeline-area, .legend-row .key-dot {
+  transition: opacity var(--chart-duration) var(--chart-ease), transform var(--chart-duration) var(--chart-ease), filter var(--chart-duration) var(--chart-ease), fill var(--chart-duration) var(--chart-ease), stroke var(--chart-duration) var(--chart-ease), background-color var(--chart-duration) var(--chart-ease);
+}
+.distribution-row[data-dimmed] .distribution-track > span,
+.product-row[data-dimmed] .product-track > span,
+.legend-row[data-dimmed] .key-dot, .donut-segment[data-dimmed],
+.timeline-mark[data-dimmed] .timeline-dot { opacity: .3; }
+.distribution-row[data-active] .distribution-track > span,
+.product-row[data-active] .product-track > span,
+.completion-track[data-active] > span { background: var(--deloitte-green) !important; box-shadow: 0 4px 10px rgba(8, 2, 44, .15); transform: translateY(-2px) scaleY(1.4); }
+.distribution-row[data-active] strong, .product-row[data-active] strong,
+.legend-row[data-active] strong { color: var(--deloitte-black); font-weight: 750; }
+.legend-row[data-active] .key-dot { background: var(--deloitte-green) !important; }
+.donut-segment { cursor: default; transform-box: fill-box; transform-origin: center; }
+.donut-segment[data-active] { stroke: var(--deloitte-green); filter: drop-shadow(0 4px 5px rgba(8, 2, 44, .15)); transform: scale(1.025); }
+.timeline-hit { fill: transparent; stroke: none; cursor: crosshair; }
+.timeline-dot { fill: var(--deloitte-white); stroke: var(--deloitte-blue); stroke-width: 2; transform-box: fill-box; transform-origin: center; pointer-events: none; }
+.timeline-mark[data-active] .timeline-dot { fill: var(--deloitte-green); stroke: var(--deloitte-navy); transform: scale(1.4); filter: drop-shadow(0 3px 3px rgba(8, 2, 44, .15)); }
+.timeline-chart[data-focused] .timeline-area { opacity: .5; }
+.chart-crosshair { stroke: var(--deloitte-blue); stroke-width: 1; stroke-dasharray: 3 5; pointer-events: none; }
+.timeline-mark:focus-visible { outline: 2px solid var(--deloitte-navy); outline-offset: 3px; border-radius: 50%; }
+.completion-track { position: relative; min-height: 8px; cursor: help; }
+
+/* One portal-backed tooltip, clamped to the viewport and hoverable without closing. */
+.chart-tooltip {
+  position: fixed; z-index: 1000; width: 244px; max-width: calc(100vw - 24px); padding: 16px 18px;
+  background: var(--deloitte-white); border: 1px solid var(--deloitte-border); border-radius: 10px;
+  color: var(--deloitte-gray); box-shadow: var(--chart-shadow); font: 12px/1.45 var(--font);
+  pointer-events: auto; user-select: text; overflow-wrap: anywhere;
+}
+.chart-tooltip-heading { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; color: var(--deloitte-gray); }
+.tooltip-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--deloitte-green); }
+.chart-tooltip-value { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; }
+.chart-tooltip-value strong { font-size: 30px; line-height: 1.1; letter-spacing: -.8px; color: var(--deloitte-black); font-variant-numeric: tabular-nums; }
+.chart-tooltip-value span, .chart-tooltip-detail { font-size: 11px; color: var(--deloitte-gray); }
+.chart-tooltip-breakdown { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; border-top: 1px solid var(--deloitte-border); padding-top: 10px; font-size: 11px; }
+.chart-tooltip-breakdown strong { color: var(--deloitte-navy); font-weight: 650; }
+.chart-tooltip-comparison { border-top: 1px solid var(--deloitte-border); padding-top: 10px; margin-top: 12px; display: grid; gap: 6px; font-size: 10px; }
+.chart-tooltip-comparison > div { display: flex; justify-content: space-between; gap: 12px; }
+.chart-tooltip-comparison strong { color: var(--deloitte-black); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-tooltip { opacity: 0; transform: translateY(3px); pointer-events: none; transition: opacity var(--chart-duration) var(--chart-ease), transform var(--chart-duration) var(--chart-ease); }
+.chart-tooltip[data-open] { opacity: 1; transform: translateY(0); pointer-events: auto; }
+@starting-style { .chart-tooltip[data-open] { opacity: 0; transform: translateY(3px); } }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled), .grid .actions .btn-primary:hover:not(:disabled) { background: var(--deloitte-green); color: var(--deloitte-black); border-color: var(--deloitte-green); box-shadow: 0 4px 12px rgba(8, 2, 44, .15); }
+  .sidebar .sidebar-link:hover, .sidebar .sidebar-link.selected:hover { background: var(--deloitte-sky); color: var(--deloitte-black); }
+  .distribution-row:hover, .product-row:hover, .legend-row:hover, .priority-id:hover { color: var(--deloitte-black); }
+}
+/* Focus navigation stays immediate; reduced motion retains details and dimming. */
+:focus-visible .timeline-dot, .distribution-row:focus-visible .distribution-track > span,
+.product-row:focus-visible .product-track > span { transition-duration: 0ms; }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-panel:hover, .kpi-card:hover, .timeline-mark[data-active] .timeline-dot,
+  .donut-segment[data-active], .distribution-row[data-active] .distribution-track > span,
+  .product-row[data-active] .product-track > span, .completion-track[data-active] > span { transform: none; filter: none; }
+  .chart-tooltip { transition: none; }
+  @starting-style { .chart-tooltip[data-open] { opacity: 1; transform: none; } }
+}
+.resolution-number strong span { color: var(--deloitte-gray); }
+.distribution-row[data-active] .distribution-track > span,
+.product-row[data-active] .product-track > span,
+.completion-track[data-active] > span { box-shadow: inset 0 0 0 1px var(--deloitte-navy), 0 4px 10px rgba(8, 2, 44, .15); }
+
+/* Aggregates stay still. Hover belongs to the pointer; focus has its own ring. */
+.dashboard-panel:hover, .kpi-card:hover, .kpi-card:active { transform: none; box-shadow: none; }
+.kpi-card { transition: border-color 150ms ease; }
+.completion-track { cursor: default; }
+.donut-segment { opacity: 1; stroke-width: 17px; }
+.legend-row { grid-template-columns: 9px minmax(0, 1fr) 28px 48px; }
+.legend-share { font-size: 10px; text-align: right; font-variant-numeric: tabular-nums; color: var(--deloitte-gray); }
+.state-swatch-failed { background: repeating-linear-gradient(135deg, var(--deloitte-sky) 0 3px, var(--deloitte-navy) 3px 5px); }
+.priority-table tbody tr[data-active] { background: transparent; }
+.priority-table tbody tr td { transition: none; }
+.priority-table tbody tr[data-pointer]:hover { background: rgba(117, 139, 253, .12); }
+.priority-table tbody tr[data-pointer]:hover td { background: transparent; }
+.priority-table tbody tr:has(:focus-visible) { outline: 2px solid var(--deloitte-navy); outline-offset: -2px; }
+.chart-tooltip, .chart-tooltip[data-open] { pointer-events: none; transition: none; transform: none; opacity: 1; }
+@starting-style { .chart-tooltip[data-open] { opacity: 1; transform: none; } }
+.alert-tooltip { width: 350px; }
+.alert-tooltip-title { font-size: 13px; font-weight: 650; margin: 10px 0 12px; color: var(--deloitte-black); }
+.alert-tooltip-fields { display: grid; gap: 7px; margin: 0; font-size: 11px; }
+.alert-tooltip-fields > div { display: grid; grid-template-columns: 85px minmax(0, 1fr); gap: 10px; }
+.alert-tooltip-fields dd { margin: 0; color: var(--deloitte-black); }
+.alert-tooltip-description { border-top: 1px solid var(--line); margin: 12px 0 0; padding-top: 10px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.alert-tooltip-title, .alert-tooltip-fields dd { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pager { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 10px 0 0; font-size: 11px; flex: none; }
+.pager .btn { min-width: 32px; }
+.queue .table-wrap { overflow: visible; max-height: none; scrollbar-gutter: auto; }
+.queue .grid { width: 100%; min-width: 0; table-layout: fixed; }
+.queue .grid th, .queue .grid td { padding: 12px 10px; overflow-wrap: anywhere; vertical-align: middle; }
+.queue .grid th { position: static; }
+.queue .grid th:nth-child(1) { width: 29%; }
+.queue .grid th:nth-child(2) { width: 12%; }
+.queue .grid th:nth-child(3) { width: 12%; }
+.queue .grid th:nth-child(4) { width: 18%; }
+.queue .grid th:nth-child(5) { width: 13%; }
+.queue .grid th:nth-child(6) { width: 16%; }
+.queue .grid .rule { min-width: 0; max-width: none; }
+.queue-rule { display: block; font-size: 12px; line-height: 1.5; font-weight: 600; }
+.queue-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.queue .grid td .id { white-space: normal; overflow-wrap: anywhere; }
+.queue-date { display: block; max-width: 74px; }
+.queue .grid .actions { position: static; box-shadow: none; white-space: normal; }
+.queue .grid td.actions { text-align: left; }
+.queue .grid .actions .btn { display: flex; width: 100%; justify-content: center; min-height: 32px; margin: 0; font-size: 11px; padding: 6px 8px; }
+.queue .grid .actions .btn + .btn { margin: 6px 0 0; }
+.queue .table-wrap > .pager { padding: 12px; border-top: 1px solid var(--line); }
+.queue .sla, .queue .state, .queue .sev { white-space: normal; }
+.queue-verdict { margin-bottom: 5px; line-height: 1.45; }
+.queue .grid td { border-bottom: 1px solid var(--line); }
+
+.sev-informational { --c: var(--sev-informational); color: var(--sev-informational-ink); background: var(--sev-informational-bg); border: 1px solid var(--sev-informational-border); }
+.sev-low { --c: var(--sev-low); color: var(--sev-low-ink); background: var(--sev-low-bg); border: 1px solid var(--sev-low-border); }
+.sev-medium { --c: var(--sev-medium); color: var(--sev-medium-ink); background: var(--sev-medium-bg); border: 1px solid var(--sev-medium-border); }
+.sev-high { --c: var(--sev-high); color: var(--sev-high-ink); background: var(--sev-high-bg); border: 1px solid var(--sev-high-border); }
+.sev-critical { --c: var(--sev-critical); color: var(--sev-critical-ink); background: var(--sev-critical-bg); border: 1px solid var(--sev-critical-border); }
+.sev .sev-mark { background: var(--c); border-radius: 50%; flex: none; }
+.distribution-track > span { background: var(--severity-color); min-width: 0; }
+.distribution-name > .key-dot { display: inline-block; }
+
+/* One page scroll, continuous sections, no bounded trace or character pages. */
+.triage-page { display: flex; flex-direction: column; gap: 16px; }
+.triage-page > .page-head { margin: 0; }
+.triage-page .page-head .page-title { flex-direction: row; align-items: center; gap: 16px; }
+.triage-page h1 { font-size: 21px; }
+.triage-page .bar { margin: 0; }
+.triage-page .bar-body { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 16px 20px; }
+.triage-page .facts { display: flex; flex: 1; gap: 24px; flex-wrap: wrap; margin: 0; }
+.triage-page .fact { padding: 0; border: 0; min-width: 65px; }
+.triage-page .fact dt { font-size: 11px; margin-bottom: 5px; }
+.triage-page .fact dd { font-size: 13px; margin: 0; }
+.triage-page .bar-actions { margin: 0; gap: 8px; }
+.triage-page .bar-note { margin: 0; font-size: 12px; }
+.triage-notices { display: grid; gap: 8px; }
+.triage-notices:empty { display: none; }
+.compact-notice { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; margin: 0; border: 1px solid var(--deloitte-border); border-radius: 6px; font-size: 12px; }
+.compact-notice .link-btn { margin-left: auto; }
+.reading-workspace { padding: 0; margin: 0; min-width: 0; }
+.workspace-tabs { display: flex; flex-wrap: wrap; gap: 0 18px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+.workspace-tabs [role='tab'] { min-height: 48px; padding: 13px 0; border: 0; border-bottom: 2px solid transparent; font: inherit; font-size: 12px; color: var(--deloitte-gray); background: transparent; cursor: pointer; }
+.workspace-tabs [aria-selected='true'] { border-bottom-color: var(--deloitte-gray); color: var(--deloitte-black); font-weight: 650; }
+.workspace-tabs [role='tab']:hover { color: var(--deloitte-black); }
+.workspace-panel { padding: 28px; min-width: 0; outline-offset: -3px; }
+.workspace-panel[hidden] { display: none !important; }
+.workspace-panel h2 { font-size: 19px; margin: 0; line-height: 1.4; }
+.workspace-panel h3 { margin: 0 0 16px; font-size: 15px; }
+.workspace-alert { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.workspace-alert .muted { display: block; font-size: 12px; margin-top: 8px; }
+.workspace-ticket-title { margin: 20px 0 0; font-size: 15px; font-weight: 600; }
+.reading-section { padding: 28px 0; border-bottom: 1px solid var(--line); }
+.reading-section:first-child { padding-top: 0; }
+.reading-section:last-child { border-bottom: 0; padding-bottom: 0; }
+.prose { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; max-width: 76ch; font-size: 14px; line-height: 1.75; color: var(--deloitte-black); }
+.triage-page .rows-list > li { padding: 20px 0; }
+.triage-page .rows-list > li:first-child { padding-top: 0; }
+.triage-page .rows-head { font-size: 12px; gap: 12px; }
+.triage-page .rows-body { margin-top: 10px; }
+.triage-page .reading-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding-top: 24px; }
+.triage-page .field dt { font-size: 12px; margin-bottom: 8px; }
+.triage-page .field dd { font-size: 14px; line-height: 1.7; }
+.policy-fields > .field { margin-bottom: 24px; }
+.policy-fields .breakdown { padding: 0; border: 0; border-radius: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.policy-fields .breakdown .field { margin: 0; }
+.triage-page .action { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.triage-page .action:last-child { border-bottom: 0; }
+.triage-page .action .chip { margin-bottom: 8px; }
+.triage-page .action .prose { margin-top: 8px; }
+.workspace-panel .decision-form { max-width: 720px; }
+.workspace-panel .decision-form .choices { gap: 10px; margin: 16px 0; }
+.workspace-panel .choice { min-height: 42px; font-size: 14px; }
+.workspace-panel .form-actions { margin-top: 18px; }
+.workspace-panel .decision-form textarea { min-height: 96px; resize: vertical; max-height: none; }
+.workspace-empty { padding: 28px 0; color: var(--deloitte-gray); }
+.section-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.section-heading h2 { margin: 0; }
+.trace-list { padding: 0; margin: 0; list-style: none; }
+.trace-entry { display: grid; grid-template-columns: 115px minmax(0, 1fr); gap: 24px; padding: 0 0 28px; position: relative; outline-offset: 6px; }
+.trace-meta { display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: var(--deloitte-gray); align-items: flex-end; padding-top: 3px; }
+.trace-number { font-size: 12px; font-weight: 650; color: var(--deloitte-black); }
+.trace-content { padding: 0 0 24px 24px; border-left: 1px solid var(--deloitte-border); min-width: 0; position: relative; }
+.trace-content::before { content: ''; position: absolute; left: -4px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--deloitte-gray); }
+.trace-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.trace-heading strong { font-size: 13px; font-weight: 600; }
+.trace-ids { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 12px; }
+.trace-entry.is-target { outline: 2px solid var(--deloitte-gray); border-radius: 4px; }
+.trace-error .trace-heading { font-weight: 700; }
+.technical-details { margin-top: 16px; font-size: 12px; }
+.technical-details > summary { cursor: pointer; color: var(--deloitte-gray); padding: 8px 0; font-weight: 600; }
+.raw-data { white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; max-height: none; margin: 12px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: transparent; font-size: 12px; line-height: 1.7; }
+.original-details { margin: 0 0 20px; }
+.original-details > summary { font-size: 14px; }
+.run-message-list, .run-history-list { list-style: none; margin: 0; padding: 0; }
+.run-message-list > li, .run-history-list > li { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.run-message-list > li:last-child, .run-history-list > li:last-child { border-bottom: 0; }
+.run-message-list time { margin-left: 12px; font-size: 11px; }
+.run-message-list .prose { margin: 10px 0; }
+.triage-page .injection { margin: 0 0 18px; padding: 16px; border-left: 1px solid var(--line); }
+.triage-page .affected-row { font-size: 14px; margin-bottom: 12px; line-height: 1.7; }
+.reading-workspace .decisions.older, .reading-workspace .decisions .older { opacity: 1; }
+
+/* Desktop rail collapses without affecting navigation state or API activity. */
+.navigation-toggle { display: inline-flex; color: var(--deloitte-white); background: transparent; border-color: var(--deloitte-sky); flex: none; }
+.navigation-toggle:hover { background: var(--deloitte-gray); color: var(--deloitte-white); }
+.sidebar-link { position: relative; }
+.sidebar .console-brand { flex: none; }
+.sidebar-link:focus-visible { outline-color: var(--deloitte-sky); outline-offset: 2px; }
+@media (min-width: 701px) {
+  .sidebar-collapsed { --sidebar-width: 76px; }
+  .sidebar-collapsed .sidebar { padding: 0 12px; }
+  .sidebar-collapsed .brand-name { display: none; }
+  .sidebar-collapsed .console-brand { padding: 0; justify-content: center; }
+  .sidebar-collapsed .console-mark { flex: none; }
+  .sidebar-collapsed .sidebar nav { margin-top: 40px; }
+  .sidebar-collapsed .sidebar-link { justify-content: center; padding: 12px; }
+  .sidebar-collapsed .nav-label { display: none; }
+  .sidebar-collapsed .sidebar-link:hover .nav-label, .sidebar-collapsed .sidebar-link:focus-visible .nav-label { display: block; position: absolute; left: calc(100% + 18px); top: 50%; transform: translateY(-50%); white-space: nowrap; background: var(--deloitte-navy); color: var(--deloitte-white); border-radius: 5px; padding: 9px 12px; font-size: 12px; pointer-events: none; box-shadow: 0 5px 14px rgba(8, 2, 44, .18); z-index: 60; }
+}
+@media (max-width: 1050px) {
+  .queue .grid th:nth-child(1) { width: 25%; }
+  .queue .grid th:nth-child(4) { width: 20%; }
+  .queue .grid th:nth-child(6) { width: 18%; }
+  .workspace-tabs { gap: 0 14px; padding: 0 20px; }
+}
+@media (max-width: 980px) {
+  .queue .grid, .queue .grid tbody { display: block; }
+  .queue .grid thead { display: none; }
+  .queue .grid tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 12px; border-bottom: 1px solid var(--line); }
+  .queue .grid td { display: block; width: auto; padding: 0; border: 0; }
+  .queue .grid td::before { content: attr(data-label); display: block; color: var(--deloitte-gray); font-size: 10px; margin-bottom: 5px; }
+  .queue .grid td:first-child, .queue .grid td.actions { grid-column: 1 / -1; }
+  .queue .grid td:first-child::before, .queue .grid td.actions::before { display: none; }
+  .queue .grid td.actions { display: flex; gap: 8px; }
+  .queue .grid .actions .btn + .btn { margin: 0; }
+  .queue-date { max-width: none; }
+  .triage-page .page-head .page-title { gap: 8px; flex-wrap: wrap; }
+  .triage-page h1 { font-size: 17px; }
+  .triage-page .facts { gap: 16px; }
+  .workspace-panel { padding: 20px 16px; }
+  .workspace-tabs { padding: 0 16px; gap: 0 16px; }
+  .workspace-tabs [role='tab'] { min-height: 44px; font-size: 12px; }
+  .workspace-alert { flex-wrap: wrap; gap: 12px; }
+  .trace-entry { grid-template-columns: 70px minmax(0, 1fr); gap: 12px; }
+  .trace-content { padding-left: 16px; }
+  .policy-fields .breakdown, .triage-page .reading-metadata { grid-template-columns: minmax(0, 1fr); }
+  .legend-row { grid-template-columns: 9px minmax(0, 1fr) 28px 48px; }
+  .prose { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0s !important; transition-duration: 0s !important; }
+}
+/* Text and focus use the deep inks; the lighter blues remain accents. */
+:focus-visible { outline-color: var(--deloitte-navy); }
+.resolution-number strong span { color: var(--deloitte-gray); }
+.priority-id:hover { color: var(--deloitte-gray); text-decoration: underline; text-underline-offset: 3px; }
+.timeline-line { stroke: var(--deloitte-gray); }
+.timeline-dot { stroke: var(--deloitte-gray); }
+.policy-fields dl.breakdown .field + .field { margin-top: 0; }
+.trace-heading .step-type { color: var(--deloitte-gray); }
+.history-ref { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.chart-tooltip { max-height: calc(100dvh - 24px); overflow: hidden; }
+@media (max-width: 700px) {
+  .priority-table-wrap { overflow: visible; }
+  .priority-table, .priority-table tbody { display: block; min-width: 0; }
+  .priority-table thead { display: none; }
+  .priority-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 16px; border-bottom: 1px solid var(--line); }
+  .priority-table td, .priority-table tr:last-child td { display: block; width: auto; border: 0; padding: 0; min-width: 0; overflow-wrap: anywhere; }
+  .priority-table td:first-child { width: auto; grid-column: 1; }
+  .priority-table td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; font-size: 12px; }
+  .priority-table td:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .priority-table td:nth-child(4) { grid-column: 2; grid-row: 3; }
+  .priority-table td:nth-child(5) { grid-column: 2; grid-row: 1; }
+}
+/* Operate: prioritize the alert list and let type, spacing and numbers lead. */
+.sidebar nav { margin-top: 24px; }
+.kpi-card { background: transparent; }
+.kpi-value { font-size: 48px; letter-spacing: -.03em; }
+.chart-heading .link-btn { font-size: 12px; }
+.priority-panel .chart-heading h2 { font-size: 17px; }
+.priority-table th { font-size: 12px; border-bottom-color: var(--line); }
+.priority-table td { font-size: 13px; border-bottom-color: var(--line); }
+.priority-id { font-size: 11px; }
+.priority-table td:nth-child(2) { line-height: 1.55; }
+.distribution-name, .product-label, .distribution-row strong, .product-row strong, .legend-row, .legend-row strong { font-size: 12px; }
+.distribution-track, .product-track, .completion-track { background: color-mix(in srgb, var(--deloitte-gray) 10%, var(--deloitte-white)); }
+.resolution-facts { font-size: 12px; }
+.dashboard-footer { justify-content: flex-end; font-size: 11px; }
+.queue .grid th, .queue .grid td { font-size: 12px; }
+.queue .control-label { font-size: 12px; }
+@media (max-width: 980px) {
+  .kpi-card:nth-child(even) { border-right: 0; }
+  .kpi-card:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 700px) {
+  .kpi-card { min-height: 142px; }
+  .kpi-value { font-size: 40px; }
+  .queue .count { padding: 8px 6px; min-height: 46px; gap: 6px; font-size: 11px; }
+  .queue .count .count-n { font-size: 18px; }
+  .queue .filters { gap: 12px; padding: 12px 0; }
+  .queue .filters .control:not(:first-child) { flex: 1 1 90px; min-width: 0; }
+  .queue .page-actions #import-help { order: 2; flex-basis: 100%; font-size: 11px; }
+  .priority-table tbody tr { border-bottom: 1px solid var(--line); }
+}
+
+/* Tarvia workbench. Shared frame and motion tokens for every route. */
+:root {
+  --motion-fast: 140ms;
+  --motion-standard: 220ms;
+  --motion-out: cubic-bezier(.23, 1, .32, 1);
+  --op-none: var(--deloitte-navy);
+  --op-running: var(--deloitte-blue);
+  --op-pending: var(--deloitte-gray);
+  --op-decided: var(--deloitte-sky);
+}
+.console-shell { overflow-x: clip; }
+.console-shell .topbar { position: sticky; top: 0; z-index: 30; background: var(--surface); border-bottom: 1px solid var(--line); }
+.console-shell .topbar .topbar-left strong, .console-shell .topbar .mode, .console-shell .topbar .topbar-workspace, .console-shell .topbar .breadcrumb-divider { color: var(--deloitte-gray); }
+.console-shell .topbar .topbar-workspace { font-size: 12px; }
+.navigation-toggle, .navigation-toggle:hover { background: transparent; color: var(--deloitte-gray); border-color: var(--line); }
+.navigation-toggle:hover { background: color-mix(in srgb, var(--deloitte-blue) 9%, var(--surface)); }
+.console-brand { height: 66px; }
+.sidebar nav { position: relative; gap: 6px; margin-top: 32px; }
+.navigation-indicator { position: absolute; top: 0; left: -5px; width: 2px; pointer-events: none; background: var(--deloitte-blue); border-radius: 2px; transform-origin: left top; z-index: 2; }
+.sidebar .sidebar-link { position: relative; z-index: 1; min-height: 48px; font-size: 14px; padding: 12px 14px; gap: 13px; }
+.sidebar .sidebar-link .icon { width: 20px; height: 20px; flex: none; }
+.sidebar .sidebar-link.selected, .sidebar .sidebar-link.selected:hover { background: var(--deloitte-gray); color: var(--deloitte-white); }
+.sidebar .sidebar-link:not(.selected):hover { background: var(--deloitte-gray); color: var(--deloitte-white); }
+.sidebar .sidebar-link.selected .icon { stroke-width: 1.8; }
+.sidebar-link:focus-visible { outline-offset: 1px; }
+.page-head { align-items: center; }
+.queue .page-head .page-title { align-items: baseline; }
+.queue .page-title > .muted { padding-left: 12px; border-left: 1px solid var(--line); font-size: 12px; }
+.queue .page-actions > .btn { gap: 7px; }
+
+/* A real operational distribution, tied to the same filter counts. */
+.queue-overview { border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px 8px; margin-bottom: 18px; }
+.queue-state-track { display: flex; gap: 3px; height: 6px; overflow: hidden; border-radius: 4px; background: color-mix(in srgb, var(--deloitte-gray) 10%, var(--surface)); margin-bottom: 12px; }
+.workload-segment { display: block; flex-basis: 0; background: var(--op-none); }
+.workload-running { background: var(--op-running); }
+.workload-pending { background: var(--op-pending); }
+.workload-decided { background: var(--op-decided); }
+.workload-failed { background: repeating-linear-gradient(135deg, var(--deloitte-gray) 0 3px, var(--deloitte-sky) 3px 5px); }
+.queue .counts { border: 0; margin: 0; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.queue .count { padding: 8px; min-height: 52px; gap: 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 5px 5px 0 0; text-align: left; }
+.count-symbol { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex: none; }
+.count-symbol .icon { width: 18px; height: 18px; }
+.queue .count-label { flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; }
+.queue .count .count-n { font-size: 22px; margin-left: auto; }
+.queue .count[aria-pressed='true'] { border-bottom-color: var(--deloitte-gray); background: color-mix(in srgb, var(--deloitte-blue) 11%, var(--surface)); }
+.queue .count:hover:not([aria-pressed='true']) { background: color-mix(in srgb, var(--deloitte-blue) 5%, var(--surface)); }
+.queue .counts .count-clear { grid-column: 1 / -1; justify-self: end; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
+.queue .filters { gap: 14px; padding: 4px 0 18px; margin-bottom: 0; }
+.queue .filters .control { gap: 8px; }
+.search-control { position: relative; display: block; width: 100%; }
+.search-control > .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--deloitte-gray); }
+.queue .search-control input { padding-left: 36px; }
+.queue .filters input, .queue .filters select { min-height: 40px; border-color: var(--line-strong); }
+
+/* A feed of alerts, with identity, state and actions at stable positions. */
+.queue .table-wrap { border-radius: 10px; isolation: isolate; }
+.queue-table-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; gap: 20px; border-bottom: 1px solid var(--line); }
+.queue-table-toolbar .table-caption { padding: 0; border: 0; margin: 0; font-size: 11px; line-height: 1.5; }
+.queue-range { flex: none; font-size: 11px; color: var(--deloitte-gray); }
+.queue .grid th { background: color-mix(in srgb, var(--deloitte-sky) 9%, var(--surface)); padding: 12px 14px; font-size: 11px; }
+.queue .grid td { padding: 16px 14px; font-size: 12px; }
+.queue .grid th:nth-child(1) { width: 32%; }
+.queue .grid th:nth-child(2) { width: 11%; }
+.queue .grid th:nth-child(3) { width: 12%; }
+.queue .grid th:nth-child(4) { width: 17%; }
+.queue .grid th:nth-child(5) { width: 12%; }
+.queue .grid th:nth-child(6) { width: 16%; }
+.alert-identity { display: flex; align-items: flex-start; gap: 12px; }
+.alert-source-symbol { display: flex; justify-content: center; align-items: center; flex: none; width: 32px; height: 34px; border-radius: 6px; color: var(--deloitte-gray); background: color-mix(in srgb, var(--deloitte-sky) 16%, var(--surface)); }
+.alert-source-symbol .icon { width: 20px; height: 20px; }
+.alert-identity-text { min-width: 0; }
+.queue-rule { font-size: 13px; font-weight: 600; line-height: 1.5; }
+.queue .grid td .id { font-size: 10px; }
+.queue .grid .sub { font-size: 11px; line-height: 1.5; }
+.queue .grid .row td { transition: background-color var(--motion-fast) ease; }
+.queue .grid tbody tr:hover td { background: color-mix(in srgb, var(--deloitte-blue) 6%, var(--surface)); }
+.queue .grid tbody tr.is-active td { background: color-mix(in srgb, var(--deloitte-blue) 9%, var(--surface)); }
+.queue-date { max-width: 90px; line-height: 1.5; font-size: 11px; }
+.operational-state { display: inline-flex; align-items: flex-start; gap: 6px; line-height: 1.5; font-size: 11px; }
+.state-symbol { display: inline-flex; align-items: center; flex: none; margin-top: 2px; }
+.state-symbol .icon { width: 13px; height: 13px; }
+.queue .row-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.queue .grid .actions .btn { min-height: 34px; width: 100%; gap: 5px; font-size: 11px; padding: 6px; }
+.queue .grid .actions .btn .icon { width: 12px; height: 12px; flex: none; }
+.queue .grid .actions .btn + .btn { margin: 0; }
+.queue .grid .row-actions .btn:last-child { background: transparent; border-color: var(--line); }
+.queue .grid .row-actions .btn:last-child .icon { transition: transform var(--motion-fast) var(--motion-out); }
+.queue .grid .row-actions .btn:last-child:hover .icon { transform: translateX(2px); }
+.queue .table-wrap > .pager { padding: 14px 16px; }
+
+/* Tabs remain reachable through a long investigation, without nested scrolling. */
+.workspace-tabs { position: sticky; top: 66px; z-index: 10; background: var(--surface); scroll-margin-top: 80px; }
+.workspace-tabs [role='tab'] { position: relative; border-bottom-color: transparent; }
+.workspace-tabs [aria-selected='true'] { border-bottom-color: transparent; }
+.tab-indicator { position: absolute; left: 0; top: 0; width: 1px; height: 2px; background: var(--deloitte-gray); transform-origin: left center; pointer-events: none; }
+.trace-entry { scroll-margin-top: 150px; }
+@keyframes work-spin { to { transform: rotate(360deg); } }
+.is-running > .icon { animation: work-spin 1s linear infinite; }
+[data-page-hidden] .is-running > .icon, [data-page-hidden] .pulse, [data-page-hidden] .skeleton-bar { animation-play-state: paused; }
+html[data-motion-input='keyboard'] .navigation-indicator, html[data-motion-input='keyboard'] .tab-indicator { transition: none !important; }
+@media (max-width: 1250px) {
+  .queue .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .queue .row-actions { grid-template-columns: minmax(0, 1fr); }
+  .queue .grid th:nth-child(1) { width: 29%; }
+  .queue .grid th:nth-child(4) { width: 19%; }
+  .queue .grid th:nth-child(6) { width: 17%; }
+  .alert-identity { gap: 8px; }
+  .alert-source-symbol { width: 26px; height: 30px; }
+  .alert-source-symbol .icon { width: 18px; height: 18px; }
+}
+@media (max-width: 980px) {
+  .queue .grid tr { padding: 16px; gap: 14px; }
+  .queue .grid td { padding: 0; }
+  .queue .grid td.actions { display: block; }
+  .queue .row-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .queue .grid .actions .btn { min-height: 40px; }
+  .workspace-tabs { position: relative; top: auto; }
+  .queue-table-toolbar { padding: 12px; gap: 12px; }
+}
+@media (max-width: 700px) {
+  .queue-overview { padding: 12px 10px 4px; margin-bottom: 16px; }
+  .queue .counts { gap: 2px; }
+  .queue .count { padding: 6px 4px; min-height: 42px; gap: 6px; }
+  .queue .count-label { font-size: 10px; }
+  .queue .count .count-n { font-size: 17px; }
+  .queue .count-symbol { display: none; }
+  .queue .page-title > .muted { border: 0; padding: 0; }
+  .queue .filters { padding-bottom: 16px; }
+  .console-shell .topbar .topbar-right { gap: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigation-indicator, .tab-indicator { transition: none !important; }
+  .is-running > .icon { animation: none; }
+}
+.queue .count-injection .count-symbol .icon { display: block; }
+@media (max-width: 700px) {
+  .queue .page-head { align-items: stretch; }
+  .queue .page-actions { width: 100%; gap: 8px; }
+  .queue .page-actions > .btn { font-size: 11px; padding: 8px 9px; min-height: 40px; gap: 5px; }
+  .queue .count-label { font-size: 11px; }
+  .sidebar { transition: transform 140ms cubic-bezier(.32, .72, 0, 1), visibility 0s linear 140ms; }
+  .menu-open .sidebar { transition: transform 220ms cubic-bezier(.32, .72, 0, 1), visibility 0s; }
+}
+@media (min-width: 981px) and (max-width: 1250px) {
+  .queue .grid td, .queue .grid th { padding-left: 8px; padding-right: 8px; }
+}
+html[data-motion-input='keyboard'] .sidebar, html[data-motion-input='keyboard'] .queue .grid .row td { transition: none !important; }
+html[data-motion-input='keyboard'] .btn:active { transform: none; }
+.analysis-layout { display: grid; grid-template-columns: minmax(0, 1fr) 238px; gap: 32px; margin-top: 22px; }
+.analysis-body { min-width: 0; }
+.analysis-body .workspace-ticket-title { margin: 0 0 22px; line-height: 1.6; }
+.analysis-facts { padding-left: 24px; border-left: 1px solid var(--line); align-self: start; min-width: 0; }
+.triage-page .analysis-facts .reading-metadata { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; margin: 0; gap: 20px; }
+.analysis-facts .id { white-space: normal; overflow-wrap: anywhere; }
+.analysis-facts .field dd { font-size: 12px; }
+.analysis-body .reading-section:first-of-type { padding-top: 0; }
+@media (max-width: 1250px) {
+  .analysis-layout { grid-template-columns: minmax(0, 1fr); }
+  .analysis-facts { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+  .triage-page .analysis-facts .reading-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .analysis-layout { gap: 20px; }
+  .triage-page .analysis-facts .reading-metadata { grid-template-columns: minmax(0, 1fr); }
+}
+.operational-state .sub { display: block; margin-top: 2px; }
+
+/* 19. Incidents (level 2) */
 .incident-head {
   display: flex;
   flex-wrap: wrap;
@@ -1743,8 +2618,28 @@ kbd {
 .links li {
   overflow-wrap: anywhere;
 }
+/* Incident and containment tables fit their panel; the queue's wide-table minimum is for the queue only */
+.incidents .grid,
+.containment .grid {
+  width: 100%;
+  min-width: 0;
+}
+.incidents .grid .rule {
+  min-width: 0;
+  max-width: none;
+}
+.incidents .grid td .id {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .incidents .grid,
+  .containment .grid {
+    min-width: 560px;
+  }
+}
 
-/* Containment (level 4) */
+/* 20. Containment (level 4) */
 .proposals {
   list-style: none;
   margin: 0 0 var(--s3);
@@ -1817,5 +2712,162 @@ kbd {
 @media (max-width: 600px) {
   .proposal-facts {
     grid-template-columns: 1fr;
+  }
+}
+.incident-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Incident report (level 3). The timeline reads top to bottom by event time; a dot marks each step,
+   and steps only the investigation found get the accent so they stand out from what alerts linked. */
+.step-report_ready {
+  --dot: var(--ok);
+}
+.type-report_ready {
+  color: var(--ok);
+}
+.chip-found {
+  color: var(--accent);
+}
+/* A section title with the chips that say who wrote it (LLM, code, person) */
+.workspace-panel .section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 16px;
+}
+.workspace-panel .section-title h3 {
+  margin: 0;
+}
+.report-page .workspace-empty p {
+  margin: 0 0 var(--s2);
+}
+.report-narrative {
+  margin: 0;
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+.timeline {
+  margin-top: var(--s3);
+}
+.tl-day + .tl-day {
+  margin-top: var(--s4);
+}
+.tl-date {
+  margin: 0 0 var(--s2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl-step {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--s3);
+  position: relative;
+  padding: var(--s2) 0 var(--s3);
+}
+/* The line joins the steps; the dot sits on it, at the start of each step. */
+.tl-step::before {
+  content: "";
+  position: absolute;
+  left: 118px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.tl-step::after {
+  content: "";
+  position: absolute;
+  left: 114px;
+  top: 14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--text-3);
+}
+.tl-step.is-found::after {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.tl-time {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  padding-top: var(--s1);
+}
+.tl-time .muted {
+  font-size: var(--fs-xs);
+}
+.tl-body {
+  min-width: 0;
+  padding-left: var(--s4);
+}
+.tl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+}
+.tl-source {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+.tl-linked {
+  font-size: var(--fs-xs);
+}
+.tl-desc {
+  margin: var(--s1) 0 0;
+  max-width: 80ch;
+  text-wrap: pretty;
+}
+.tl-similar {
+  margin-top: var(--s1);
+  font-size: var(--fs-sm);
+}
+.tl-similar summary,
+.disclosure-inline summary {
+  cursor: pointer;
+  color: var(--accent);
+  width: fit-content;
+}
+.tl-similar .ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-top: var(--s1);
+}
+.disclosure-inline {
+  margin-top: var(--s3);
+}
+@media (max-width: 600px) {
+  .tl-step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s1);
+    padding-left: var(--s4);
+  }
+  .tl-step::before {
+    left: 4px;
+  }
+  .tl-step::after {
+    left: 0;
+    top: 12px;
+  }
+  .tl-time {
+    flex-direction: row;
+    gap: var(--s2);
+  }
+  .tl-body {
+    padding-left: 0;
   }
 }

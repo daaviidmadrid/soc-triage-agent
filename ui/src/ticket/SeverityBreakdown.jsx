@@ -2,7 +2,7 @@
 import { Clip, Field, List, NA, None, Severity, arr, asText, isBlank, obj } from "../components.jsx";
 import { L } from "../labels.js";
 
-export default function SeverityBreakdown({ ticket }) {
+export default function SeverityBreakdown({ ticket, continuous = false }) {
   const inputs = obj(ticket.severity_inputs);
   return (
     <>
@@ -10,7 +10,7 @@ export default function SeverityBreakdown({ ticket }) {
         <Severity value={ticket.severity} />
       </Field>
       <div className="field">
-        <dt>{L.severityBreakdown}</dt>
+        <dt>{continuous ? L.severityFactors : L.severityBreakdown}</dt>
         <dd>
           {Object.keys(inputs).length === 0 ? (
             <NA />
@@ -23,7 +23,7 @@ export default function SeverityBreakdown({ ticket }) {
                 {isBlank(inputs.criticality) ? <NA /> : asText(inputs.criticality)}
                 {!isBlank(inputs.criticality_source) && (
                   <div className="sub">
-                    {L.sevSource}: <Clip value={inputs.criticality_source} max={80} />
+                    {L.sevSource}: {continuous ? asText(inputs.criticality_source) : <Clip value={inputs.criticality_source} max={80} />}
                   </div>
                 )}
               </Field>
@@ -33,7 +33,7 @@ export default function SeverityBreakdown({ ticket }) {
                   render={(a) => (
                     <>
                       <strong className="num">{obj(a).delta > 0 ? `+${obj(a).delta}` : asText(obj(a).delta)}</strong>{" "}
-                      <Clip value={obj(a).reason} max={160} />
+                      {continuous ? asText(obj(a).reason) : <Clip value={obj(a).reason} max={160} />}
                     </>
                   )}
                 />
@@ -45,7 +45,7 @@ export default function SeverityBreakdown({ ticket }) {
         </dd>
       </div>
       <Field label={L.sevRationale}>
-        <Clip value={ticket.severity_rationale} max={300} />
+        {continuous ? <p className="prose">{asText(ticket.severity_rationale) || L.na}</p> : <Clip value={ticket.severity_rationale} max={300} />}
       </Field>
     </>
   );

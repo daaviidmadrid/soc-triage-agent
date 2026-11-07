@@ -17,3 +17,5 @@ Codex.md
 .vscode/
 skills-lock.json
 /package-lock.json
+.taste-skill/
+.codex/
