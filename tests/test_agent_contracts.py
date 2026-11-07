@@ -9,11 +9,24 @@ from pydantic import ValidationError
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from contracts.models import Ticket, TraceEvent  # noqa: E402
+from contracts.models import Context, Ticket, TraceEvent  # noqa: E402
 
 CONTEXT_DIR = REPO_ROOT / "data" / "01_contexto"
 SCHEMA = json.loads((CONTEXT_DIR / "ticket_salida.schema.json").read_text(encoding="utf-8"))
 EXAMPLE = json.loads((CONTEXT_DIR / "ticket_ejemplo.json").read_text(encoding="utf-8"))
+
+
+def test_context_keeps_what_data_sends():
+    context = Context(alert={"alert_id": "A"}, logs={"proxy": [{"event_id": "P1"}]}, changes=[{"id": "CHG-1"}])
+    dumped = context.model_dump()
+    assert dumped["alert"] == {"alert_id": "A"}
+    assert dumped["logs"] == {"proxy": [{"event_id": "P1"}]}
+    assert dumped["changes"] == [{"id": "CHG-1"}]
+
+
+def test_context_rejects_a_misspelt_field_instead_of_losing_it():
+    with pytest.raises(ValidationError):
+        Context(alert={}, logz=[])
 
 
 def test_deloitte_example_loads_and_stays_valid():
