@@ -114,8 +114,10 @@ def test_no_model_says_how_to_fix_it(runs, monkeypatch):
 def make_laptop(base, name, alert_ids, folder="v2-test-model"):
     results = base / name / folder
     (results / "traces").mkdir(parents=True)
+    (results / "calls").mkdir()
     for alert_id in alert_ids:
         (results / f"{alert_id}.json").write_text(json.dumps(ticket(alert_id)), encoding="utf-8")
+        (results / "calls" / f"{alert_id}.json").write_text(json.dumps({"alert_id": alert_id, "calls": []}), encoding="utf-8")
         (results / "traces" / f"{alert_id}.json").write_text(json.dumps([{"tool": "llm", "args": {"model": "test-model", "seconds": 2.0}}]), encoding="utf-8")
     return results
 
@@ -134,6 +136,7 @@ def test_three_laptops_pack_and_merge_into_one_folder(tmp_path, monkeypatch):
         assert exam.merge_zip(path, merged) == ("v2-test-model", 2, 0, 0)
     folder = merged / "v2-test-model"
     assert len(list(folder.glob("*.json"))) == 6 and len(list((folder / "traces").glob("*.json"))) == 6
+    assert len(list((folder / "calls").glob("*.json"))) == 6
     assert exam.merge_zip(zips[0], merged) == ("v2-test-model", 0, 2, 0)
 
 

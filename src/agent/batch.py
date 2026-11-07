@@ -70,6 +70,20 @@ def _save(path, ticket, events):
     _write_json(path, ticket.model_dump(exclude_none=True))
 
 
+def _triage(alert, triage_options):
+    """Returns (ticket, events, calls). calls holds each prompt, raw answer and reasoning, and what code did with them."""
+    calls = []
+    ticket, events = run_triage(alert, **{**(triage_options or {}), "call_log": calls})
+    return ticket, events, calls
+
+
+def _save_calls(out_dir, alert_id, calls, saved):
+    """Written even when the ticket isn't, because a failure is what most needs explaining. A later run overwrites it.
+    It holds alert and log text, which is untrusted: read it as data. runs/ is not in git."""
+    _write_json(out_dir / "calls" / f"{alert_id}.json",
+                {"alert_id": alert_id, "prompt_version": PROMPT_VERSION, "ticket_saved": saved, "calls": calls})
+
+
 def _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, report, notify):
     """Several alerts at a time, for providers with no request limit. Every failure still counts, and nothing is saved twice."""
     lock = threading.Lock()
@@ -84,8 +98,9 @@ def _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, 
             if alert_id is None:
                 return
             started = time.monotonic()
-            ticket, events = run_triage(alerts[alert_id], **(triage_options or {}))
+            ticket, events, calls = _triage(alerts[alert_id], triage_options)
             saved = _should_save(events)
+            _save_calls(out_dir, alert_id, calls, saved)
             if saved:
                 _save(out_dir / f"{alert_id}.json", ticket, events)
             with lock:
@@ -152,8 +167,9 @@ def run_batch(alert_ids, alerts=None, triage_options=None, out_dir=None, pace_se
             sleep(pace_seconds)
         called_yet = True
         started = time.monotonic()
-        ticket, events = run_triage(alerts[alert_id], **(triage_options or {}))
+        ticket, events, calls = _triage(alerts[alert_id], triage_options)
         report["calls_used"] += _calls_used(events)
+        _save_calls(out_dir, alert_id, calls, _should_save(events))
         if _should_save(events):
             _save(path, ticket, events)
             report["done"].append(alert_id)

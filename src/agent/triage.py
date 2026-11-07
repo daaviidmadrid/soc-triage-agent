@@ -27,7 +27,7 @@ from contracts.models import (
     Verdict,
 )
 from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, complete
-from src.agent.prompts import LOG_SOURCES, build_prompt_with_info, context_to_dict
+from src.agent.prompts import LOG_SOURCES, PROMPT_VERSION, build_prompt_with_info, context_to_dict
 from src.policy.severity import compute_severity as default_compute_severity
 from src.tools.alert_fields import normalise_alert
 from src.tools.context import build_context as default_build_context
@@ -480,13 +480,24 @@ def _extra_search(request, context, search, emit):
     yield emit("tool_result", tool="search_logs", args=args, summary=f"{len(rows)} fila(s) de {request.source}", event_ids=_row_ids(rows), truncated=truncated)
 
 
-def _ask_llm(context, llm, search, emit, max_calls):
+def _now():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _record(call_log, **entry):
+    if call_log is not None:
+        call_log.append({"at": _now(), **entry})
+
+
+def _ask_llm(context, llm, search, emit, max_calls, call_log=None):
     """Returns a checked draft, or None. The extra search and the retry share the same call limit.
 
-    A claim of authorisation the model never corrects still comes back, and build_ticket turns it into needs_more_info."""
+    A claim of authorisation the model never corrects still comes back, and build_ticket turns it into needs_more_info.
+    If call_log is a list, each call is added to it: the prompt, the raw answer, the reasoning and what code did with it."""
     calls = 0
     feedback = None
     unauthorised = None
+    last_system = None
     while calls < max_calls:
         can_search = calls == 0 and max_calls > 1
         system, user, omitted = build_prompt_with_info(context, allow_search=can_search, feedback=feedback)
@@ -496,7 +507,15 @@ def _ask_llm(context, llm, search, emit, max_calls):
         calls += 1
         yield emit("tool_call", tool="llm", args={"call": calls}, summary="Consultando al modelo")
         started = time.monotonic()
-        result = llm(system, user)
+        # The system prompt is the same on every call for an alert, so the log keeps it once.
+        prompt = {"system": system if system != last_system else "(same as the previous call)", "user": user, "omitted": omitted or {}}
+        last_system = system
+        try:
+            result = llm(system, user)
+        except Exception as error:
+            _record(call_log, kind="llm_call", call=calls, prompt_version=PROMPT_VERSION, **prompt, outcome="failed",
+                    error=f"{type(error).__name__}: {str(error)[:300]}", seconds=round(time.monotonic() - started, 2))
+            raise
         yield emit(
             "tool_result",
             tool="llm",
@@ -511,7 +530,11 @@ def _ask_llm(context, llm, search, emit, max_calls):
             summary=f"Respuesta de {result.model}",
         )
         answer, errors = parse_answer(result.text, can_search)
+        log_entry = dict(kind="llm_call", call=calls, prompt_version=PROMPT_VERSION, **prompt, model=result.model, attempts=result.attempts,
+                         prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
+                         seconds=round(time.monotonic() - started, 2), answer=result.text, reasoning=getattr(result, "reasoning", "") or "")
         if isinstance(answer, SearchRequest):
+            _record(call_log, **log_entry, outcome="asked for a log search", errors=[])
             yield from _extra_search(answer, context, search, emit)
             feedback = None
             continue
@@ -520,6 +543,7 @@ def _ask_llm(context, llm, search, emit, max_calls):
         if not errors:
             errors = check_authorisation(answer, context)
             unauthorised = answer if errors else unauthorised
+        _record(call_log, **log_entry, outcome="rejected by code" if errors else "accepted", errors=errors)
         if not errors:
             return answer
         feedback = errors
@@ -527,8 +551,11 @@ def _ask_llm(context, llm, search, emit, max_calls):
     return unauthorised
 
 
-def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS) -> Iterator[TraceEvent]:
-    """The data functions are arguments because the data branch may not be merged yet, and tests need fakes."""
+def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None) -> Iterator[TraceEvent]:
+    """The data functions are arguments because the data branch may not be merged yet, and tests need fakes.
+
+    call_log, if given, is a list that receives every model call and what code decided. It holds prompts and data
+    text, so it is kept apart from the trace the UI shows, and nothing in it is ever sent back to the model."""
     build = build_context or default_build_context
     compute = compute_severity or default_compute_severity
     search = search_logs or default_search_logs
@@ -546,7 +573,9 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         return emit("ticket_ready", summary=f"{ticket.verdict}, severidad {ticket.severity}", event_ids=event_ids, ticket=ticket)
 
     def fail(reason):
-        return finish(failsafe_ticket(alert, context, reason, compute, seconds(), assumptions))
+        ticket = failsafe_ticket(alert, context, reason, compute, seconds(), assumptions)
+        _record(call_log, kind="result", outcome="triage failed and went to a person", reason=reason, verdict=ticket.verdict, severity=ticket.severity)
+        return finish(ticket)
 
     yield emit("started", args={"alert_id": _alert_id(alert)}, summary=f"Triaje de {_alert_id(alert)}")
     for assumption in assumptions:
@@ -561,7 +590,7 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         yield fail(f"No se pudo reunir el contexto de la alerta: {problem}.")
         return
     try:
-        draft = yield from _ask_llm(context, ask, search, emit, max_llm_calls)
+        draft = yield from _ask_llm(context, ask, search, emit, max_llm_calls, call_log)
     except LLMBlocked as error:
         yield emit("error", tool="llm", args={"kind": "blocked", "attempts": error.attempts}, summary=str(error))
         yield fail("El proveedor del LLM bloqueó la llamada.")
@@ -582,6 +611,8 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         yield fail("El modelo no dio una respuesta que pasara las comprobaciones.")
         return
     ticket, notes = build_ticket(alert, context, draft, compute, seconds(), assumptions)
+    _record(call_log, kind="result", outcome="ticket", model_verdict=draft.verdict, verdict=ticket.verdict, severity=ticket.severity,
+            escalate=ticket.escalation.escalate, code_changes=notes, assumptions=list(assumptions))
     for note in notes:
         yield emit("note", summary=note)
     yield finish(ticket)
