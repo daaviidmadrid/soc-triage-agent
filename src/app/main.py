@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
+from src.agent.correlate import correlate
 from src.app.store import Store, now_iso
 from src.tools.alert_fields import fill_from_catalogue
 
@@ -122,10 +123,26 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
             return None
         return {key: run[key] for key in ("run_id", "mode", "status", "started_at", "finished_at", "duration_seconds", "ticket_id", "error")}
 
+    def triaged_pairs():
+        """(alert, latest ticket) for every alert whose newest run produced a ticket."""
+        runs = store.latest_runs()
+        pairs = []
+        for row in store.list_alerts():
+            run = runs.get(row["alert"]["alert_id"])
+            ticket_row = store.ticket_for_run(run["run_id"]) if run else None
+            if ticket_row and isinstance(ticket_row["ticket"], dict):
+                pairs.append((row["alert"], ticket_row["ticket"]))
+        return pairs
+
+    def memberships():
+        latest = store.latest_correlation()
+        return latest.get("memberships", {}) if latest else {}
+
     @app.get("/api/queue")
     def queue():
         runs = store.latest_runs()
         decisions = store.latest_decisions_by_run()
+        incident_of = memberships()
         items = []
         for row in store.list_alerts():
             alert = row["alert"]
@@ -143,6 +160,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
                 "run": run_view(run),
                 "ticket": ticket,
                 "decision": decisions.get(run["run_id"]) if run else None,
+                "incident_id": incident_of.get(alert["alert_id"]),
             })
         return {
             "mode": runner.current_mode(),
@@ -170,7 +188,25 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
             "latest_run": run_view(latest),
             "ticket": ticket_row,
             "decisions": store.decisions_for(ticket_row["ticket_id"]) if ticket_row else [],
+            "incident_id": memberships().get(alert_id),
         }
+
+    @app.post("/api/incidents/build")
+    def build_incidents():
+        """Level 2: groups the latest tickets into incidents with plain code, and keeps the result with its reasons."""
+        pairs = triaged_pairs()
+        result = correlate(pairs)
+        built_at = store.save_correlation(result)
+        return {"built_at": built_at, "alerts": result["alerts"], "incidents": len(result["incidents"]),
+                "grouped_alerts": len(result["memberships"])}
+
+    @app.get("/api/incidents")
+    def incidents():
+        latest = store.latest_correlation()
+        triaged = len(triaged_pairs())
+        if not latest:
+            return {"built_at": None, "incidents": [], "noise": [], "memberships": {}, "alerts": 0, "triaged_now": triaged, "stale": triaged > 0}
+        return {**latest, "triaged_now": triaged, "stale": triaged != latest.get("alerts")}
 
     @app.post("/api/alerts/import")
     async def import_alerts(request: Request):

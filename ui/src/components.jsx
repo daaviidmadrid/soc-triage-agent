@@ -89,6 +89,20 @@ export function ModeTag({ mode }) {
   return null;
 }
 
+// Switches between the alert queue and the incidents built from it.
+export function ViewSwitch({ view, onAlerts, onIncidents }) {
+  return (
+    <div className="view-switch" role="group" aria-label={L.viewLabel}>
+      <button type="button" className="btn btn-sm" aria-pressed={view === "alerts"} onClick={view === "alerts" ? undefined : onAlerts}>
+        {L.viewAlerts}
+      </button>
+      <button type="button" className="btn btn-sm" aria-pressed={view === "incidents"} onClick={view === "incidents" ? undefined : onIncidents}>
+        {L.viewIncidents}
+      </button>
+    </div>
+  );
+}
+
 export function Chip({ kind, children, title }) {
   return (
     <span className={`chip chip-${kind}`} title={title}>

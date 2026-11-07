@@ -506,6 +506,13 @@ def command_score(args):
         tickets += score.load_tickets(path)
     if not tickets:
         raise Problem(f"There are no tickets in {folder} yet.")
+    if args.grouped:
+        from src.agent.correlate import correlate, load_folder
+
+        result = correlate(load_folder(folder))
+        grouped = set(result["memberships"])
+        tickets = [incident["ticket"] for incident in result["incidents"]] + [t for t in tickets if not set(t.get("alert_ids") or []) & grouped]
+        print(f"Grouped into incidents: {len(result['incidents'])}, holding {len(grouped)} alerts. Each alert in one is marked by its incident's ticket.")
     labels = score.load_labels()
     labelled = {label["alert_id"] for label in labels}
     if args.set:
@@ -562,6 +569,7 @@ def parser():
     score = commands.add_parser("score", help="mark the tickets")
     score.add_argument("--folder")
     score.add_argument("--set", help="mark only this set, such as exam or normal")
+    score.add_argument("--grouped", action="store_true", help="group the tickets into incidents first (level 2)")
     score.set_defaults(run=command_score)
     return main_parser
 

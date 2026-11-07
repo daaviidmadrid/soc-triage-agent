@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import Incidents from "./pages/Incidents.jsx";
 import Queue from "./pages/Queue.jsx";
 import Ticket from "./pages/Ticket.jsx";
 import { api } from "./api.js";
 import { L } from "./labels.js";
 import { filtersFromQuery, nextPendingId, queueHash } from "./queue/model.js";
 
-// Two screens and no router: "#/alerta/<id>" opens an alert; "#/" or "#/?estado=…" shows the queue with its filters.
+// Three screens and no router: "#/alerta/<id>" opens an alert, "#/incidentes" shows the incidents,
+// and "#/" or "#/?estado=…" shows the queue with its filters.
 function readRoute() {
   const hash = window.location.hash;
+  if (hash === "#/incidentes") return { alertId: null, query: "", incidents: true };
   const m = hash.match(/^#\/alerta\/(.+)$/);
   if (m) {
     try {
@@ -53,11 +56,11 @@ export default function App() {
 
   // Filter changes rewrite the hash in place: a reload keeps them, and they don't fill the Back history.
   useEffect(() => {
-    if (alertId) return;
+    if (alertId || route.incidents) return;
     const wanted = queueHash(filters);
     const current = window.location.hash || "#/";
     if (current !== wanted && !(wanted === "#/" && current === "#")) window.history.replaceState(null, "", wanted);
-  }, [filters, alertId]);
+  }, [filters, alertId, route.incidents]);
 
   useEffect(() => {
     document.title = alertId ? `${alertId} · ${L.appTitle}` : L.appTitle;
@@ -79,6 +82,9 @@ export default function App() {
   const openQueue = useCallback(() => {
     window.location.hash = queueHash(filters);
   }, [filters]);
+  const openIncidents = useCallback(() => {
+    window.location.hash = "#/incidentes";
+  }, []);
   // After a decision: the next alert nobody has decided, in the queue's order and with the analyst's filters.
   const openNext = useCallback(
     async (currentId) => {
@@ -115,9 +121,18 @@ export default function App() {
       {(mode === "example" || exampleOnScreen) && <ExampleBanner mode={mode} />}
       <main className="content" id="main" ref={main} tabIndex={-1}>
         {alertId ? (
-          <Ticket key={alertId} alertId={alertId} onBack={openQueue} onNext={openNext} onReport={report} />
+          <Ticket key={alertId} alertId={alertId} onBack={openQueue} onNext={openNext} onReport={report} onIncidents={openIncidents} />
+        ) : route.incidents ? (
+          <Incidents onOpen={openAlert} onAlerts={openQueue} />
         ) : (
-          <Queue onOpen={openAlert} onReport={report} filters={filters} setFilters={setFilters} returnTo={returnTo.current} />
+          <Queue
+            onOpen={openAlert}
+            onReport={report}
+            filters={filters}
+            setFilters={setFilters}
+            returnTo={returnTo.current}
+            onIncidents={openIncidents}
+          />
         )}
       </main>
     </div>
