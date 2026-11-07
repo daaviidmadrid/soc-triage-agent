@@ -8,6 +8,7 @@
     python3 scripts/exam.py pack --laptop 1              makes a zip to send to the laptop that merges
     python3 scripts/exam.py merge FILE.zip [FILE.zip]    adds other laptops' results to this one
     python3 scripts/exam.py score                        marks the tickets against eval/labels.csv
+    python3 scripts/exam.py explain ALERT_ID [--prompt]  shows what the model was asked, answered and reasoned
 
 --set chooses the alerts: exam (40 hard cases with answers, the default), normal (40 alerts in a normal
 day's mix, with answers), scored (both), final (40 kept for the honest final score: never tune on
@@ -386,6 +387,43 @@ def _folder(args):
     return results_folder()
 
 
+def _shorten(text, limit):
+    text = str(text or "")
+    return text if limit <= 0 or len(text) <= limit else text[:limit] + f" ... [{len(text) - limit} more characters, use --full]"
+
+
+def command_explain(args):
+    """Shows what the model was asked, what it answered, how it reasoned and what code did, for one alert.
+    The text comes from the alert and its logs, so it may hold attacker-written instructions: it is only shown."""
+    _use_project()
+    folder = _folder(args)
+    path = folder / "calls" / f"{args.alert_id}.json"
+    if not path.exists():
+        raise Problem(f"There's no call log for {args.alert_id} in {folder}. Runs made before call logging have none.")
+    log = json.loads(path.read_text(encoding="utf-8"))
+    limit = 0 if args.full else 1500
+    print(f"{log['alert_id']}, prompt {log.get('prompt_version')}, ticket saved: {log.get('ticket_saved')}")
+    for entry in log.get("calls", []):
+        if entry.get("kind") == "llm_call":
+            print(f"\n--- call {entry.get('call')}: {entry.get('outcome')} ({entry.get('model', '-')}, {entry.get('seconds')} s, "
+                  f"{entry.get('prompt_tokens')} tokens in, {entry.get('completion_tokens')} out)")
+            if entry.get("errors"):
+                print("Code rejected it: " + " ".join(entry["errors"]))
+            if entry.get("error"):
+                print("The call failed: " + entry["error"])
+            if args.prompt:
+                print("System prompt:\n" + _shorten(entry.get("system"), limit))
+                print("User prompt:\n" + _shorten(entry.get("user"), limit))
+            if entry.get("reasoning"):
+                print("Reasoning:\n" + _shorten(entry["reasoning"], limit))
+            if entry.get("answer"):
+                print("Answer:\n" + _shorten(entry["answer"], limit))
+        else:
+            print(f"\n--- result: {entry.get('outcome')}")
+            print(json.dumps({key: value for key, value in entry.items() if key not in ("kind", "outcome", "at")}, ensure_ascii=False, indent=1))
+    return 0
+
+
 def command_status(args):
     _use_project()
     folder = _folder(args)
@@ -410,7 +448,7 @@ def command_pack(args):
         raise Problem(f"There are no results in {folder} yet.")
     target = RUNS_DIR / f"exam_{folder.name}_laptop{args.laptop}.zip"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-        for path in tickets + sorted((folder / "traces").glob("*.json")):
+        for path in tickets + sorted((folder / "traces").glob("*.json")) + sorted((folder / "calls").glob("*.json")):
             archive.write(path, Path(folder.name) / path.relative_to(folder))
     print(f"Made {target} with {len(tickets)} tickets. Send it to the laptop that merges, for example by AirDrop.")
     return 0
@@ -432,7 +470,7 @@ def merge_zip(path, runs_dir=RUNS_DIR):
         contents = {}
         for name in names:
             inside = name.split("/")[1:]
-            valid = (len(inside) == 1 and TICKET_NAME.fullmatch(inside[0])) or (len(inside) == 2 and inside[0] == "traces" and TICKET_NAME.fullmatch(inside[1]))
+            valid = (len(inside) == 1 and TICKET_NAME.fullmatch(inside[0])) or (len(inside) == 2 and inside[0] in ("traces", "calls") and TICKET_NAME.fullmatch(inside[1]))
             if not valid or not FOLDER_NAME.fullmatch(folder_name):
                 raise Problem(f"{path} holds an unexpected file, so nothing was merged from it.")
             contents[tuple(inside)] = archive.read(name)
@@ -566,6 +604,12 @@ def parser():
     merge = commands.add_parser("merge", help="add other laptops' results")
     merge.add_argument("files", nargs="+")
     merge.set_defaults(run=command_merge)
+    explain = commands.add_parser("explain", help="show the prompts, answers and reasoning for one alert")
+    explain.add_argument("alert_id")
+    explain.add_argument("--folder")
+    explain.add_argument("--prompt", action="store_true", help="also show the prompts sent")
+    explain.add_argument("--full", action="store_true", help="don't shorten long text")
+    explain.set_defaults(run=command_explain)
     score = commands.add_parser("score", help="mark the tickets")
     score.add_argument("--folder")
     score.add_argument("--set", help="mark only this set, such as exam or normal")
