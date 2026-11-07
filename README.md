@@ -122,4 +122,5 @@ data/         deloitte dataset (not in git)
 - [Overview](docs/overview.md): what we're building
 - [Decisions](docs/decisions.md): what's decided and what's open
 - [Data traps](docs/data_traps.md): what the analysis found in the data
+- [Agent versions](docs/agent_versions.md): each version of the agent and its exam results
 - [AGENTS.md](AGENTS.md): rules for coding agents
