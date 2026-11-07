@@ -59,7 +59,7 @@ function Links({ links }) {
   );
 }
 
-function IncidentCard({ incident, onOpen }) {
+function IncidentCard({ incident, report, onOpen, onOpenReport }) {
   const t = incident.ticket;
   const esc = t.escalation || {};
   const headId = `inc-${incident.incident_id}`;
@@ -67,7 +67,14 @@ function IncidentCard({ incident, onOpen }) {
     <section className="panel incident" aria-labelledby={headId}>
       <div className="incident-head">
         <h2 id={headId}>{t.title}</h2>
-        <code className="id">{incident.incident_id}</code>
+        <span className="incident-actions">
+          <code className="id">{incident.incident_id}</code>
+          {(esc.escalate || report) && (
+            <button type="button" className={`btn btn-sm${report ? "" : " btn-primary"}`} onClick={() => onOpenReport(incident.incident_id)}>
+              {report ? L.reportOpen : L.reportInvestigate}
+            </button>
+          )}
+        </span>
       </div>
       <div className="incident-facts">
         <Severity value={t.severity} />
@@ -137,7 +144,7 @@ function Noise({ rows }) {
   );
 }
 
-export default function Incidents({ onOpen, onAlerts }) {
+export default function Incidents({ onOpen, onAlerts, onOpenReport }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -201,7 +208,15 @@ export default function Incidents({ onOpen, onAlerts }) {
       {data.incidents.length === 0 ? (
         <Notice>{data.triaged_now > 0 ? L.incidentsNone : L.incidentsNothingTriaged}</Notice>
       ) : (
-        data.incidents.map((incident) => <IncidentCard key={incident.incident_id} incident={incident} onOpen={onOpen} />)
+        data.incidents.map((incident) => (
+          <IncidentCard
+            key={incident.incident_id}
+            incident={incident}
+            report={(data.reports || {})[incident.incident_id]}
+            onOpen={onOpen}
+            onOpenReport={onOpenReport}
+          />
+        ))
       )}
       <Noise rows={data.noise} />
     </div>

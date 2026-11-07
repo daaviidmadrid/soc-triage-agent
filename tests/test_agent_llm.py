@@ -247,6 +247,17 @@ def test_reasoning_stays_on_unless_turned_off(monkeypatch):
     assert client.last_request["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
 
 
+def test_a_call_can_keep_reasoning_on_or_turn_it_off_whatever_the_setting(monkeypatch):
+    monkeypatch.setenv("LLM_ENABLE_THINKING", "false")
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep, thinking=True)
+    assert "extra_body" not in client.last_request
+    monkeypatch.delenv("LLM_ENABLE_THINKING")
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep, thinking=False)
+    assert client.last_request["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
 def test_reasoning_text_is_removed_from_the_answer():
     client = FakeClient(reply(text='<think>maybe {"a": 1}\nor not</think>\n{"ok": true}'))
     assert complete("s", "u", client=client, sleep=no_sleep).text == '{"ok": true}'

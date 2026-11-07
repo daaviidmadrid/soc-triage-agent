@@ -37,6 +37,7 @@ Judged on: correct and well-argued triage, working on the real data, clear roles
 3. Plain code checks the ticket: the format, that the evidence was really retrieved, and the final severity.
 4. The web UI shows the queue, every lookup and the reasoning.
 5. The LLM can propose containment. Plain code works out who must approve, and only a person's click runs it.
+6. For an escalated ticket or incident, plain code searches every entity across the whole incident and expands by session and message ID. The LLM writes the incident report, and code checks every timeline event against what it retrieved and takes each time from the log (`python scripts/investigate.py ALR-…`, or the report page in the UI).
 
 ## Test case
 The incident on the account `laura.ferrer2` is our test at every level (`laura.ferrer` is someone else with the same display name): a fake login page, a stolen session, a hidden inbox rule, then a fake IBAN change for 148,320 euros. Alerts `ALR-20261007-011785`, `-011786`, `-011787`, `-011788` and `ALR-20261008-011789`.
