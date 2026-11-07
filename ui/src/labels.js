@@ -190,6 +190,15 @@ export const L = {
   byCodeHelp: "Reglas fijas: matriz de severidad, escalado obligatorio, cerrar o escalar, autorización verificada.",
   byPerson: "Pendiente de una persona",
   byPersonDone: "Decidido por una persona",
+  closedByRule: "Cerrada por regla",
+  closedByRuleId: (id) => `Cerrada por regla ${id}`,
+  closedByRuleHelp: "Una regla fija de código cerró esta alerta sin llamar al LLM.",
+  ruleTitle: "Cerrada por una regla fija, sin LLM",
+  ruleHelp:
+    "Código determinista: cada condición se cumplió exactamente con campos de los logs, la CMDB y el calendario de cambios. El texto de la alerta no cuenta. No se consultó al modelo.",
+  ruleName: "Regla",
+  ruleConditions: "Condiciones que se cumplieron",
+  ruleEvents: "Eventos en los que se basa",
   fallbackTitle: "Ticket de respaldo",
   fallbackHelp: "Lo generó el código porque el triaje automático no se completó. El LLM no propuso nada.",
   byPersonHelp: "Nada de esto se ejecuta solo. La persona decide y aprueba.",
@@ -367,6 +376,7 @@ export const TOOL = {
   intel: "Inteligencia (TIP)",
   sandbox: "Sandbox",
   search_logs: "Búsqueda en logs",
+  rules: "Regla fija (sin LLM)",
   llm: "Modelo de lenguaje",
   app: "Aplicación",
 };

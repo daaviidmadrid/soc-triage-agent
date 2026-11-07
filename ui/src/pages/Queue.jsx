@@ -183,6 +183,11 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
           <span className="verdict-cell">
             <ModeTag mode={t.mode} />
             <span>{t.verdict ? VERDICT[t.verdict] || t.verdict : <NA />}</span>
+            {t.closed_by_rule && (
+              <Chip kind="code" title={L.closedByRuleHelp}>
+                {L.closedByRule}
+              </Chip>
+            )}
             {t.injection_flags > 0 && (
               <Chip kind="warn">
                 <Icon name="alert" />

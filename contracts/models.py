@@ -95,6 +95,17 @@ class AuthorisedBy(BaseModel):
     id: str
 
 
+class RuleClosure(BaseModel):
+    """Set when a fixed rule in src/agent/rules.py closed the alert and no LLM was called.
+    Lists every condition that matched, in order, and the event IDs they rely on, so a person can audit it."""
+
+    rule_id: str
+    name: str
+    detection_rule: str
+    conditions: list[str]
+    event_ids: list[str] = Field(default_factory=list)
+
+
 class GroupLink(BaseModel):
     """Why an alert joined an incident: the alert it shares something with, and what they share."""
 
@@ -104,7 +115,7 @@ class GroupLink(BaseModel):
 
 
 class Ticket(BaseModel):
-    """Follows data/01_contexto/ticket_salida.schema.json. The last five fields are our additions."""
+    """Follows data/01_contexto/ticket_salida.schema.json. The last six fields are our additions."""
 
     ticket_id: str
     alert_ids: list[str]
@@ -128,6 +139,7 @@ class Ticket(BaseModel):
     authorised_by: AuthorisedBy | None = None
     merged_into: str | None = None
     group_links: list[GroupLink] = Field(default_factory=list)
+    closed_by_rule: RuleClosure | None = None
 
 
 class TraceEvent(BaseModel):

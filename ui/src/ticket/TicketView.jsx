@@ -186,16 +186,46 @@ function RoleHeading({ kind, tag, title, help }) {
   );
 }
 
+// A ticket a fixed rule closed: which rule, every condition that held, and the events it relied on.
+function RuleClosure({ rule, trace }) {
+  return (
+    <>
+      <Field label={L.ruleName}>
+        <Chip kind="code">{L.closedByRuleId(asText(rule.rule_id))}</Chip> <Clip value={rule.name} max={120} />{" "}
+        {!isBlank(rule.detection_rule) && <code className="id">{asText(rule.detection_rule)}</code>}
+      </Field>
+      <Field label={L.ruleConditions}>
+        <List items={arr(rule.conditions)} />
+      </Field>
+      <Field label={L.ruleEvents}>
+        {arr(rule.event_ids).length ? (
+          <span className="ids">
+            {arr(rule.event_ids).map((id, i) => (
+              <EventRef key={i} id={id} trace={trace} />
+            ))}
+          </span>
+        ) : (
+          <None />
+        )}
+      </Field>
+    </>
+  );
+}
+
 function LlmColumn({ ticket, fallback, trace }) {
+  const rule = isBlank(ticket.closed_by_rule) ? null : obj(ticket.closed_by_rule);
   return (
     <div className="role role-llm">
-      {/* A fallback ticket was filled in by code: its heading must not credit the LLM */}
-      {fallback ? (
+      {/* A fallback ticket, or one a fixed rule closed, was filled in by code: its heading must not credit the LLM */}
+      {rule ? (
+        <RoleHeading kind="code" tag={L.tagCode} title={L.ruleTitle} help={L.ruleHelp} />
+      ) : fallback ? (
         <RoleHeading kind="code" tag={L.tagCode} title={L.fallbackTitle} help={L.fallbackHelp} />
       ) : (
         <RoleHeading kind="llm" tag={L.tagLlm} title={L.byLlm} help={L.byLlmHelp} />
       )}
       <dl className="kv">
+        {rule && <RuleClosure rule={rule} trace={trace} />}
         <Field label={L.verdict}>{ticket.verdict ? <strong>{VERDICT[ticket.verdict] || asText(ticket.verdict)}</strong> : <NA />}</Field>
         <Field label={L.confidence}>{typeof ticket.confidence === "number" ? <span className="num">{Math.round(ticket.confidence * 100)} %</span> : <NA />}</Field>
         <Field label={L.summary}>

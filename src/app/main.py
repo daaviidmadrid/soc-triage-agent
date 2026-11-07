@@ -130,6 +130,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
             "severity": _severity(ticket.get("severity")),
             "proposed": "escalate" if escalate is True else "close" if escalate is False else None,
             "injection_flags": len(ticket.get("injection_flags") or []) if isinstance(ticket.get("injection_flags"), list) else 0,
+            # The fixed rule that closed it without the LLM (src/agent/rules.py), or None.
+            "closed_by_rule": _text(ticket["closed_by_rule"].get("rule_id")) if isinstance(ticket.get("closed_by_rule"), dict) else None,
             "triage_seconds": run.get("duration_seconds") if run else None,
         }
 

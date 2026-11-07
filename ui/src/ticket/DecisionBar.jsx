@@ -132,9 +132,11 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext }) {
   const escalation = obj(ticket.escalation);
   const proposal = escalation.escalate === true ? "escalate" : escalation.escalate === false ? "close" : null;
   const flags = arr(ticket.injection_flags).length;
-  // A fallback ticket was filled in by code, so its verdict and confidence are not the LLM's.
-  const authorTag = fallback ? L.tagCode : L.tagLlm;
-  const authorKind = fallback ? "code" : "llm";
+  const rule = isBlank(ticket.closed_by_rule) ? null : obj(ticket.closed_by_rule);
+  // A fallback ticket, or one a fixed rule closed, was filled in by code, so its verdict and confidence are not the LLM's.
+  const byCode = fallback || Boolean(rule);
+  const authorTag = byCode ? L.tagCode : L.tagLlm;
+  const authorKind = byCode ? "code" : "llm";
   const changed = decision && decision.decision !== "accept" && proposal && decision.outcome !== proposal;
 
   return (
@@ -184,6 +186,11 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext }) {
           </button>
         )}
         <ModeTag mode={ticketRow.mode} />
+        {rule && (
+          <Chip kind="code" title={L.closedByRuleHelp}>
+            {L.closedByRuleId(asText(rule.rule_id))}
+          </Chip>
+        )}
         {flags > 0 && (
           <button type="button" className="chip chip-warn chip-btn" onClick={() => onGo("injection-title")}>
             <Icon name="alert" />

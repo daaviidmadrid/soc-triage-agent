@@ -5,7 +5,7 @@ from pathlib import Path
 
 from contracts.models import Context
 
-PROMPT_VERSION = "v5"
+PROMPT_VERSION = "v6"
 
 CONTEXT_DIR = Path(__file__).resolve().parents[2] / "data" / "01_contexto"
 
