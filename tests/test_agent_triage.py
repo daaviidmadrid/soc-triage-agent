@@ -540,6 +540,13 @@ def test_a_real_claim_of_authorisation_needs_no_correction():
     assert run(llm)[0].verdict == "benign_true_positive" and len(llm.prompts) == 1
 
 
+def test_a_close_with_low_confidence_goes_to_a_person():
+    ticket, _ = run(FakeLLM(answer(verdict="false_positive", confidence=0.6)))
+    assert ticket.escalation.escalate is True and "Confianza del modelo baja (60 %)" in ticket.escalation.reason
+    ticket, _ = run(FakeLLM(answer(verdict="false_positive", confidence=0.9)))
+    assert ticket.escalation.escalate is False
+
+
 def test_false_positive_with_no_log_rows_cant_close():
     context = make_context(logs=[])
     ticket, events = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), context=context)
