@@ -18,25 +18,42 @@ LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_MODEL=gemini-3.6-flash
 MOCK_API_URL=http://localhost:8000
 ```
+The UI also needs Node 22 or newer (on a Mac, `brew install node`):
+```bash
+cd ui && npm install
+```
 
 ## Run
 Mock API:
 ```bash
 uvicorn --app-dir data/06_herramientas mock_soc_api:app --port 8000
 ```
+Backend:
+```bash
+uvicorn src.app.main:app --port 8001
+```
+UI, at http://localhost:5173:
+```bash
+cd ui && npm run dev
+```
 Test the LLM:
 ```bash
 python scripts/test_llm.py
 ```
+Analysis notebook:
+```bash
+jupyter notebook analysis/explore.ipynb
+```
 
 ## Folders
 ```text
+analysis/     data analysis notebook
 contracts/    data formats
 src/tools/    api client, log search
 src/policy/   severity, approvals
 src/agent/    llm, triage
 src/app/      backend
-ui/           frontend
+ui/           frontend (react, css)
 eval/         labels, scoring
 docs/         notes, one-pager, demo script
 scripts/      quick tests
