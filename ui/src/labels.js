@@ -247,7 +247,35 @@ export const L = {
   waitingApproval: "Esperando aprobación de una persona",
   actionNoApproval: "Sin aprobación requerida",
   executedActions: "Acciones ejecutadas",
-  noneExecuted: "Ninguna. El sistema no ejecuta acciones.",
+  noneExecuted: "Ninguna acción ejecutada en este ticket.",
+
+  // Containment (level 4)
+  containmentTitle: "Contención: acciones que aprueba una persona",
+  containmentHelp:
+    "El código convierte las sugerencias del LLM en acciones de la API simulada y decide quién debe aprobarlas, según el apartado 4 de la política. El LLM nunca aprueba ni ejecuta. Cada papel lo aprueba una persona distinta, y una acción aprobada se ejecuta una sola vez.",
+  noProposals: "Ninguna sugerencia de este ticket es una acción de contención.",
+  notProposedTitle: "Sugerencias que no se proponen como acción",
+  businessImpact: "Impacto en el negocio",
+  requiredApprovers: "Tienen que aprobar",
+  fromSuggestion: "Sugerencia original",
+  approverName: "Nombre de quien aprueba",
+  approveAs: "Aprobar",
+  execute: "Ejecutar en la API simulada",
+  executeConfirm: (action, target) => `¿Ejecutar «${action}» sobre ${target}?`,
+  executeYes: "Sí, ejecutar",
+  executing: "Ejecutando…",
+  cancel: "Cancelar",
+  reject: "Rechazar",
+  rejectReason: "Motivo del rechazo (opcional)",
+  rejectNeedsName: "Aprueba o decide antes con tu nombre para poder rechazar.",
+  rejectedBy: (name) => `Rechazada por ${name}.`,
+  executedAt: (time) => `Ejecutada ${time} UTC`,
+  containmentLog: "Registro de contención de la API simulada",
+  containmentLogHelp: (n) => `Lo que la API simulada ha ejecutado para este ticket. En total tiene ${n} acciones registradas.`,
+  colWhen: "Cuándo (UTC)",
+  colAction: "Acción",
+  colTarget: "Objetivo",
+  colResult: "Resultado",
   otherSuggestions: "Otras sugerencias del LLM",
 
   // Decision
@@ -299,6 +327,24 @@ export const VERDICT = {
 };
 
 export const OUTCOME = { close: "cerrar", escalate: "escalar" };
+
+export const ACTION_NAME = {
+  isolate_host: "Aislar el equipo",
+  disable_user: "Deshabilitar la cuenta",
+  revoke_sessions: "Revocar las sesiones",
+  reset_password: "Forzar cambio de contraseña",
+  block_ioc: "Bloquear el indicador",
+  purge_email: "Purgar el correo de todos los buzones",
+  disable_access_key: "Desactivar la clave cloud",
+};
+
+export const CONTAINMENT_STATUS = {
+  proposed: "Esperando aprobación",
+  approved: "Aprobada, sin ejecutar",
+  executed: "Ejecutada",
+  refused: "Rechazada por la API",
+  rejected: "Rechazada por una persona",
+};
 
 export const DECISION = { accept: "aceptó la propuesta", close: "cambió a cerrar", escalate: "cambió a escalar" };
 

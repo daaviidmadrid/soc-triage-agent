@@ -44,5 +44,11 @@ export const api = {
     request("POST", `/api/tickets/${encodeURIComponent(ticketId)}/decision`, JSON.stringify(body)),
   incidents: () => request("GET", "/api/incidents"),
   buildIncidents: () => request("POST", "/api/incidents/build"),
+  containment: (ticketId, runId) =>
+    request("GET", `/api/tickets/${encodeURIComponent(ticketId)}/containment${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`),
+  approveAction: (id, body) => request("POST", `/api/containment/${encodeURIComponent(id)}/approve`, JSON.stringify(body)),
+  rejectAction: (id, body) => request("POST", `/api/containment/${encodeURIComponent(id)}/reject`, JSON.stringify(body)),
+  executeAction: (id) => request("POST", `/api/containment/${encodeURIComponent(id)}/execute`, JSON.stringify({})),
+  containmentLog: () => request("GET", "/api/containment/log"),
   eventsUrl: (runId) => `/api/runs/${encodeURIComponent(runId)}/events`,
 };

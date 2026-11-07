@@ -54,6 +54,14 @@ CREATE TABLE IF NOT EXISTS decisions (
     decided_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS decisions_by_ticket ON decisions(ticket_id);
+CREATE TABLE IF NOT EXISTS proposals (
+    proposal_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    ticket_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS proposals_by_run ON proposals(run_id);
 CREATE TABLE IF NOT EXISTS correlations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     data TEXT NOT NULL,
@@ -232,6 +240,22 @@ class Store:
     def latest_correlation(self):
         row = self._one("SELECT data, built_at FROM correlations ORDER BY id DESC LIMIT 1")
         return {**json.loads(row[0]), "built_at": row[1]} if row else None
+
+    # Containment proposals (level 4): their approvals, refusals and results.
+
+    def save_proposal(self, proposal):
+        self._write(
+            "INSERT OR REPLACE INTO proposals (proposal_id, run_id, ticket_id, data, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (proposal["proposal_id"], proposal["run_id"], proposal["ticket_id"], _dumps(proposal), now_iso()),
+        )
+
+    def get_proposal(self, proposal_id):
+        row = self._one("SELECT data FROM proposals WHERE proposal_id = ?", (proposal_id,))
+        return json.loads(row[0]) if row else None
+
+    def proposals_for_run(self, run_id):
+        rows = self._all("SELECT data FROM proposals WHERE run_id = ? ORDER BY rowid", (run_id,))
+        return {item["proposal_id"]: item for item in (json.loads(row[0]) for row in rows)}
 
     # Decisions
 

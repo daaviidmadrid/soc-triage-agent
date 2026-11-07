@@ -1743,3 +1743,79 @@ kbd {
 .links li {
   overflow-wrap: anywhere;
 }
+
+/* Containment (level 4) */
+.proposals {
+  list-style: none;
+  margin: 0 0 var(--s3);
+  padding: 0;
+}
+.proposal {
+  border: 1px solid var(--line);
+  border-radius: var(--r1);
+  padding: var(--s3);
+  margin-bottom: var(--s3);
+}
+.proposal-executed {
+  border-color: var(--line-strong);
+}
+.proposal-rejected,
+.proposal-refused {
+  opacity: 0.75;
+}
+.proposal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.proposal-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s1) var(--s3);
+  margin: var(--s2) 0;
+}
+.proposal-facts dt {
+  color: var(--text-2, inherit);
+  opacity: 0.8;
+}
+.proposal-facts dd {
+  margin: 0;
+}
+.proposal-warning {
+  margin: var(--s1) 0;
+}
+.approvals {
+  list-style: none;
+  margin: var(--s2) 0;
+  padding: 0;
+}
+.approvals li + li {
+  margin-top: var(--s1);
+}
+.approve-row,
+.execute-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s1) 0;
+}
+.approve-role {
+  min-width: 10em;
+}
+.approve-row input {
+  min-width: 12em;
+  flex: 1 1 12em;
+}
+.form-error {
+  color: var(--danger, #d64545);
+}
+.proposal-result {
+  margin: var(--s2) 0 0;
+}
+@media (max-width: 600px) {
+  .proposal-facts {
+    grid-template-columns: 1fr;
+  }
+}

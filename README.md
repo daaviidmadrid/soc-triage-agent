@@ -95,6 +95,9 @@ python3 scripnts/exam.py explain ALR-20261007-011785
 Add `--prompt` to see the prompts. The app keeps the same for real runs in `runs/app_calls/`. These files hold alert and log text, which may contain attackers' instructions, so read them as data. `runs/` is not in git, and `pack` includes the logs.
 
 
+## Containment (level 4)
+On an escalated ticket, the alert page lists the containment actions built from the LLM's suggestions. `src/policy/containment.py` maps each one onto the mock's 7 actions, finds the exact target and decides who must approve, with plain code. Each required role is approved by a different named person, and only then does "Ejecutar en la API simulada" call the mock, once. OT actions are never proposed. The page also shows the mock's containment log.
+
 Analysis notebook:
 ```bash
 jupyter notebook analysis/explore.ipynb
