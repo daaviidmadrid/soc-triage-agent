@@ -12,6 +12,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,14 +55,36 @@ def real_events(alert):
             "El agente real no está disponible: no se pudo importar src.agent.triage.triage "
             f"({type(error).__name__}). Arranca sin TRIAGE_MODE para usar los datos de ejemplo."
         ) from None
+    calls = []
     try:
-        for event in triage(alert):
+        for event in triage(alert, call_log=calls):
             yield _to_dict(event)
     except NotImplementedError:
         raise TriageUnavailable(
             "El agente real aún no está implementado en esta rama: src.agent.triage.triage lanza NotImplementedError. "
             "Arranca sin TRIAGE_MODE para usar los datos de ejemplo."
         ) from None
+    finally:
+        _write_call_log(alert, calls)
+
+
+def call_log_dir():
+    return Path(os.environ.get("APP_CALL_LOG_DIR") or ROOT / "runs" / "app_calls")
+
+
+def _write_call_log(alert, calls):
+    """One file per run of the real agent: each prompt, raw answer and reasoning, and what code did with them.
+    It never stops a triage: if the file can't be written, the run carries on without it."""
+    if not calls:
+        return
+    alert_id = str(alert.get("alert_id") or "desconocida") if isinstance(alert, dict) else "desconocida"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    path = call_log_dir() / f"{re.sub(r'[^A-Za-z0-9_-]', '_', alert_id)[:100]}_{stamp}.json"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"alert_id": alert_id, "calls": calls}, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _to_dict(event):

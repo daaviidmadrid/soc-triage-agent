@@ -32,6 +32,7 @@ RETRYABLE_ERRORS = (openai.RateLimitError, openai.InternalServerError, openai.AP
 BLOCK_WORDS = ("content_filter", "safety", "blocked", "prohibited")
 RETRY_DELAY = re.compile(r'retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?)s')
 THINKING = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+THINKING_TEXT = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 # Models that hit their daily limit, and when to try them again. Retrying before then wastes time.
 _exhausted = {}
@@ -44,6 +45,8 @@ class LLMResult:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     attempts: int = 1
+    # What the model wrote while reasoning, when the provider sends it. Kept only for the call log, never parsed.
+    reasoning: str = ""
 
 
 class LLMError(Exception):
@@ -125,17 +128,30 @@ def _read_response(response, model, attempts):
         raise LLMBlocked(f"{model} blocked the call (finish_reason {finish_reason})", attempts)
     if finish_reason != "stop":
         raise LLMError(f"{model} stopped early (finish_reason {finish_reason})", attempts)
-    text = THINKING.sub("", choices[0].message.content or "")
+    message = choices[0].message
+    content = message.content or ""
+    text = THINKING.sub("", content)
     if not text.strip():
         raise LLMError(f"{model} returned an empty answer", attempts)
     usage = response.usage
+    reasoning = "\n".join(part for part in (_reasoning_of(message), *THINKING_TEXT.findall(content)) if part)
     return LLMResult(
         text=text,
         model=model,
         prompt_tokens=usage.prompt_tokens if usage else None,
         completion_tokens=usage.completion_tokens if usage else None,
         attempts=attempts,
+        reasoning=reasoning,
     )
+
+
+def _reasoning_of(item):
+    """Providers name the reasoning field differently: vLLM uses reasoning_content, others reasoning."""
+    for name in ("reasoning_content", "reasoning"):
+        value = getattr(item, name, None)
+        if isinstance(value, str) and value:
+            return value
+    return ""
 
 
 def _use_streaming():
@@ -156,19 +172,21 @@ def _extra_options():
 
 def _read_stream(stream, model, attempts):
     """Puts a streamed answer back together, then checks it like any other answer."""
-    parts, finish_reason, usage, choices = [], None, None, False
+    parts, thoughts, finish_reason, usage, choices = [], [], None, None, False
     try:
         for chunk in stream:
             usage = getattr(chunk, "usage", None) or usage
             if chunk.choices:
                 choices = True
-                parts.append(chunk.choices[0].delta.content or "")
+                delta = chunk.choices[0].delta
+                parts.append(delta.content or "")
+                thoughts.append(_reasoning_of(delta))
                 finish_reason = chunk.choices[0].finish_reason or finish_reason
     except openai.OpenAIError:
         raise
     except Exception as error:
         raise StreamCut(type(error).__name__) from None
-    answer = SimpleNamespace(finish_reason=finish_reason, message=SimpleNamespace(content="".join(parts)))
+    answer = SimpleNamespace(finish_reason=finish_reason, message=SimpleNamespace(content="".join(parts), reasoning_content="".join(thoughts)))
     return _read_response(SimpleNamespace(choices=[answer] if choices else [], usage=usage), model, attempts)
 
 
