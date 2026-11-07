@@ -149,7 +149,7 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
       <td className="rule" data-label={L.colAlert}>
         <div className="alert-identity"><span className="alert-source-symbol"><Icon name={PRODUCT_ICONS[item.source_product] || "shield"} /></span><div className="alert-identity-text">
         <strong className="queue-rule">{item.rule_name || L.na}</strong>
-        <div className="queue-meta"><code className="id">{id}</code>{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}</div>
+        <div className="queue-meta"><code className="id">{id}</code>{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}{item.incident_id && <Chip kind="warn" title={item.incident_id}>{L.inIncident}</Chip>}</div>
         <div className="sub">{item.source_product || L.na}{item.rule_id && <> · <span className="id-plain">{item.rule_id}</span></>}</div>
         </div></div>
       </td>

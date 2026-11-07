@@ -95,8 +95,16 @@ class AuthorisedBy(BaseModel):
     id: str
 
 
+class GroupLink(BaseModel):
+    """Why an alert joined an incident: the alert it shares something with, and what they share."""
+
+    alert_id: str
+    linked_to: str
+    reasons: list[str]
+
+
 class Ticket(BaseModel):
-    """Follows data/01_contexto/ticket_salida.schema.json. The last four fields are our additions."""
+    """Follows data/01_contexto/ticket_salida.schema.json. The last five fields are our additions."""
 
     ticket_id: str
     alert_ids: list[str]
@@ -119,6 +127,7 @@ class Ticket(BaseModel):
     injection_flags: list[InjectionFlag] = Field(default_factory=list)
     authorised_by: AuthorisedBy | None = None
     merged_into: str | None = None
+    group_links: list[GroupLink] = Field(default_factory=list)
 
 
 class TraceEvent(BaseModel):
@@ -140,5 +149,33 @@ class IncidentReport(BaseModel):
     pass
 
 
+ContainmentAction = Literal["isolate_host", "disable_user", "revoke_sessions", "reset_password", "block_ioc", "purge_email", "disable_access_key"]
+
+
+class Approval(BaseModel):
+    """One person's approval for one of the roles an action needs."""
+
+    role: str
+    approver: str
+    at: str
+
+
 class ActionProposal(BaseModel):
-    pass
+    """A containment action that plain code built from the LLM's suggestion. Only people approve it,
+    each required role by a different person, and only a person's click runs it, once."""
+
+    proposal_id: str
+    ticket_id: str
+    run_id: str = ""
+    action: ContainmentAction
+    target: str
+    suggestion: str = ""
+    justification: str = ""
+    business_impact: str
+    approvers: list[str]
+    warnings: list[str] = Field(default_factory=list)
+    status: Literal["proposed", "approved", "executed", "refused", "rejected"] = "proposed"
+    approvals: list[Approval] = Field(default_factory=list)
+    decided_by: str = ""
+    result: dict | None = None
+    error: str = ""

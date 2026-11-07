@@ -33,8 +33,9 @@ Se aplican a badges y barras sin cambiar los estados operativos azules.
 
 La entrada sin fragmento abre el dashboard; `#/dashboard` lo identifica
 explícitamente. Se conservan `#/` y `#/?...` para la cola y sus filtros, y
-`#/alerta/<id>` para el ticket. El menú lateral enlaza dashboard, cola, revisión
-y resueltas mediante los filtros existentes.
+`#/alerta/<id>` para el ticket. `#/incidentes` muestra los incidentes del nivel 2.
+El menú lateral enlaza dashboard, cola, revisión y resueltas mediante los filtros
+existentes, e incidentes como pantalla propia.
 
 La barra lateral ocupa 224 px en escritorio (se reduce en anchos intermedios) y
 puede contraerse a 76 px mediante el botón de la cabecera. Los iconos conservan
@@ -58,7 +59,18 @@ Solo los argumentos técnicos y el ticket original usan desplegables secundarios
 El formulario permanece montado al cambiar de pestaña para conservar el borrador.
 En escritorio, el análisis muestra los metadatos en una columna lateral; en tablet y móvil
 vuelven al flujo de lectura. Las pestañas permanecen accesibles al desplazarse en escritorio.
-Los avisos importantes se mantienen encima del bloque de trabajo.
+Los avisos importantes se mantienen encima del bloque de trabajo, incluido el que
+indica que la alerta forma parte de un incidente, con enlace a Incidentes.
+
+Política y acciones incluye la contención del nivel 4: cada acción que el código
+construye a partir de una sugerencia del LLM, su impacto, quién debe aprobarla,
+la aprobación con nombre por cada papel, la ejecución en la API simulada solo
+cuando todos han aprobado, las sugerencias que no se proponen y por qué, y el
+registro de la API simulada. El LLM nunca aprueba ni ejecuta.
+
+Incidentes usa la misma cabecera de página que la cola. Cada incidente es un panel
+con su severidad, veredicto, escalado, alertas y qué comparte cada enlace. El ruido
+se cuenta en una tabla aparte. Las tablas se ajustan al panel en escritorio.
 
 ## Jerarquía operativa
 

@@ -114,6 +114,27 @@ def test_queue_without_sample_is_empty_with_message(tmp_path):
     assert data["alerts"] == [] and data["sample"]["error"]
 
 
+def test_app_sample_none_starts_with_an_empty_queue_and_no_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_SAMPLE", "none")
+    with TestClient(create_app(db_path=":memory:", run_fn=instant_runner), headers=UI) as c:
+        data = c.get("/api/queue").json()
+        assert data["alerts"] == [] and data["sample"] == {"path": None, "loaded": 0, "error": None}
+        assert c.post("/api/alerts/import", content='alert_id,severity\nA-1,Alta\n').json()["imported"] == ["A-1"]
+        row = c.get("/api/queue").json()["alerts"][0]
+        assert row["rule_severity"] == "high" and row["origin"] == "imported"
+
+
+def test_the_rule_name_comes_from_the_catalogue_for_display_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_SAMPLE", "none")
+    with TestClient(create_app(db_path=":memory:", run_fn=instant_runner), headers=UI) as c:
+        c.post("/api/alerts/import", content='ID;Regla\nA-1;UC-EDR-002\n')
+        row = c.get("/api/queue").json()["alerts"][0]
+        assert row["rule_name"] == "PowerShell con comando codificado" and row["source_product"] == "EDR"
+        detail = c.get("/api/alerts/A-1").json()
+        assert detail["shown"]["rule_name"] == row["rule_name"]
+        assert "rule_name" not in detail["alert"] and detail["alert"]["Regla"] == "UC-EDR-002"
+
+
 def test_default_queue_is_the_development_sample_not_all_alerts():
     from src.app import main
     assert main.DEFAULT_SAMPLE.name == "alertas_muestra_desarrollo.jsonl"
@@ -252,7 +273,7 @@ def test_real_mode_without_agent_gives_a_clear_error(tmp_path, monkeypatch):
 
 
 def test_real_mode_not_implemented_gives_a_clear_error(tmp_path, monkeypatch):
-    def triage_stub(alert):
+    def triage_stub(alert, call_log=None):
         raise NotImplementedError
         yield
 
@@ -274,7 +295,7 @@ def test_real_mode_accepts_pydantic_events(tmp_path, monkeypatch):
         summary: str = ""
         ticket: dict | None = None
 
-    def triage_fake(alert):
+    def triage_fake(alert, call_log=None):
         yield Event(type="started")
         yield Event(type="ticket_ready", ticket={"ticket_id": "TKT-REAL", "verdict": "false_positive",
                                                  "escalation": {"escalate": False}})
@@ -396,9 +417,9 @@ def test_import_jsonl_reports_bad_rows(client):
         json.dumps({"alert_id": "ALR-LIVE-0004"}),
     ]
     result = client.post("/api/alerts/import", content="\n".join(lines)).json()
-    assert result["format"] == "jsonl" and result["imported"] == ["ALR-LIVE-0002", "ALR-LIVE-0004"]
+    assert result["format"] == "jsonl" and result["imported"] == ["ALR-LIVE-0002", "42", "ALR-LIVE-0004"]
     errors = {e["row"]: e["error"] for e in result["errors"]}
-    assert set(errors) == {2, 3, 4, 5, 6, 8, 9}
+    assert set(errors) == {2, 3, 4, 6, 8, 9}
     assert "JSON" in errors[2] and "objeto" in errors[3] and "alert_id" in errors[4]
     assert "formato" in errors[6] and "repetido" in errors[8]
     assert all("passwd" not in e for e in errors.values())  # errors never repeat the file's content
@@ -473,3 +494,50 @@ def test_db_file_is_created_where_asked(tmp_path):
     create_app(db_path=db, sample_path=write_jsonl(tmp_path / "s.jsonl", SAMPLE))
     assert db.exists()
     assert Path(__file__).resolve().parents[1].joinpath("runs", "app.sqlite3") != db
+
+
+# Incidents (level 2)
+
+GROUPABLE = [
+    {"alert_id": "ALR-GRP-1", "created_at": "2026-10-07T07:44:52.000Z", "rule_id": "UC-IDP-004", "severity": "high",
+     "entities": {"users": [{"upn": "zz-grp@tarvia.example", "display_name": "Misma Persona"}], "ips": ["203.0.113.77"]}},
+    {"alert_id": "ALR-GRP-2", "created_at": "2026-10-07T08:03:49.000Z", "rule_id": "UC-IDP-005", "severity": "high",
+     "entities": {"users": [{"upn": "zz-grp@tarvia.example", "display_name": "Misma Persona"}], "ips": ["203.0.113.77"]}},
+    {"alert_id": "ALR-GRP-3", "created_at": "2026-10-07T09:00:00.000Z", "rule_id": "UC-IDP-004", "severity": "high",
+     "entities": {"users": [{"upn": "zz-other@tarvia.example", "display_name": "Misma Persona"}]}},
+]
+
+
+def escalating_runner(alert, mode=None):
+    alert_id = alert["alert_id"]
+    yield {"type": "started", "summary": "x"}
+    yield {"type": "ticket_ready", "summary": "x", "ticket": {
+        "ticket_id": f"TKT-{alert_id}", "alert_ids": [alert_id], "title": "t", "verdict": "true_positive", "confidence": 0.9,
+        "severity": "high", "summary": "s", "evidence": [], "recommended_actions": [],
+        "escalation": {"escalate": True, "to": "N2", "reason": "r"}}}
+
+
+def test_incidents_group_triaged_alerts_and_keep_the_reasons(tmp_path):
+    with make_client(tmp_path, run_fn=escalating_runner, rows=GROUPABLE) as c:
+        empty = c.get("/api/incidents").json()
+        assert empty["built_at"] is None and empty["incidents"] == []
+        for row in GROUPABLE:
+            c.post(f"/api/triage/{row['alert_id']}")
+            wait_for_run(c, row["alert_id"])
+        assert c.get("/api/incidents").json()["stale"] is True
+        built = c.post("/api/incidents/build").json()
+        assert built["alerts"] == 3 and built["incidents"] == 1 and built["grouped_alerts"] == 2
+        data = c.get("/api/incidents").json()
+        incident = data["incidents"][0]
+        assert incident["ticket"]["alert_ids"] == ["ALR-GRP-1", "ALR-GRP-2"] and data["stale"] is False
+        reasons = incident["ticket"]["group_links"][0]["reasons"]
+        assert "misma cuenta (zz-grp@tarvia.example)" in reasons and "misma IP externa (203.0.113.77)" in reasons
+        queue = {row["alert_id"]: row["incident_id"] for row in c.get("/api/queue").json()["alerts"]}
+        assert queue == {"ALR-GRP-1": incident["incident_id"], "ALR-GRP-2": incident["incident_id"], "ALR-GRP-3": None}
+        assert c.get("/api/alerts/ALR-GRP-2").json()["incident_id"] == incident["incident_id"]
+
+
+def test_building_incidents_needs_the_ui_header(tmp_path):
+    with TestClient(create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "s.jsonl", SAMPLE))) as c:
+        assert c.post("/api/incidents/build").status_code == 403
+        assert c.get("/api/incidents").status_code == 200

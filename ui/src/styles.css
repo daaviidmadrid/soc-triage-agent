@@ -2590,3 +2590,127 @@ html[data-motion-input='keyboard'] .btn:active { transform: none; }
   .triage-page .analysis-facts .reading-metadata { grid-template-columns: minmax(0, 1fr); }
 }
 .operational-state .sub { display: block; margin-top: 2px; }
+
+/* 19. Incidents (level 2) */
+.incident-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+.incident-head h2 {
+  margin: 0;
+}
+.incident-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s2) 0;
+}
+.incident h3 {
+  margin: var(--s4) 0 var(--s2);
+}
+.incident-summary {
+  margin: var(--s2) 0;
+}
+.links li {
+  overflow-wrap: anywhere;
+}
+/* Incident and containment tables fit their panel; the queue's wide-table minimum is for the queue only */
+.incidents .grid,
+.containment .grid {
+  width: 100%;
+  min-width: 0;
+}
+.incidents .grid .rule {
+  min-width: 0;
+  max-width: none;
+}
+.incidents .grid td .id {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .incidents .grid,
+  .containment .grid {
+    min-width: 560px;
+  }
+}
+
+/* 20. Containment (level 4) */
+.proposals {
+  list-style: none;
+  margin: 0 0 var(--s3);
+  padding: 0;
+}
+.proposal {
+  border: 1px solid var(--line);
+  border-radius: var(--r1);
+  padding: var(--s3);
+  margin-bottom: var(--s3);
+}
+.proposal-executed {
+  border-color: var(--line-strong);
+}
+.proposal-rejected,
+.proposal-refused {
+  opacity: 0.75;
+}
+.proposal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.proposal-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s1) var(--s3);
+  margin: var(--s2) 0;
+}
+.proposal-facts dt {
+  color: var(--text-2, inherit);
+  opacity: 0.8;
+}
+.proposal-facts dd {
+  margin: 0;
+}
+.proposal-warning {
+  margin: var(--s1) 0;
+}
+.approvals {
+  list-style: none;
+  margin: var(--s2) 0;
+  padding: 0;
+}
+.approvals li + li {
+  margin-top: var(--s1);
+}
+.approve-row,
+.execute-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s1) 0;
+}
+.approve-role {
+  min-width: 10em;
+}
+.approve-row input {
+  min-width: 12em;
+  flex: 1 1 12em;
+}
+.form-error {
+  color: var(--danger, #d64545);
+}
+.proposal-result {
+  margin: var(--s2) 0 0;
+}
+@media (max-width: 600px) {
+  .proposal-facts {
+    grid-template-columns: 1fr;
+  }
+}

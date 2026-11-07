@@ -19,6 +19,7 @@ const PATHS = {
   refresh: <><path d="M13 5a5.5 5.5 0 1 0 .2 5M13.5 1.5V5H10" /></>,
   menu: <path d="M2 4h12M2 8h12M2 12h12" />,
   calendar: <><rect x="2" y="3.5" width="12" height="10" rx="1.5" /><path d="M5 2v3M11 2v3M2 7h12" /></>,
+  incidents: <><circle cx="4" cy="4" r="2" /><circle cx="12" cy="4" r="2" /><circle cx="8" cy="12" r="2" /><path d="M6 4h4M5 5.8l2 4.4M11 5.8l-2 4.4" /></>,
   alert: (
     <>
       <path d="M8 2.2 14.3 13H1.7L8 2.2Z" />
