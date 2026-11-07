@@ -28,7 +28,11 @@ Mock API:
 ```bash
 uvicorn --app-dir data/06_herramientas mock_soc_api:app --port 8000
 ```
-Backend:
+Backend, with the real agent (needs the mock API running and the LLM key in `.env`):
+```bash
+TRIAGE_MODE=real uvicorn src.app.main:app --port 8001
+```
+Backend with fictional example tickets from `contracts/examples/` (no mock API or LLM key needed):
 ```bash
 uvicorn src.app.main:app --port 8001
 ```
