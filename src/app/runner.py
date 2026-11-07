@@ -68,6 +68,26 @@ def real_events(alert):
         _write_call_log(alert, calls)
 
 
+def run_investigation(alerts, tickets=(), incident_id=None, others=(), memberships=None):
+    """Level 3: yields the trace events of one investigation as dicts. It always uses the real data and LLM,
+    because there is no example report: if the LLM fails, the agent still returns a report for a person."""
+    try:
+        from src.agent.investigate import investigate
+    except ImportError as error:
+        raise TriageUnavailable(f"La investigación no está disponible: no se pudo importar src.agent.investigate ({type(error).__name__}).") from None
+    from src.policy.containment import step_checker
+    from src.tools import api_client
+
+    calls = []
+    check = step_checker(api_client.get_asset, api_client.get_user)
+    try:
+        for event in investigate(alerts, tickets=tickets, incident_id=incident_id, others=others, memberships=memberships,
+                                 call_log=calls, check_containment=check):
+            yield _to_dict(event)
+    finally:
+        _write_call_log({"alert_id": f"report_{incident_id or 'incidente'}"}, calls)
+
+
 def call_log_dir():
     return Path(os.environ.get("APP_CALL_LOG_DIR") or ROOT / "runs" / "app_calls")
 

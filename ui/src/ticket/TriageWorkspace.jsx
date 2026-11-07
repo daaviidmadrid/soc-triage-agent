@@ -1,23 +1,14 @@
-import { useRef } from "react";
-import { usePanelMotion, useSelectionIndicator } from "../motion.js";
 import { Field, Ids, ModeTag, NA, None, SlaCell, arr, asText, formatSeconds, formatTime, isBlank, obj, Severity } from "../components.jsx";
 import { L, OUTCOME, RUN_STATUS } from "../labels.js";
 import { quotaState } from "./runState.js";
 import Steps from "./Steps.jsx";
+import Workspace, { Section, TextList, workspacePanel } from "./Workspace.jsx";
 import Containment from "./Containment.jsx";
 import DecisionPanel, { History } from "./DecisionPanel.jsx";
 import SeverityBreakdown from "./SeverityBreakdown.jsx";
 import { Affected, EvidenceList, EnrichmentList, InjectionFlags } from "./TicketView.jsx";
 
-function Section({ title, children, id }) {
-  return <section className="reading-section" id={id}><h3>{title}</h3>{children}</section>;
-}
-function TextList({ items }) {
-  return items.length ? <ul className="list">{items.map((value, i) => <li key={i} className="prose">{asText(value)}</li>)}</ul> : <None />;
-}
-
-export default function TriageWorkspace({ alert, detail, run, running, stream, events, live, tab, onTab, targetSeq, onSelectStep, ticketRow, decision, decisions, retrieved, onSaved, onNext, next, onIncidents }) {
-  const tabRefs = useRef({}), tabList = useRef(null), workspace = useRef(null);
+export default function TriageWorkspace({ alert, detail, run, running, stream, events, live, tab, onTab, targetSeq, onSelectStep, ticketRow, decision, decisions, retrieved, onSaved, onNext, next, onIncidents, onOpenReport }) {
   const ticket = obj(ticketRow?.ticket), ready = Boolean(ticketRow && !running);
   const trace = { retrieved, complete: stream === "ended", onJump: onSelectStep };
   const flags = arr(ticket.injection_flags).map(obj), messages = events.filter(e => e.type === "note" || e.type === "error");
@@ -25,27 +16,20 @@ export default function TriageWorkspace({ alert, detail, run, running, stream, e
   const quota = quotaState(events, running);
   // Related work shares a tab; collections inside it are always continuous.
   const current = ({ evidence: "summary", actions: "policy", notes: "history" })[tab] || tab;
-  const marker = useSelectionIndicator(tabList, current, '[aria-selected="true"]');
-  usePanelMotion(workspace, current);
   const tabs = [["summary", L.analysis], ["context", L.context], ["policy", L.policyActions], ["decision", L.resolution], ["activity", L.activity], ["original", L.rawAlert], ["history", L.historyNotices]];
-  function keyTab(event, index) {
-    const nextIndex = ({ ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 })[event.key];
-    if (nextIndex === undefined) return;
-    event.preventDefault(); const id = tabs[nextIndex][0]; onTab(id); tabRefs.current[id]?.focus();
-  }
-  // Keep panels mounted: the resolution form retains unsaved edits across tabs.
-  const panel = (id, content) => <section key={id} id={`workspace-${id}`} className="workspace-panel" role="tabpanel" aria-labelledby={`tab-${id}`} tabIndex={0} hidden={current !== id}>{content}</section>;
+  // Panels stay mounted: the resolution form retains unsaved edits across tabs.
+  const panel = workspacePanel(current);
   const pending = <p className="workspace-empty">{running ? L.pendingTicketText : L.barNoRun}</p>;
   return <>
     <div className="triage-notices">
-      {detail.incident_id && <p className="compact-notice" role="status"><strong>{L.partOfIncident(detail.incident_id)}</strong><button type="button" className="link-btn" onClick={onIncidents}>{L.viewIncidents}</button></p>}
+      {detail.incident_id && <p className="compact-notice" role="status"><strong>{L.partOfIncident(detail.incident_id)}</strong><button type="button" className="link-btn" onClick={onIncidents}>{L.viewIncidents}</button>{detail.report_key && <button type="button" className="link-btn" onClick={() => onOpenReport(detail.report_key)}>{L.reportFromIncident}</button>}</p>}
+      {!detail.incident_id && detail.report_key && !running && <p className="compact-notice" role="status"><strong>{L.reportForTicket}</strong><button type="button" className="link-btn" onClick={() => onOpenReport(detail.report_key)}>{L.reportFromTicket}</button></p>}
       {(quota === "waiting" || quota === "exhausted") && <p className="compact-notice" role="status">{quota === "waiting" ? L.quotaWaitingText : L.quotaExhaustedText}</p>}
       {flags.length > 0 && <p className="compact-notice"><strong>{L.barInjections(flags.length)}</strong><button type="button" className="link-btn" onClick={() => onTab("history")}>{L.reviewNotices}</button></p>}
       {truncated.length > 0 && <p className="compact-notice"><strong>{L.truncated} · {truncated.length}</strong><button type="button" className="link-btn" onClick={() => onSelectStep(truncated[0].seq)}>{L.activity}</button></p>}
       {messages.some(e => e.type === "error") && <p className="compact-notice" role="status"><strong>{L.agentErrors}</strong><button type="button" className="link-btn" onClick={() => onTab("history")}>{L.reviewNotices}</button></p>}
     </div>
-    <div className="workspace-main panel reading-workspace" ref={workspace}>
-      <div className="workspace-tabs" ref={tabList} role="tablist" aria-label={L.details}>{marker && <span className="tab-indicator" aria-hidden="true" style={marker} />}{tabs.map(([id, label], i) => <button type="button" role="tab" key={id} id={`tab-${id}`} aria-controls={`workspace-${id}`} aria-selected={current === id} tabIndex={current === id ? 0 : -1} ref={el => { tabRefs.current[id] = el; }} onClick={() => onTab(id)} onKeyDown={e => keyTab(e, i)}>{label}</button>)}</div>
+    <Workspace tabs={tabs} current={current} onTab={onTab} label={L.details}>
       {panel("summary", <>
         <div className="workspace-alert"><h2>{asText(alert.rule_name) || L.alertTitle}</h2><Severity value={ready ? ticket.severity : alert.severity} /></div>
         <div className="analysis-layout"><div className="analysis-body">
@@ -81,6 +65,6 @@ export default function TriageWorkspace({ alert, detail, run, running, stream, e
         <Section title={L.decisionsHistory}><History continuous decisions={decisions} runId={ticketRow?.run_id} /></Section>
         <Section title={L.runsHistory}>{arr(detail.runs).length ? <ol className="run-history-list">{[...detail.runs].sort((a, b) => String(b.started_at).localeCompare(String(a.started_at))).map(r => <li key={r.run_id}><div className="rows-head"><code className="id">{r.run_id}</code><strong>{RUN_STATUS[r.status] || asText(r.status)}</strong><ModeTag mode={r.mode} /></div><p className="muted num">{formatTime(r.started_at)} UTC → {formatTime(r.finished_at) || "—"} UTC · {formatSeconds(r.duration_seconds) || "—"}</p>{r.error && <p className="prose">{asText(r.error)}</p>}</li>)}</ol> : <None />}</Section>
       </>)}
-    </div>
+    </Workspace>
   </>;
 }

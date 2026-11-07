@@ -33,9 +33,10 @@ Se aplican a badges y barras sin cambiar los estados operativos azules.
 
 La entrada sin fragmento abre el dashboard; `#/dashboard` lo identifica
 explícitamente. Se conservan `#/` y `#/?...` para la cola y sus filtros, y
-`#/alerta/<id>` para el ticket. `#/incidentes` muestra los incidentes del nivel 2.
+`#/alerta/<id>` para el ticket. `#/incidentes` muestra los incidentes del nivel 2 y
+`#/informe/<clave>` el informe del nivel 3 de un incidente o de un ticket escalado.
 El menú lateral enlaza dashboard, cola, revisión y resueltas mediante los filtros
-existentes, e incidentes como pantalla propia.
+existentes, e incidentes como pantalla propia. Un informe mantiene Incidentes seleccionado.
 
 La barra lateral ocupa 224 px en escritorio (se reduce en anchos intermedios) y
 puede contraerse a 76 px mediante el botón de la cabecera. Los iconos conservan
@@ -67,6 +68,16 @@ construye a partir de una sugerencia del LLM, su impacto, quién debe aprobarla,
 la aprobación con nombre por cada papel, la ejecución en la API simulada solo
 cuando todos han aprobado, las sugerencias que no se proponen y por qué, y el
 registro de la API simulada. El LLM nunca aprueba ni ejecuta.
+
+El informe del nivel 3 usa la misma composición que el triaje: barra de resumen,
+avisos compactos y un bloque de trabajo con siete pestañas (Resumen, Cronología,
+Alcance y relaciones, Contención, Siguientes pasos, Actividad, Evidencia y avisos).
+Las pestañas del triaje y del informe comparten `src/ticket/Workspace.jsx`. Cada
+sección del informe lleva la etiqueta de quién la escribe (LLM, código o persona),
+porque el informe mezcla análisis del modelo con horas y orden que fija el código.
+Mientras la investigación corre se abre Actividad; un ID de la cronología lleva al
+paso que lo recuperó. Desde el ticket, un aviso enlaza el informe de su incidente o,
+si el ticket escalado no está agrupado, su propia investigación.
 
 Incidentes usa la misma cabecera de página que la cola. Cada incidente es un panel
 con su severidad, veredicto, escalado, alertas y qué comparte cada enlace. El ruido
