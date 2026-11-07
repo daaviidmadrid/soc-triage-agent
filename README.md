@@ -75,7 +75,18 @@ python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_lapt
 ```bash
 python3 scripts/exam.py score
 ```
-All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `extra` is the other 102 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
+All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `final` is 40 more with answers kept for the honest final score (never tune on them), `extra` is the other 62 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
+
+Each run also keeps a call log in `calls/`: for every alert, the prompts sent, the model's raw answers and reasoning, and what our code changed. To read one:
+```bash
+python3 scripts/exam.py explain ALR-20261007-011785
+```
+Add `--prompt` to see the prompts. The app keeps the same for real runs in `runs/app_calls/`. These files hold alert and log text, which may contain attackers' instructions, so read them as data. `runs/` is not in git, and `pack` includes the logs.
+
+Analysis notebook:
+```bash
+jupyter notebook analysis/explore.ipynb
+```
 
 ## Incidents (level 2)
 `src/agent/correlate.py` groups the alerts of one attack into a single incident ticket, with plain code. Each link records what the two alerts share, such as the same account, sender or event, and the queue's Incidentes view shows it. To group a folder of tickets from the exam:
@@ -86,22 +97,9 @@ To score with alerts marked by their incident's ticket:
 ```bash
 python3 scripts/exam.py score --grouped
 ```
-=======
-
-Each run also keeps a call log in `calls/`: for every alert, the prompts sent, the model's raw answers and reasoning, and what our code changed. To read one:
-```bash
-python3 scripnts/exam.py explain ALR-20261007-011785
-```
-Add `--prompt` to see the prompts. The app keeps the same for real runs in `runs/app_calls/`. These files hold alert and log text, which may contain attackers' instructions, so read them as data. `runs/` is not in git, and `pack` includes the logs.
-
 
 ## Containment (level 4)
 On an escalated ticket, the alert page lists the containment actions built from the LLM's suggestions. `src/policy/containment.py` maps each one onto the mock's 7 actions, finds the exact target and decides who must approve, with plain code. Each required role is approved by a different named person, and only then does "Ejecutar en la API simulada" call the mock, once. OT actions are never proposed. The page also shows the mock's containment log.
-
-Analysis notebook:
-```bash
-jupyter notebook analysis/explore.ipynb
-```
 
 ## Folders
 ```text
