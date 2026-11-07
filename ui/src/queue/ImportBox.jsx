@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { api } from "../api.js";
 import { ErrorBox, Notice } from "../components.jsx";
+import Icon from "../icons.jsx";
 import { L } from "../labels.js";
 
 const MAX_IMPORT_BYTES = 2_000_000;
@@ -45,7 +46,7 @@ export function ImportButton({ onDone, onReport }) {
         disabled={busy}
       />
       <button type="button" className="btn" onClick={() => input.current && input.current.click()} disabled={busy} aria-describedby="import-help">
-        {busy ? L.importing : L.importButton}
+        <Icon name="upload" />{busy ? L.importing : L.importButton}
       </button>
       <span id="import-help" className="hint">
         {L.importHelp}

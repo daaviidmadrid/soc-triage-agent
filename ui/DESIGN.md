@@ -21,7 +21,8 @@ Los tokens implementados están en `src/styles.css`.
 
 Tipografía: familia sans del sistema, cifras tabulares para métricas, monoespaciada
 solo para IDs y datos. Títulos de pantalla de 25 px y KPIs de 43 px en escritorio.
-Ritmo de 4, 8, 12, 16, 24 y 32 px. Paneles con borde fino y radio de 10 px.
+Ritmo de 4, 8, 12, 16, 24 y 32 px. Separadores neutros derivados de la paleta azul. El bloque de prioridad tiene un
+borde discreto; los gráficos secundarios se separan mediante espacio y una línea superior.
 Los colores de severidad siempre llevan una etiqueta textual. Son una excepción
 semántica a la identidad azul: informativa blanca, baja casi blanca con tinte rojo,
 media roja suave, alta más marcada y crítica intensa. Los tokens `--sev-*`,
@@ -39,18 +40,37 @@ La barra lateral ocupa 224 px en escritorio (se reduce en anchos intermedios) y
 puede contraerse a 76 px mediante el botón de la cabecera. Los iconos conservan
 nombre accesible y etiqueta visible al enfocar o pasar el puntero. En móvil es
 un diálogo con fondo inerte, cierre con Escape y restauración del foco al botón.
-Solo se conserva la marca principal de la cabecera.
+La cabecera es clara y el lateral Prussian Blue conserva la marca principal.
+No hay avatar decorativo ni rótulos redundantes. Un indicador lateral sigue la sección
+seleccionada; el fondo seleccionado y el texto conservan contraste durante todo el movimiento.
 
 Dashboard, cola y triaje comparten el scroll vertical de página, sin paneles
 anidados con scroll. La cola conserva seis columnas y páginas de ocho alertas;
-en móvil, cola y prioridad presentan filas en formato de tarjeta sin scroll horizontal.
+en móvil, cola y prioridad presentan filas sin scroll horizontal. La cola incluye una distribución proporcional de estados y filtros con iconos,
+etiquetas y recuentos. Los indicadores de posible inyección se mantienen separados
+del reparto porque pueden coincidir con cualquier estado. Las etiquetas de campo
+se alinean a la izquierda.
 
 El triaje tiene siete pestañas: Análisis y evidencias, Contexto, Política y acciones,
 Resolución, Actividad, Datos originales e Historial y avisos. Dentro de cada bloque
 las listas y los textos son completos, sin selectores de campos ni páginas de caracteres.
 Solo los argumentos técnicos y el ticket original usan desplegables secundarios.
 El formulario permanece montado al cambiar de pestaña para conservar el borrador.
+En escritorio, el análisis muestra los metadatos en una columna lateral; en tablet y móvil
+vuelven al flujo de lectura. Las pestañas permanecen accesibles al desplazarse en escritorio.
 Los avisos importantes se mantienen encima del bloque de trabajo.
+
+## Jerarquía operativa
+
+Los cuatro KPIs conservan sus valores grandes y sus acciones de filtro, agrupados
+en una banda con separadores en lugar de cuatro cajas con iconos repetidos.
+Prioridad de atención aparece justo después, antes de los gráficos: la tarea del
+analista precede a las estadísticas descriptivas. No se elimina ningún gráfico ni métrica.
+
+Los productos son texto sencillo; los badges se reservan para severidad y estados.
+Se conservan fecha, fuente, regla e ID. Los textos de tabla y los títulos de gráfico
+suben de tamaño. Los fondos de las barras son discretos para que un valor cero no
+se confunda con una barra llena. El cálculo de cifras y proporciones permanece intacto.
 
 ## Datos del dashboard
 
@@ -78,6 +98,28 @@ Foco visible azul, controles nativos, menú con Escape y foco contenido, estados
 de carga/error/vacío, texto largo expandible y reducción de movimiento. Las
 interacciones frecuentes son inmediatas; las transiciones de color y presión
 son breves. No hay efectos de entrada orquestados ni animación de las cifras.
+
+## Movimiento y continuidad
+
+Implementación compartida en `src/motion.js`, con CSS y Web Animations API; sin librerías nuevas.
+
+- Menú: indicador lateral de selección y adaptación del contenido con FLIP, 220 ms.
+- Filtros y páginas: las identidades de las filas guían su recolocación, 180 ms; entrada
+  de nuevas filas con un desfase máximo de 72 ms. La primera carga permanece inmediata.
+- Triaje: indicador de pestaña, transición de bloque de 150 ms y llegada de nuevos pasos
+  únicamente cuando la cronología está visible. Las colecciones siguen completas.
+- Procesamiento: el icono gira solo mientras el estado estructurado es `running`;
+  el resultado terminado conserva su etiqueta y señal de cambio. No se inventa progreso.
+- Interrupción: nuevas selecciones retoman la posición actual y cancelan movimientos anteriores.
+- Teclado: los cambios de navegación, panel y lista son inmediatos. Al cerrar el menú se
+  devuelve el foco al botón; al navegar desde él, pasa al contenido. Quitar filtros por
+  teclado devuelve el foco al buscador.
+- `prefers-reduced-motion` elimina el movimiento; los textos y estados siguen informando.
+  Las animaciones de actividad se pausan con la página oculta.
+
+La curva de llegada es `cubic-bezier(.23, 1, .32, 1)`. Se animan transformaciones y
+opacidad, sin interpolar dimensiones ni cifras. El tooltip de prioridad sigue el puntero
+sin animación, como corresponde a un detalle de consulta.
 
 
 ## Interacción de gráficos

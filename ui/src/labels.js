@@ -67,7 +67,7 @@ export const L = {
   loading: "Cargando…",
   retry: "Reintentar",
   errorPrefix: "Error",
-  backendDown: "No se pudo contactar con el backend (¿está arrancado en el puerto 8001?).",
+  backendDown: "No se ha podido conectar con el servicio. Vuelve a intentarlo.",
   showMore: (n) => `Mostrar todo (${n} caracteres)`,
   showLess: "Mostrar menos",
   back: "Volver a la cola",
