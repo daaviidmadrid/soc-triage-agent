@@ -130,23 +130,133 @@ class Ticket(BaseModel):
     group_links: list[GroupLink] = Field(default_factory=list)
 
 
+class TimelineEvent(BaseModel):
+    """One step of the attack. The LLM picks the event and describes it; code fills in the rest from the log row."""
+
+    # Always the log row's own time (UTC), never a time the LLM wrote.
+    timestamp: str
+    event_id: str
+    description: str = ""
+    mitre: str = ""
+    # Our additions.
+    source: str = ""
+    timestamp_madrid: str | None = None
+    # Repeats of the same action, collapsed into this step (for example 40 mailbox reads).
+    similar_event_ids: list[str] = Field(default_factory=list)
+    # Alerts that link this event. Empty means only the investigation found it.
+    linked_by_alerts: list[str] = Field(default_factory=list)
+    # "code" when code added an alert-linked event the LLM left out.
+    added_by: Literal["llm", "code"] = "llm"
+
+
+class Scope(BaseModel):
+    users: list[str] = Field(default_factory=list)
+    hosts: list[str] = Field(default_factory=list)
+    data: str = ""
+    business_impact: str = ""
+
+
+class ContainmentStep(BaseModel):
+    """A proposal only. Code names the approver from section 4 of the policy; a person approves and runs it, never the LLM.
+    In the app each step becomes an ActionProposal (level 4), checked again by src/policy/containment.py."""
+
+    action: str
+    target: str
+    # Deloitte's schema has one approver string: every role joined with " + ". approvers keeps them apart.
+    approver: str
+    approvers: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    business_impact: str = ""
+    justification: str = ""
+    requires_approval: Literal[True] = True
+    status: Literal["proposed"] = "proposed"
+
+
+class Person(BaseModel):
+    """A person in the report, from the directory. Two people can share a display name, so the UPN is the key."""
+
+    upn: str
+    display_name: str = ""
+    department: str = ""
+    title: str = ""
+    account_type: str = ""
+    privileged: bool = False
+    vip: bool = False
+
+
+class RelatedLink(BaseModel):
+    """Another alert that shares an exact identifier with this incident, found by plain code."""
+
+    alert_id: str
+    incident_id: str | None = None
+    created_at: str = ""
+    rule_id: str = ""
+    rule_name: str = ""
+    shared: list[str] = Field(default_factory=list)
+    # "specific": an IP, domain, sender, message, session, file or cloud identity, which counts as related.
+    # "account_or_host": only the same account or machine, which is a lead, not proof.
+    strength: Literal["specific", "account_or_host"]
+
+
+class EvidenceSummary(BaseModel):
+    window_from: str | None = None
+    window_to: str | None = None
+    searches: int = 0
+    rows_retrieved: int = 0
+    rows_by_source: dict[str, int] = Field(default_factory=dict)
+    rows_not_linked_by_alerts: int = 0
+    rows_sent_to_llm: int = 0
+    truncated_sources: list[str] = Field(default_factory=list)
+    skipped_pivots: list[str] = Field(default_factory=list)
+
+
+class IncidentReport(BaseModel):
+    """Follows data/01_contexto/informe_incidente.schema.json. The fields after open_questions are our additions."""
+
+    incident_id: str
+    title: str
+    alert_ids: list[str]
+    related_incidents: list[str] = Field(default_factory=list)
+    patient_zero: str
+    initial_access: str
+    timeline: list[TimelineEvent]
+    scope: Scope = Field(default_factory=Scope)
+    root_cause: str
+    containment_plan: list[ContainmentStep] = Field(default_factory=list)
+    eradication_and_recovery: list[str] = Field(default_factory=list)
+    notifications: list[str] = Field(default_factory=list)
+    detection_gaps: list[str] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+    open_questions: list[str] = Field(default_factory=list)
+    narrative: str = ""
+    # Department and title of each person in scope, from the directory, never from the LLM.
+    people: list[Person] = Field(default_factory=list)
+    # Says so when nothing links this incident to another one.
+    related_note: str = ""
+    related_links: list[RelatedLink] = Field(default_factory=list)
+    injection_flags: list[InjectionFlag] = Field(default_factory=list)
+    evidence_summary: EvidenceSummary = Field(default_factory=EvidenceSummary)
+    # What plain code changed in, or removed from, the LLM's answer.
+    code_notes: list[str] = Field(default_factory=list)
+    report_seconds: float | None = None
+    # True when the LLM gave no usable answer and code wrote a report with no analysis.
+    fallback: bool = False
+
+
 class TraceEvent(BaseModel):
-    """One step of a triage run. The final event carries the ticket."""
+    """One step of a triage or investigation run. The final event carries the ticket or the report."""
 
     run_id: str
     seq: int
     at: str
-    type: Literal["started", "tool_call", "tool_result", "note", "ticket_ready", "error"]
+    type: Literal["started", "tool_call", "tool_result", "note", "ticket_ready", "report_ready", "error"]
     tool: str | None = None
     args: dict = Field(default_factory=dict)
     summary: str = ""
     event_ids: list[str] = Field(default_factory=list)
     truncated: bool = False
     ticket: Ticket | None = None
-
-
-class IncidentReport(BaseModel):
-    pass
+    report: IncidentReport | None = None
 
 
 ContainmentAction = Literal["isolate_host", "disable_user", "revoke_sessions", "reset_password", "block_ioc", "purge_email", "disable_access_key"]

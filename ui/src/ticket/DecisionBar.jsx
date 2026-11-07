@@ -61,7 +61,7 @@ function Progress({ states, onGo, available }) {
   );
 }
 
-function Fact({ label, children }) {
+export function Fact({ label, children }) {
   return (
     <div className="fact">
       <dt>

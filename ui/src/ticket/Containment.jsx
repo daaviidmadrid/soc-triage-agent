@@ -232,21 +232,27 @@ function Log({ entries, ticketId }) {
   );
 }
 
-export default function Containment({ ticketRow }) {
+// For a ticket, pass ticketRow. For an incident report (level 3), pass reportKey: its proposed steps go through
+// the same approvals, checked again by the backend with the same policy rules.
+export default function Containment({ ticketRow, reportKey, headingLevel = 3 }) {
   const [data, setData] = useState(null);
   const [log, setLog] = useState([]);
   const [error, setError] = useState(null);
+  const ticketId = reportKey || (ticketRow && ticketRow.ticket_id);
+  const runId = ticketRow ? ticketRow.run_id : null;
+  const Heading = headingLevel === 3 ? "h3" : "h4";
 
   const load = useCallback(async () => {
     try {
-      const [proposals, logData] = await Promise.all([api.containment(ticketRow.ticket_id, ticketRow.run_id), api.containmentLog()]);
+      const fetchProposals = reportKey ? api.reportContainment(reportKey) : api.containment(ticketId, runId);
+      const [proposals, logData] = await Promise.all([fetchProposals, api.containmentLog()]);
       setData(proposals);
       setLog(logData.entries || []);
       setError(null);
     } catch (e) {
       setError(e.message);
     }
-  }, [ticketRow.ticket_id, ticketRow.run_id]);
+  }, [reportKey, ticketId, runId]);
 
   useEffect(() => {
     load();
@@ -254,7 +260,7 @@ export default function Containment({ ticketRow }) {
 
   return (
     <section className="reading-section containment" id="sec-proposal" aria-labelledby="containment-title">
-      <h3 id="containment-title">{L.containmentTitle}</h3>
+      <Heading id="containment-title">{L.containmentTitle}</Heading>
       <p className="hint">{L.containmentHelp}</p>
       {error && <ErrorBox message={error} onRetry={load} />}
       {data && data.proposals.length === 0 && <p className="muted">{L.noProposals}</p>}
@@ -277,7 +283,7 @@ export default function Containment({ ticketRow }) {
           </ul>
         </>
       )}
-      <Log entries={log} ticketId={ticketRow.ticket_id} />
+      <Log entries={log} ticketId={ticketId} />
     </section>
   );
 }

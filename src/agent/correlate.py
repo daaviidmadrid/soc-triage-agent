@@ -252,12 +252,17 @@ def _dedupe(items, key):
     return out
 
 
+def incident_id_for(alert_ids):
+    """The same alerts always give the same incident ID, so a report and its level 2 incident share it."""
+    return "INC-" + hashlib.sha256("|".join(sorted(alert_ids)).encode()).hexdigest()[:10].upper()
+
+
 def merge(members, links, items):
     """One ticket for the whole incident. Plain code decides everything. Each member keeps its own ticket."""
     ordered = sorted(members, key=lambda alert_id: (items[alert_id]["time"] or datetime.max.replace(tzinfo=None).astimezone(), alert_id))
     tickets = [items[alert_id]["ticket"] for alert_id in ordered]
     alerts = [items[alert_id]["alert"] for alert_id in ordered]
-    incident_id = "INC-" + hashlib.sha256("|".join(sorted(members)).encode()).hexdigest()[:10].upper()
+    incident_id = incident_id_for(members)
     severity = max((t.get("severity") for t in tickets if t.get("severity") in SEVERITIES), key=SEVERITIES.index, default="medium")
     verdicts = [t.get("verdict") for t in tickets]
     verdict = next((v for v in ("true_positive", "needs_more_info") if v in verdicts), "benign_true_positive" if set(verdicts) == {"benign_true_positive"} else "false_positive")
