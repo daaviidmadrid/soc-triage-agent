@@ -3,7 +3,7 @@
 // Only these buttons, after every required person has approved, reach the mock API's /approvals and /containment.
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, formatTime } from "../components.jsx";
+import { Chip, ErrorBox, asText, formatTime } from "../components.jsx";
 import Icon from "../icons.jsx";
 import { ACTION_NAME, CONTAINMENT_STATUS, L } from "../labels.js";
 
@@ -158,9 +158,7 @@ function ProposalCard({ proposal, onChange }) {
             <dt>
               <Chip kind="llm">{L.tagLlm}</Chip> {L.fromSuggestion}
             </dt>
-            <dd>
-              <Clip value={proposal.suggestion} max={200} />
-            </dd>
+            <dd className="prose">{asText(proposal.suggestion)}</dd>
           </>
         )}
       </dl>
@@ -255,8 +253,8 @@ export default function Containment({ ticketRow }) {
   }, [load]);
 
   return (
-    <section className="containment" aria-labelledby="containment-title">
-      <h4 id="containment-title">{L.containmentTitle}</h4>
+    <section className="reading-section containment" id="sec-proposal" aria-labelledby="containment-title">
+      <h3 id="containment-title">{L.containmentTitle}</h3>
       <p className="hint">{L.containmentHelp}</p>
       {error && <ErrorBox message={error} onRetry={load} />}
       {data && data.proposals.length === 0 && <p className="muted">{L.noProposals}</p>}
@@ -273,7 +271,7 @@ export default function Containment({ ticketRow }) {
           <ul className="list">
             {data.not_proposed.map((item, i) => (
               <li key={i}>
-                <Clip value={item.suggestion} max={160} /> <span className="muted">— {item.reason}</span>
+                <span className="prose">{asText(item.suggestion)}</span> <span className="muted">— {item.reason}</span>
               </li>
             ))}
           </ul>

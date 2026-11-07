@@ -89,7 +89,7 @@ jupyter notebook analysis/explore.ipynb
 ```
 
 ## Incidents (level 2)
-`src/agent/correlate.py` groups the alerts of one attack into a single incident ticket, with plain code. Each link records what the two alerts share, such as the same account, sender or event, and the queue's Incidentes view shows it. To group a folder of tickets from the exam:
+`src/agent/correlate.py` groups the alerts of one attack into a single incident ticket, with plain code. Each link records what the two alerts share, such as the same account, sender or event, and the Incidentes page in the side menu shows it. To group a folder of tickets from the exam:
 ```bash
 python -m src.agent.correlate runs/v3-ornith-nothink
 ```
@@ -99,7 +99,7 @@ python3 scripts/exam.py score --grouped
 ```
 
 ## Containment (level 4)
-On an escalated ticket, the alert page lists the containment actions built from the LLM's suggestions. `src/policy/containment.py` maps each one onto the mock's 7 actions, finds the exact target and decides who must approve, with plain code. Each required role is approved by a different named person, and only then does "Ejecutar en la API simulada" call the mock, once. OT actions are never proposed. The page also shows the mock's containment log.
+On an escalated ticket, the alert page's "Política y acciones" tab lists the containment actions built from the LLM's suggestions. `src/policy/containment.py` maps each one onto the mock's 7 actions, finds the exact target and decides who must approve, with plain code. Each required role is approved by a different named person, and only then does "Ejecutar en la API simulada" call the mock, once. OT actions are never proposed. The page also shows the mock's containment log.
 
 ## Folders
 ```text
