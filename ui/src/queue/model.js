@@ -28,7 +28,7 @@ export function filterAndSort(alerts, filters) {
   const q = filters.q.trim().toLowerCase();
   return alerts
     .filter((a) => !filters.product || a.source_product === filters.product)
-    .filter((a) => !filters.severity || effective(a).severity === filters.severity)
+    .filter((a) => !filters.severity || (filters.severity === "priority" ? ["critical", "high"].includes(effective(a).severity) : effective(a).severity === filters.severity))
     .filter((a) => !filters.state || stateOf(a) === filters.state)
     .filter((a) => !filters.injection || hasInjection(a))
     .filter((a) => !q || [a.alert_id, a.rule_name, a.rule_id].some((v) => typeof v === "string" && v.toLowerCase().includes(q)))
@@ -67,7 +67,7 @@ export function filtersFromQuery(query) {
   return {
     q: text("q"),
     product: text("producto"),
-    severity: SEVERITY_ORDER.includes(severity) ? severity : "",
+    severity: [...SEVERITY_ORDER, "priority"].includes(severity) ? severity : "",
     state: Object.prototype.hasOwnProperty.call(STATE_FILTERS, state) ? state : "",
     injection: p.get("iny") === "1",
   };

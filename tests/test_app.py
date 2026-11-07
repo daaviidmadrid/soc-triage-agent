@@ -541,3 +541,149 @@ def test_building_incidents_needs_the_ui_header(tmp_path):
     with TestClient(create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "s.jsonl", SAMPLE))) as c:
         assert c.post("/api/incidents/build").status_code == 403
         assert c.get("/api/incidents").status_code == 200
+
+
+# Incident reports (level 3)
+
+def closing_runner(alert, mode=None):
+    alert_id = alert["alert_id"]
+    yield {"type": "ticket_ready", "summary": "x", "ticket": {
+        "ticket_id": f"TKT-{alert_id}", "alert_ids": [alert_id], "title": "t", "verdict": "false_positive", "confidence": 0.9,
+        "severity": "low", "summary": "s", "evidence": [], "recommended_actions": [],
+        "escalation": {"escalate": False, "to": "", "reason": ""}}}
+
+
+def fake_report(calls):
+    def report_fn(alerts, tickets=(), incident_id=None, others=(), memberships=None):
+        calls.append({"alerts": [a["alert_id"] for a in alerts], "tickets": list(tickets), "incident_id": incident_id,
+                      "others": [a["alert_id"] for a in others]})
+        yield {"type": "started", "summary": "Investigación"}
+        yield {"type": "tool_result", "tool": "search_logs", "summary": "3 fila(s)", "event_ids": ["SIGN-1", "AUD-1"]}
+        yield {"type": "report_ready", "summary": "Informe", "event_ids": ["SIGN-1"], "report": {
+            "incident_id": incident_id or "INC-X", "title": HOSTILE, "alert_ids": [a["alert_id"] for a in alerts],
+            "patient_zero": "zz-grp@tarvia.example", "initial_access": "i", "root_cause": "r", "confidence": 0.8,
+            "timeline": [{"timestamp": "2026-10-07T07:43:20.000Z", "event_id": "SIGN-1", "description": "d"}],
+            "containment_plan": [{"action": "revoke_sessions", "target": "zz-grp@tarvia.example", "approver": "N2",
+                                  "requires_approval": True, "status": "proposed"}]}}
+    return report_fn
+
+
+def wait_for_report(client, key, timeout=10):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        data = client.get(f"/api/reports/{key}").json()
+        if data["latest_run"] and data["latest_run"]["status"] != "running":
+            return data
+        time.sleep(0.05)
+    raise AssertionError("the investigation did not finish")
+
+
+def test_an_escalated_incident_gets_a_report_with_its_trace(tmp_path):
+    calls = []
+    app = create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "g.jsonl", GROUPABLE), run_fn=escalating_runner,
+                     report_fn=fake_report(calls))
+    with TestClient(app, headers=UI) as c:
+        for row in GROUPABLE:
+            c.post(f"/api/triage/{row['alert_id']}")
+            wait_for_run(c, row["alert_id"])
+        c.post("/api/incidents/build")
+        incident_id = c.get("/api/incidents").json()["incidents"][0]["incident_id"]
+        assert c.get("/api/alerts/ALR-GRP-1").json()["report_key"] == incident_id
+        before = c.get(f"/api/reports/{incident_id}").json()
+        assert before["report"] is None and before["subject"]["alert_ids"] == ["ALR-GRP-1", "ALR-GRP-2"]
+        response = c.post(f"/api/reports/{incident_id}")
+        assert response.status_code == 202
+        data = wait_for_report(c, incident_id)
+        assert data["latest_run"]["status"] == "done" and data["latest_run"]["mode"] == "report"
+        report = data["report"]["report"]
+        assert report["title"] == HOSTILE  # attacker text comes back unchanged, as data
+        assert report["containment_plan"][0]["status"] == "proposed"
+        assert calls[0]["alerts"] == ["ALR-GRP-1", "ALR-GRP-2"] and calls[0]["incident_id"] == incident_id
+        assert calls[0]["others"] == ["ALR-GRP-3"]
+        assert calls[0]["tickets"] == []  # example tickets are made up, so they never reach the investigation
+        events, end = read_sse(c, response.json()["run_id"])
+        assert [e["type"] for e in events] == ["started", "tool_result", "report_ready"]
+        assert "report" not in events[-1] and end["status"] == "done"
+        assert c.get("/api/incidents").json()["reports"][incident_id]["fallback"] is False
+
+
+def test_a_single_escalated_ticket_can_be_investigated(tmp_path):
+    calls = []
+    app = create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "g.jsonl", GROUPABLE), run_fn=escalating_runner,
+                     report_fn=fake_report(calls))
+    with TestClient(app, headers=UI) as c:
+        c.post("/api/triage/ALR-GRP-3")
+        wait_for_run(c, "ALR-GRP-3")
+        key = c.get("/api/alerts/ALR-GRP-3").json()["report_key"]
+        assert key == "TKT-ALR-GRP-3"
+        assert c.post(f"/api/reports/{key}").status_code == 202
+        data = wait_for_report(c, key)
+        assert data["subject"]["kind"] == "ticket" and data["report"]["report"]["alert_ids"] == ["ALR-GRP-3"]
+        assert calls[0]["incident_id"] is None
+
+
+def test_closed_tickets_and_unknown_keys_are_not_investigated(tmp_path):
+    app = create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "g.jsonl", GROUPABLE), run_fn=closing_runner,
+                     report_fn=fake_report([]))
+    with TestClient(app, headers=UI) as c:
+        c.post("/api/triage/ALR-GRP-1")
+        wait_for_run(c, "ALR-GRP-1")
+        assert c.get("/api/alerts/ALR-GRP-1").json()["report_key"] is None
+        assert c.post("/api/reports/TKT-ALR-GRP-1").status_code == 409
+        assert c.post("/api/reports/INC-NOEXISTE").status_code == 404
+        assert c.get("/api/reports/INC-NOEXISTE").status_code == 404
+    with TestClient(app) as c:
+        assert c.post("/api/reports/TKT-ALR-GRP-1").status_code == 403
+
+
+def test_a_crashed_investigation_fails_with_an_error_and_no_report(tmp_path):
+    def broken(alerts, **options):
+        yield {"type": "started", "summary": "x"}
+        raise RuntimeError("boom")
+
+    app = create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "g.jsonl", GROUPABLE), run_fn=escalating_runner,
+                     report_fn=broken)
+    with TestClient(app, headers=UI) as c:
+        c.post("/api/triage/ALR-GRP-3")
+        wait_for_run(c, "ALR-GRP-3")
+        c.post("/api/reports/TKT-ALR-GRP-3")
+        data = wait_for_report(c, "TKT-ALR-GRP-3")
+        assert data["latest_run"]["status"] == "failed" and "RuntimeError" in data["latest_run"]["error"]
+        assert data["report"] is None
+
+
+def test_a_reports_proposals_go_through_level_4_approval(tmp_path):
+    """Level 3 to 4: the report's steps become proposals checked by the same rules, approved by people, run once."""
+    def report_with_plan(alerts, tickets=(), incident_id=None, others=(), memberships=None):
+        yield {"type": "report_ready", "summary": "Informe", "report": {
+            "incident_id": "INC-X", "title": "t", "alert_ids": [a["alert_id"] for a in alerts], "patient_zero": "p",
+            "initial_access": "i", "root_cause": "r", "confidence": 0.8, "timeline": [],
+            "containment_plan": [
+                {"action": "revoke_sessions", "target": "laura.ferrer2@tarvia.example", "approver": "N2", "justification": "sesión robada"},
+                {"action": "block_ioc", "target": "10.10.2.141", "approver": "Analista SOC"},
+                {"action": "isolate_host", "target": "PLC-SORT01", "approver": "N2"}]}}
+
+    app = create_app(db_path=":memory:", sample_path=write_jsonl(tmp_path / "g.jsonl", GROUPABLE), run_fn=escalating_runner,
+                     report_fn=report_with_plan)
+    with TestClient(app, headers=UI) as c:
+        c.post("/api/triage/ALR-GRP-3")
+        wait_for_run(c, "ALR-GRP-3")
+        assert c.get("/api/reports/TKT-ALR-GRP-3/containment").status_code == 404  # no report yet
+        c.post("/api/reports/TKT-ALR-GRP-3")
+        wait_for_report(c, "TKT-ALR-GRP-3")
+        data = c.get("/api/reports/TKT-ALR-GRP-3/containment").json()
+        assert [(p["action"], p["target"], p["ticket_id"]) for p in data["proposals"]] == [
+            ("revoke_sessions", "laura.ferrer2@tarvia.example", "TKT-ALR-GRP-3")]
+        assert len(data["not_proposed"]) == 2  # an internal IP and the OT network are refused again by the app
+        proposal = data["proposals"][0]
+        assert proposal["approvers"] == ["N2"] and proposal["status"] == "proposed"
+        assert c.post(f"/api/containment/{proposal['proposal_id']}/execute").status_code == 409  # nobody approved
+        approved = c.post(f"/api/containment/{proposal['proposal_id']}/approve", json={"role": "N2", "approver": "Ana N2"}).json()
+        assert approved["status"] == "approved"
+        executed = c.post(f"/api/containment/{proposal['proposal_id']}/execute")
+        assert executed.status_code == 200 and executed.json()["status"] == "executed"
+        assert c.post(f"/api/containment/{proposal['proposal_id']}/execute").status_code == 409  # runs once
+        again = c.get("/api/reports/TKT-ALR-GRP-3/containment").json()["proposals"][0]
+        assert again["status"] == "executed"
+        log = c.get("/api/containment/log").json()["entries"]
+        assert any(e.get("ticket_id") == "TKT-ALR-GRP-3" and e.get("action") == "revoke_sessions" for e in log)

@@ -2,7 +2,8 @@
 // so a person can check each grouping. Noise is counted, never merged.
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, NA, Notice, Severity, Skeleton, ViewSwitch, formatTime } from "../components.jsx";
+import { Chip, Clip, ErrorBox, NA, Notice, Severity, Skeleton, asText, formatTime } from "../components.jsx";
+import Icon from "../icons.jsx";
 import { L, OUTCOME, VERDICT } from "../labels.js";
 
 function Members({ members, onOpen }) {
@@ -59,7 +60,7 @@ function Links({ links }) {
   );
 }
 
-function IncidentCard({ incident, onOpen }) {
+function IncidentCard({ incident, report, onOpen, onOpenReport }) {
   const t = incident.ticket;
   const esc = t.escalation || {};
   const headId = `inc-${incident.incident_id}`;
@@ -67,7 +68,14 @@ function IncidentCard({ incident, onOpen }) {
     <section className="panel incident" aria-labelledby={headId}>
       <div className="incident-head">
         <h2 id={headId}>{t.title}</h2>
-        <code className="id">{incident.incident_id}</code>
+        <span className="incident-actions">
+          <code className="id">{incident.incident_id}</code>
+          {(esc.escalate || report) && (
+            <button type="button" className={`btn btn-sm${report ? "" : " btn-primary"}`} onClick={() => onOpenReport(incident.incident_id)}>
+              {report ? L.reportOpen : L.reportInvestigate}
+            </button>
+          )}
+        </span>
       </div>
       <div className="incident-facts">
         <Severity value={t.severity} />
@@ -78,12 +86,10 @@ function IncidentCard({ incident, onOpen }) {
         {incident.chain && <Chip kind="warn">{L.chainChip}</Chip>}
         <span className="muted">{L.incidentAlerts(incident.members.length)}</span>
       </div>
-      <p className="incident-summary">
-        <Clip value={t.summary} max={420} />
-      </p>
+      <p className="incident-summary prose">{asText(t.summary)}</p>
       {esc.reason && (
-        <p className="hint">
-          {L.escalationReason}: <Clip value={esc.reason} max={320} />
+        <p className="hint prose">
+          {L.escalationReason}: {asText(esc.reason)}
         </p>
       )}
       <h3>{L.membersTitle}</h3>
@@ -137,7 +143,7 @@ function Noise({ rows }) {
   );
 }
 
-export default function Incidents({ onOpen, onAlerts }) {
+export default function Incidents({ onOpen, onOpenReport }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -184,8 +190,8 @@ export default function Incidents({ onOpen, onAlerts }) {
           <span className="muted num">{L.incidentsCount(data.incidents.length, Object.keys(data.memberships || {}).length)}</span>
         </div>
         <div className="page-actions">
-          <ViewSwitch view="incidents" onAlerts={onAlerts} />
           <button type="button" className="btn btn-primary" onClick={build} disabled={busy}>
+            <Icon name="incidents" />
             {busy ? L.building : L.buildIncidents}
           </button>
         </div>
@@ -201,7 +207,15 @@ export default function Incidents({ onOpen, onAlerts }) {
       {data.incidents.length === 0 ? (
         <Notice>{data.triaged_now > 0 ? L.incidentsNone : L.incidentsNothingTriaged}</Notice>
       ) : (
-        data.incidents.map((incident) => <IncidentCard key={incident.incident_id} incident={incident} onOpen={onOpen} />)
+        data.incidents.map((incident) => (
+          <IncidentCard
+            key={incident.incident_id}
+            incident={incident}
+            report={(data.reports || {})[incident.incident_id]}
+            onOpen={onOpen}
+            onOpenReport={onOpenReport}
+          />
+        ))
       )}
       <Noise rows={data.noise} />
     </div>

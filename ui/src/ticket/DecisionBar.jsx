@@ -61,23 +61,14 @@ function Progress({ states, onGo, available }) {
   );
 }
 
-function Fact({ tag, kind, label, children }) {
+export function Fact({ label, children }) {
   return (
     <div className="fact">
       <dt>
-        <Chip kind={kind}>{tag}</Chip> {label}
+        {label}
       </dt>
       <dd>{children}</dd>
     </div>
-  );
-}
-
-function Legend() {
-  return (
-    <p className="legend">
-      <span className="muted">{L.legend}</span> <Chip kind="llm">{L.tagLlm}</Chip> {L.legendLlm} · <Chip kind="code">{L.tagCode}</Chip>{" "}
-      {L.legendCode} · <Chip kind="person">{L.tagPerson}</Chip> {L.legendPerson}
-    </p>
   );
 }
 
@@ -127,7 +118,7 @@ function Failed({ run, starting, onStart, onReviewByHand }) {
   );
 }
 
-function Summary({ ticketRow, decision, fallback, next, onGo, onNext }) {
+function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact }) {
   const ticket = obj(ticketRow.ticket);
   const escalation = obj(ticket.escalation);
   const proposal = escalation.escalate === true ? "escalate" : escalation.escalate === false ? "close" : null;
@@ -191,7 +182,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext }) {
             {L.closedByRuleId(asText(rule.rule_id))}
           </Chip>
         )}
-        {flags > 0 && (
+        {flags > 0 && !compact && (
           <button type="button" className="chip chip-warn chip-btn" onClick={() => onGo("injection-title")}>
             <Icon name="alert" />
             {L.barInjections(flags)}
@@ -212,7 +203,7 @@ export default function DecisionBar(props) {
 
   return (
     <section className="panel bar" aria-label={L.barLabel}>
-      <Progress states={states} onGo={onGo} available={available} />
+      {!props.compact && <Progress states={states} onGo={onGo} available={available} />}
       <div className="bar-body">
         {!run && (
           <div className="bar-actions">
@@ -225,13 +216,12 @@ export default function DecisionBar(props) {
         {running && <Running run={run} now={now} ruleSeverity={ruleSeverity} />}
         {run && run.status === "failed" && <Failed run={run} starting={starting} onStart={onStart} onReviewByHand={onReviewByHand} />}
         {ticket && run && run.status === "done" && (
-          <Summary ticketRow={ticketRow} decision={decision} fallback={fallback} next={next} onGo={onGo} onNext={onNext} />
+          <Summary compact={props.compact} ticketRow={ticketRow} decision={decision} fallback={fallback} next={next} onGo={onGo} onNext={onNext} />
         )}
-        <p className="bar-status" role="status">
+        <p className={`bar-status${props.compact ? " visually-hidden" : ""}`} role="status">
           {finished ? <span className="finished">{L.barFinished(formatSeconds(run && run.duration_seconds))}</span> : ""}
         </p>
       </div>
-      <Legend />
     </section>
   );
 }
