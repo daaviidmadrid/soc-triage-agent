@@ -2,7 +2,7 @@
 // Containment runs only from the approval screen in Containment.jsx, after every required person has approved.
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, List, None, arr, asText, formatTime, isBlank, obj } from "../components.jsx";
+import { Chip, Clip, ErrorBox, None, asText, formatTime, isBlank, obj } from "../components.jsx";
 import Icon from "../icons.jsx";
 import Containment from "./Containment.jsx";
 import { DECISION, L, OUTCOME } from "../labels.js";
@@ -134,7 +134,7 @@ function Saved({ ticketRow, current, justSaved, onChange, onNext, next }) {
   );
 }
 
-function History({ decisions, runId }) {
+function History({ decisions, runId, continuous = false }) {
   // Rows already there on first render don't animate; a decision saved now fades in.
   const [armed, setArmed] = useState(false);
   useEffect(() => setArmed(true), []);
@@ -149,9 +149,10 @@ function History({ decisions, runId }) {
             {formatTime(d.decided_at)} UTC
             {d.run_id !== runId && ` · ${L.olderVersion}`}
           </div>
+          {continuous && <div className="history-ref"><code className="id">{d.run_id}</code>{d.ticket_id && <code className="id">{d.ticket_id}</code>}</div>}
           {!isBlank(d.reason) && (
             <div className="reason">
-              <Clip value={d.reason} max={200} />
+              {continuous ? <p className="prose">{asText(d.reason)}</p> : <Clip value={d.reason} max={200} />}
             </div>
           )}
         </li>
@@ -160,7 +161,7 @@ function History({ decisions, runId }) {
   );
 }
 
-function ActionItem({ action, waiting }) {
+function ActionItem({ action, waiting, continuous = false }) {
   return (
     <li className="action">
       {waiting && (
@@ -171,21 +172,21 @@ function ActionItem({ action, waiting }) {
       )}
       <div>
         <strong>
-          <Clip value={action.action} max={120} />
+          {continuous ? asText(action.action) : <Clip value={action.action} max={120} />}
         </strong>{" "}
         <Icon name="arrowRight" className="icon-inline" /> <code className="indicator">{isBlank(action.target) ? L.na : asText(action.target)}</code>{" "}
-        {waiting ? <Chip kind="llm">{L.tagLlm}</Chip> : <span className="muted">({L.actionNoApproval})</span>}
+        {!waiting && <span className="muted">({L.actionNoApproval})</span>}
       </div>
-      {waiting && !isBlank(action.justification) && (
+      {!isBlank(action.justification) && (
         <div className="sub">
-          <Clip value={action.justification} max={200} />
+          {continuous ? <p className="prose">{asText(action.justification)}</p> : <Clip value={action.justification} max={200} />}
         </div>
       )}
     </li>
   );
 }
 
-export default function DecisionPanel({ ticketRow, current, onNext, next, decisions, waiting, others, executed, onSaved }) {
+export default function DecisionPanel({ ticketRow, current, onNext, next, decisions, waiting, others, executed, onSaved, compact = false }) {
   const [editing, setEditing] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -213,6 +214,7 @@ export default function DecisionPanel({ ticketRow, current, onNext, next, decisi
         <DecisionForm key={ticketRow.run_id} ticketRow={ticketRow} onSaved={saved} onCancel={current ? () => setEditing(false) : null} />
       )}
 
+      {!compact && <>
       <h4>{L.decisionsHistory}</h4>
       <History decisions={decisions} runId={ticketRow.run_id} />
 
@@ -229,6 +231,9 @@ export default function DecisionPanel({ ticketRow, current, onNext, next, decisi
         </>
       )}
 
+      </>}
     </>
   );
 }
+
+export { History, ActionItem };
