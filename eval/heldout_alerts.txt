@@ -1,0 +1,7 @@
+# Stolen cloud key case, kept out of tuning (docs/decisions.md, analysis section 11).
+# Not blind: the analysis has read these alerts.
+ALR-20261015-011819
+ALR-20261015-011820
+ALR-20261016-011821
+# Possible earlier step of the same case, until someone checks the link.
+ALR-20261013-011901

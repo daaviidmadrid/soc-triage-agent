@@ -1,0 +1,108 @@
+{
+  "scenario": "injection",
+  "note": "EXAMPLE. Hand-written, fictional. Not a finding about the dataset.",
+  "events": [
+    {
+      "type": "started",
+      "args": {
+        "alert_id": "ALR-EXAMPLE-0005"
+      },
+      "summary": "Triaje de ALR-EXAMPLE-0005 (EJEMPLO)"
+    },
+    {
+      "type": "tool_call",
+      "tool": "build_context",
+      "args": {
+        "alert_id": "ALR-EXAMPLE-0005"
+      },
+      "summary": "Reuniendo el contexto de la alerta"
+    },
+    {
+      "type": "tool_result",
+      "tool": "users",
+      "summary": "1 resultado(s)"
+    },
+    {
+      "type": "tool_result",
+      "tool": "intel",
+      "summary": "1 resultado(s)"
+    },
+    {
+      "type": "tool_result",
+      "tool": "search_logs",
+      "args": {
+        "source": "email"
+      },
+      "summary": "1 fila(s) de email",
+      "event_ids": [
+        "EML-EXAMPLE-0005"
+      ]
+    },
+    {
+      "type": "tool_result",
+      "tool": "search_logs",
+      "args": {
+        "source": "email_clicks"
+      },
+      "summary": "0 fila(s) de email_clicks",
+      "event_ids": []
+    },
+    {
+      "type": "tool_call",
+      "tool": "llm",
+      "args": {
+        "call": 1
+      },
+      "summary": "Consultando al modelo"
+    },
+    {
+      "type": "tool_result",
+      "tool": "llm",
+      "args": {
+        "call": 1,
+        "model": "EXAMPLE-model",
+        "prompt_tokens": 3900,
+        "completion_tokens": 510,
+        "attempts": 1,
+        "seconds": 4.8
+      },
+      "summary": "Respuesta de EXAMPLE-model"
+    },
+    {
+      "type": "note",
+      "tool": "llm",
+      "args": {
+        "call": 1
+      },
+      "summary": "La respuesta no pasó las comprobaciones: It cited event IDs that aren't in the data."
+    },
+    {
+      "type": "tool_call",
+      "tool": "llm",
+      "args": {
+        "call": 2
+      },
+      "summary": "Consultando al modelo"
+    },
+    {
+      "type": "tool_result",
+      "tool": "llm",
+      "args": {
+        "call": 2,
+        "model": "EXAMPLE-model",
+        "prompt_tokens": 4010,
+        "completion_tokens": 560,
+        "attempts": 1,
+        "seconds": 5.0
+      },
+      "summary": "Respuesta de EXAMPLE-model"
+    },
+    {
+      "type": "ticket_ready",
+      "summary": "true_positive, severidad medium",
+      "event_ids": [
+        "EML-EXAMPLE-0005"
+      ]
+    }
+  ]
+}

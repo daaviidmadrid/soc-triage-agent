@@ -1,0 +1,49 @@
+# Analysis section 11: behavioural test cases, mostly in look-alike pairs.
+# Alerts already in the development sample are not repeated here.
+# traced session and fraud case
+ALR-20261007-011786
+ALR-20261007-011787
+ALR-20261007-011788
+ALR-20261008-011789
+# scanner before / after the clock change, and an internal scan not from the scanner
+ALR-20261007-011850
+ALR-20261028-011864
+ALR-20261010-011796
+# PsExec inside the approved change / lateral movement outside any change
+ALR-20261013-011869
+ALR-20261010-011797
+# OT from the permitted source / through the maintenance window
+ALR-20261009-002231
+ALR-20261017-011876
+# payroll flow / personal data to another recipient / upload by a departing employee
+ALR-20261007-011874
+ALR-20261015-011818
+ALR-20261014-011817
+# impossible travel during a dated trip / rare pattern with no trip
+ALR-20261011-011873
+ALR-20261010-011828
+# EDR stop citing the approved change / with no change
+ALR-20261024-011916
+ALR-20261018-011896
+# group change outside any change (inside-window case is in the sample)
+ALR-20261018-011895
+# vendor VPN inside its exception (other-source case is in the sample)
+ALR-20261016-011922
+# alert with no linked events
+ALR-20261021-011900
+# service-account login with an MFA exemption
+ALR-20261013-011816
+# approval claim in a service description; hidden text in reported / clicked email
+ALR-20261020-011897
+ALR-20261020-011910
+ALR-20261020-011911
+# Vela multi-event disclosure
+ALR-20261008-011823
+# rules absent from the sample
+ALR-20261012-003200
+ALR-20261010-011795
+ALR-20261012-011829
+ALR-20261006-011825
+ALR-20261010-011798
+ALR-20261010-011794
+ALR-20261009-011790
