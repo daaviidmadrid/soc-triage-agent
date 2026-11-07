@@ -1,0 +1,18 @@
+{
+  "scenario": "escalated",
+  "note": "EXAMPLE. Hand-written, fictional. Not a finding about the dataset.",
+  "events": [
+    {"type": "started", "args": {"alert_id": "ALR-EXAMPLE-0001"}, "summary": "Triaje de ALR-EXAMPLE-0001 (EJEMPLO)"},
+    {"type": "tool_call", "tool": "build_context", "args": {"alert_id": "ALR-EXAMPLE-0001"}, "summary": "Reuniendo el contexto de la alerta"},
+    {"type": "tool_result", "tool": "users", "summary": "1 resultado(s)"},
+    {"type": "tool_result", "tool": "assets", "summary": "1 resultado(s)"},
+    {"type": "tool_result", "tool": "intel", "summary": "2 resultado(s)"},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "email"}, "summary": "1 fila(s) de email", "event_ids": ["EML-EXAMPLE-0001"]},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "email_clicks"}, "summary": "1 fila(s) de email_clicks", "event_ids": ["CLK-EXAMPLE-0001"]},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "idp_signins"}, "summary": "3 fila(s) de idp_signins", "event_ids": ["SGN-EXAMPLE-0001", "SGN-EXAMPLE-0002", "SGN-EXAMPLE-0003"]},
+    {"type": "tool_call", "tool": "llm", "args": {"call": 1}, "summary": "Consultando al modelo"},
+    {"type": "tool_result", "tool": "llm", "args": {"call": 1, "model": "EXAMPLE-model", "prompt_tokens": 5210, "completion_tokens": 640, "attempts": 1, "seconds": 6.2}, "summary": "Respuesta de EXAMPLE-model"},
+    {"type": "note", "summary": "Escalado obligatorio aplicado por la política: true_positive de severidad high; Robo de credenciales"},
+    {"type": "ticket_ready", "summary": "true_positive, severidad high", "event_ids": ["EML-EXAMPLE-0001", "CLK-EXAMPLE-0001", "SGN-EXAMPLE-0001"]}
+  ]
+}

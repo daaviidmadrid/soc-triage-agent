@@ -1,0 +1,18 @@
+{
+  "scenario": "closed_authorised",
+  "note": "EXAMPLE. Hand-written, fictional. Not a finding about the dataset.",
+  "events": [
+    {"type": "started", "args": {"alert_id": "ALR-EXAMPLE-0002"}, "summary": "Triaje de ALR-EXAMPLE-0002 (EJEMPLO)"},
+    {"type": "tool_call", "tool": "build_context", "args": {"alert_id": "ALR-EXAMPLE-0002"}, "summary": "Reuniendo el contexto de la alerta"},
+    {"type": "tool_result", "tool": "assets", "summary": "2 resultado(s)"},
+    {"type": "tool_result", "tool": "changes", "summary": "1 resultado(s)"},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "firewall"}, "summary": "14 fila(s) de firewall", "event_ids": ["FW-EXAMPLE-0001", "FW-EXAMPLE-0002"]},
+    {"type": "tool_call", "tool": "llm", "args": {"call": 1}, "summary": "Consultando al modelo"},
+    {"type": "tool_result", "tool": "llm", "args": {"call": 1, "model": "EXAMPLE-model", "prompt_tokens": 4100, "completion_tokens": 120, "attempts": 1, "seconds": 3.1}, "summary": "Respuesta de EXAMPLE-model"},
+    {"type": "tool_call", "tool": "search_logs", "args": {"source": "edr_events", "host": "SRV-EXAMPLE-07"}, "summary": "Búsqueda adicional pedida por el modelo"},
+    {"type": "tool_result", "tool": "search_logs", "args": {"source": "edr_events", "host": "SRV-EXAMPLE-07"}, "summary": "3 fila(s) de edr_events", "event_ids": ["EDR-EXAMPLE-0001", "EDR-EXAMPLE-0002", "EDR-EXAMPLE-0003"]},
+    {"type": "tool_call", "tool": "llm", "args": {"call": 2}, "summary": "Consultando al modelo"},
+    {"type": "tool_result", "tool": "llm", "args": {"call": 2, "model": "EXAMPLE-model", "prompt_tokens": 4630, "completion_tokens": 580, "attempts": 1, "seconds": 5.4}, "summary": "Respuesta de EXAMPLE-model"},
+    {"type": "ticket_ready", "summary": "benign_true_positive, severidad informational", "event_ids": ["FW-EXAMPLE-0001", "EDR-EXAMPLE-0001"]}
+  ]
+}
