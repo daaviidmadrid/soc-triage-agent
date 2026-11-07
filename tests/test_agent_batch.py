@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.agent import batch  # noqa: E402
 from src.agent.batch import load_alerts, main, run_batch  # noqa: E402
-from src.agent.llm import LLMBlocked, LLMResult, LLMUnavailable  # noqa: E402
+from src.agent.llm import LLMBlocked, LLMQuotaExhausted, LLMResult, LLMUnavailable  # noqa: E402
 
 ANSWER = {
     "title": "Título",
@@ -84,7 +84,7 @@ def test_paces_calls_but_not_before_the_first(tmp_path):
 
 def test_stops_at_the_call_limit_and_reports_what_is_left(tmp_path):
     llm = FakeLLM()
-    report = run(tmp_path, list(ALERTS), llm=llm, max_calls=3)
+    report = run(tmp_path, list(ALERTS), llm=llm, max_calls=4)
     assert report["done"] == ["ALR-0", "ALR-1"]
     assert report["not_started"] == ["ALR-2", "ALR-3", "ALR-4"]
     assert llm.calls == 2
@@ -135,7 +135,59 @@ def test_repeated_ids_run_once(tmp_path):
 
 def test_leaves_no_temporary_files(tmp_path):
     run(tmp_path, ["ALR-0"])
-    assert [path.name for path in tmp_path.iterdir()] == ["ALR-0.json"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["ALR-0.json", "calls", "traces"]
+    assert [path.name for path in (tmp_path / "traces").iterdir()] == ["ALR-0.json"]
+    assert [path.name for path in (tmp_path / "calls").iterdir()] == ["ALR-0.json"]
+    assert not list(tmp_path.rglob("*.tmp"))
+
+
+def test_trace_says_which_model_answered_and_holds_no_ticket(tmp_path):
+    run(tmp_path, ["ALR-0"])
+    events = json.loads((tmp_path / "traces" / "ALR-0.json").read_text(encoding="utf-8"))
+    assert any(event.get("args", {}).get("model") == "fake" for event in events)
+    assert all("ticket" not in event for event in events)
+
+
+def test_daily_limit_stops_the_run_and_saves_nothing_new(tmp_path):
+    llm = FakeLLM(failure=LLMQuotaExhausted("Daily limit", 1))
+    report = run(tmp_path, ["ALR-0", "ALR-1", "ALR-2"], llm=llm)
+    assert llm.calls == 1
+    assert report["quota_exhausted"] is True
+    assert report["failed"] == ["ALR-0"] and report["not_started"] == ["ALR-1", "ALR-2"]
+    assert not (tmp_path / "ALR-0.json").exists()
+
+
+def test_workers_do_every_alert_once(tmp_path):
+    llm = FakeLLM()
+    seen = []
+    report = run(tmp_path, list(ALERTS) + ["NOT-THERE"], llm=llm, workers=3, on_result=lambda alert_id, status, seconds: seen.append((alert_id, status)))
+    assert sorted(report["done"]) == sorted(ALERTS) and report["not_found"] == ["NOT-THERE"]
+    assert llm.calls == len(ALERTS) and report["calls_used"] == len(ALERTS)
+    assert all((tmp_path / f"{alert_id}.json").exists() for alert_id in ALERTS)
+    assert sorted(seen) == sorted([(alert_id, "done") for alert_id in ALERTS] + [("NOT-THERE", "not_found")])
+
+
+def test_workers_skip_what_is_saved_and_stop_at_the_daily_limit(tmp_path):
+    run(tmp_path, ["ALR-0"])
+    llm = FakeLLM(failure=LLMQuotaExhausted("Daily limit", 1))
+    report = run(tmp_path, list(ALERTS), llm=llm, workers=2)
+    assert report["skipped"] == ["ALR-0"] and report["quota_exhausted"] is True and report["done"] == []
+    assert set(report["failed"]) | set(report["not_started"]) == set(ALERTS) - {"ALR-0"}
+    assert llm.calls <= 2
+
+
+def test_workers_give_up_after_many_failures_in_a_row(tmp_path):
+    many = {f"ALR-{i}": {"alert_id": f"ALR-{i}", "rule_id": "UC-TEST", "severity": "low"} for i in range(40)}
+    llm = FakeLLM(failure=LLMUnavailable("down", 1))
+    report = run_batch(list(many), alerts=many, triage_options=options(llm), out_dir=tmp_path, workers=2)
+    assert report["done"] == [] and report["not_started"]
+    assert llm.calls < len(many)
+
+
+def test_reports_progress_for_each_alert(tmp_path):
+    seen = []
+    run(tmp_path, ["ALR-0", "NOT-THERE"], on_result=lambda alert_id, status, seconds: seen.append((alert_id, status)))
+    assert seen == [("ALR-0", "done"), ("NOT-THERE", "not_found")]
 
 
 def test_load_alerts_returns_only_what_was_asked(tmp_path):

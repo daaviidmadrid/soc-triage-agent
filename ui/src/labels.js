@@ -9,6 +9,7 @@ export const L = {
   navAlerts: "Alertas",
   navReview: "En revisión",
   navResolved: "Resueltas",
+  navIncidents: "Incidentes",
   openMenu: "Abrir menú",
   closeMenu: "Cerrar menú",
   dashboardTitle: "Vista general",
@@ -74,6 +75,34 @@ export const L = {
 
   // Queue
   queueTitle: "Cola de alertas",
+
+  // Incidents (level 2)
+  viewIncidents: "Ver incidentes",
+  incidentsTitle: "Incidentes",
+  incidentsCount: (incidents, alerts) => `${incidents} incidentes con ${alerts} alertas`,
+  incidentsIntro:
+    "El código agrupa las alertas del mismo ataque por lo que comparten exactamente: cuenta, equipo, sesión, mensaje, remitente, fichero, IP externa o evento. Nunca por nombre visible, IPs compartidas por muchas personas ni números de ID. Cada enlace dice qué comparten, para que una persona lo compruebe.",
+  buildIncidents: "Agrupar ahora",
+  building: "Agrupando…",
+  builtAt: (time, alerts) => `Agrupado ${time} UTC, sobre ${alerts} alertas triadas.`,
+  incidentsStale: "Hay tickets nuevos o repetidos desde la última agrupación. Pulsa «Agrupar ahora» para incluirlos.",
+  incidentsNone: "Ninguna alerta triada comparte lo suficiente con otra para formar un incidente.",
+  incidentsNothingTriaged: "Aún no hay alertas triadas. Tría alguna en la cola y vuelve aquí.",
+  incidentAlerts: (n) => `${n} alertas`,
+  incidentEscalate: "Escalar a",
+  incidentClose: "Cerrar",
+  chainChip: "Cadena de ataque",
+  membersTitle: "Alertas del incidente",
+  linksTitle: "Por qué se agrupan",
+  linkWith: "con",
+  ownProposal: "Su propuesta",
+  noiseTitle: "Ruido contado, no agrupado",
+  noiseIntro: "Alertas cerradas que se parecen pero no comparten nada que indique un mismo ataque, como escaneos bloqueados desde orígenes distintos. Se cuentan, no se fusionan.",
+  colCount: "Alertas",
+  colSources: "Orígenes distintos",
+  colExamples: "Ejemplos",
+  inIncident: "en incidente",
+  partOfIncident: (id) => `Esta alerta forma parte del incidente ${id}.`,
   queueCount: (shown, total) => `${shown} de ${total} alertas`,
   queueEmpty: "No hay alertas en la cola. Importa un fichero o revisa que exista la muestra de desarrollo.",
   queueNoMatch: "Ninguna alerta coincide con los filtros.",
@@ -130,7 +159,7 @@ export const L = {
 
   // Import
   importTitle: "Importar alertas",
-  importHelp: "JSON / JSONL · 2 MB",
+  importHelp: "JSON / JSONL / CSV · 2 MB",
   importButton: "Importar alertas",
   importing: "Importando…",
   importTooBig: "El fichero supera 2 MB.",
@@ -267,6 +296,34 @@ export const L = {
   actionNoApproval: "Sin aprobación requerida",
   executedActions: "Acciones ejecutadas",
   noneExecuted: "Ninguna",
+
+  // Containment (level 4)
+  containmentTitle: "Contención: acciones que aprueba una persona",
+  containmentHelp:
+    "El código convierte las sugerencias del LLM en acciones de la API simulada y decide quién debe aprobarlas, según el apartado 4 de la política. El LLM nunca aprueba ni ejecuta. Cada papel lo aprueba una persona distinta, y una acción aprobada se ejecuta una sola vez.",
+  noProposals: "Ninguna sugerencia de este ticket es una acción de contención.",
+  notProposedTitle: "Sugerencias que no se proponen como acción",
+  businessImpact: "Impacto en el negocio",
+  requiredApprovers: "Tienen que aprobar",
+  fromSuggestion: "Sugerencia original",
+  approverName: "Nombre de quien aprueba",
+  approveAs: "Aprobar",
+  execute: "Ejecutar en la API simulada",
+  executeConfirm: (action, target) => `¿Ejecutar «${action}» sobre ${target}?`,
+  executeYes: "Sí, ejecutar",
+  executing: "Ejecutando…",
+  cancel: "Cancelar",
+  reject: "Rechazar",
+  rejectReason: "Motivo del rechazo (opcional)",
+  rejectNeedsName: "Aprueba o decide antes con tu nombre para poder rechazar.",
+  rejectedBy: (name) => `Rechazada por ${name}.`,
+  executedAt: (time) => `Ejecutada ${time} UTC`,
+  containmentLog: "Registro de contención de la API simulada",
+  containmentLogHelp: (n) => `Lo que la API simulada ha ejecutado para este ticket. En total tiene ${n} acciones registradas.`,
+  colWhen: "Cuándo (UTC)",
+  colAction: "Acción",
+  colTarget: "Objetivo",
+  colResult: "Resultado",
   otherSuggestions: "Otras recomendaciones",
 
   // Decision
@@ -342,6 +399,24 @@ export const VERDICT = {
 };
 
 export const OUTCOME = { close: "cerrar", escalate: "escalar" };
+
+export const ACTION_NAME = {
+  isolate_host: "Aislar el equipo",
+  disable_user: "Deshabilitar la cuenta",
+  revoke_sessions: "Revocar las sesiones",
+  reset_password: "Forzar cambio de contraseña",
+  block_ioc: "Bloquear el indicador",
+  purge_email: "Purgar el correo de todos los buzones",
+  disable_access_key: "Desactivar la clave cloud",
+};
+
+export const CONTAINMENT_STATUS = {
+  proposed: "Esperando aprobación",
+  approved: "Aprobada, sin ejecutar",
+  executed: "Ejecutada",
+  refused: "Rechazada por la API",
+  rejected: "Rechazada por una persona",
+};
 
 export const DECISION = { accept: "aceptó la propuesta", close: "cambió a cerrar", escalate: "cambió a escalar" };
 

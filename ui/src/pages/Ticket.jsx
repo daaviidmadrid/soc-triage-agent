@@ -45,7 +45,7 @@ function useRunEvents(runId, onEnd) {
   return { events, stream };
 }
 
-export default function Ticket({ alertId, onBack, onNext, onReport }) {
+export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
@@ -185,9 +185,9 @@ export default function Ticket({ alertId, onBack, onNext, onReport }) {
         onNext={goNext}
         next={next}
       />
-      <TriageWorkspace alert={alert} detail={detail} run={run} running={running} stream={stream} events={events} live={live.current}
+      <TriageWorkspace alert={{ ...alert, ...obj(detail.shown) }} detail={detail} run={run} running={running} stream={stream} events={events} live={live.current}
         tab={tab} onTab={setTab} targetSeq={targetSeq} onSelectStep={jumpToStep} ticketRow={ticketRow} decision={decision} decisions={decisions}
-        fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} />
+        fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} onIncidents={onIncidents} />
 
     </div>
   );

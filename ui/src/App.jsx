@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import Incidents from "./pages/Incidents.jsx";
 import Queue from "./pages/Queue.jsx";
 import Ticket from "./pages/Ticket.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -8,10 +9,12 @@ import { api } from "./api.js";
 import { L } from "./labels.js";
 import { filtersFromQuery, nextPendingId, queueHash } from "./queue/model.js";
 
-// Two screens and no router: "#/alerta/<id>" opens an alert; "#/" or "#/?estado=…" shows the queue with its filters.
+// Four screens and no router: "#/" with no filters or "#/dashboard" shows the dashboard, "#/alerta/<id>" opens an alert,
+// "#/incidentes" shows the incidents (level 2), and "#/?estado=…" shows the queue with its filters.
 function readRoute() {
   const hash = window.location.hash;
   if (!hash || hash === "#" || hash === "#/dashboard") return { view: "dashboard", alertId: null, query: "" };
+  if (hash === "#/incidentes") return { view: "incidents", alertId: null, query: "" };
   const m = hash.match(/^#\/alerta\/(.+)$/);
   if (m) {
     try {
@@ -65,6 +68,7 @@ export default function App() {
   const returnTo = useRef({ scrollY: 0, alertId: null });
   const firstRender = useRef(true);
   const alertId = route.alertId;
+  const screenTitle = alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : route.view === "incidents" ? L.incidentsTitle : L.queueTitle;
 
   useEffect(() => {
     const onHash = () => {
@@ -86,7 +90,7 @@ export default function App() {
   }, [filters, route.view]);
 
   useEffect(() => {
-    document.title = `${alertId || (route.view === "dashboard" ? L.dashboardTitle : L.queueTitle)} · ${L.appTitle}`;
+    document.title = `${alertId || screenTitle} · ${L.appTitle}`;
     if (firstRender.current) {
       firstRender.current = false;
       return;
@@ -124,6 +128,9 @@ export default function App() {
   const openQueue = useCallback(() => {
     window.location.hash = queueHash(filters);
   }, [filters]);
+  const openIncidents = useCallback(() => {
+    window.location.hash = "#/incidentes";
+  }, []);
   // After a decision: the next alert nobody has decided, in the queue's order and with the analyst's filters.
   const openNext = useCallback(
     async (currentId) => {
@@ -149,12 +156,13 @@ export default function App() {
     setMenuOpen(false);
     window.scrollTo(0, 0);
   }, []);
-  const current = route.view === "dashboard" ? "dashboard" : alertId ? "queue" : filters.state === "pending" ? "review" : filters.state === "decided" ? "resolved" : "queue";
+  const current = route.view === "dashboard" || route.view === "incidents" ? route.view : alertId ? "queue" : filters.state === "pending" ? "review" : filters.state === "decided" ? "resolved" : "queue";
   const navigation = [
     { id: "dashboard", icon: "dashboard", label: L.navDashboard, href: "#/dashboard" },
     { id: "queue", icon: "queue", label: L.navAlerts, filters: {} },
     { id: "review", icon: "review", label: L.navReview, filters: { state: "pending" } },
     { id: "resolved", icon: "archive", label: L.navResolved, filters: { state: "decided" } },
+    { id: "incidents", icon: "incidents", label: L.navIncidents, href: "#/incidentes" },
   ];
 
   const navigationStyle = useSelectionIndicator(nav, `${current}:${collapsed}:${mobile}:${menuOpen}`, '[aria-current="page"]', true);
@@ -173,13 +181,15 @@ export default function App() {
       {mobile && menuOpen && <button className="menu-scrim" tabIndex={-1} aria-label={L.closeMenu} onClick={closeMenu} />}
       <div className="console-workspace" ref={workspace} inert={mobile && menuOpen}>
         <header className="topbar">
-          <div className="topbar-left"><button className="btn btn-icon navigation-toggle" id="menu-toggle" aria-label={mobile ? (menuOpen ? L.closeMenu : L.openMenu) : (collapsed ? L.expandMenu : L.collapseMenu)} aria-expanded={mobile ? menuOpen : !collapsed} aria-controls="main-navigation" onClick={() => { if (mobile) setMenuOpen(value => !value); else { prepareWorkspace(); setCollapsed(value => !value); } }}><Icon name={mobile && menuOpen ? "cross" : "menu"} /></button><span className="topbar-workspace">{L.workspaceName}</span><span className="breadcrumb-divider">/</span><strong>{alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : L.queueTitle}</strong></div>
+          <div className="topbar-left"><button className="btn btn-icon navigation-toggle" id="menu-toggle" aria-label={mobile ? (menuOpen ? L.closeMenu : L.openMenu) : (collapsed ? L.expandMenu : L.collapseMenu)} aria-expanded={mobile ? menuOpen : !collapsed} aria-controls="main-navigation" onClick={() => { if (mobile) setMenuOpen(value => !value); else { prepareWorkspace(); setCollapsed(value => !value); } }}><Icon name={mobile && menuOpen ? "cross" : "menu"} /></button><span className="topbar-workspace">{L.workspaceName}</span><span className="breadcrumb-divider">/</span><strong>{screenTitle}</strong></div>
           <div className="topbar-right">{mode && <span className={`mode mode-${mode === "real" ? "real" : "example"}`}><span className="status-dot" />{mode === "real" ? L.modeReal : L.modeExample}</span>}</div>
         </header>
         {(mode === "example" || exampleOnScreen) && <ExampleBanner mode={mode} />}
         <main className="content" id="main" ref={main} tabIndex={-1}>
         {route.view === "dashboard" ? <Dashboard onOpen={openAlert} onQueue={showQueue} onReport={report} /> : alertId ? (
-          <Ticket key={alertId} alertId={alertId} onBack={openQueue} onNext={openNext} onReport={report} />
+          <Ticket key={alertId} alertId={alertId} onBack={openQueue} onNext={openNext} onReport={report} onIncidents={openIncidents} />
+        ) : route.view === "incidents" ? (
+          <Incidents onOpen={openAlert} />
         ) : (
           <Queue onOpen={openAlert} onReport={report} filters={filters} setFilters={setFilters} returnTo={returnTo.current} />
         )}

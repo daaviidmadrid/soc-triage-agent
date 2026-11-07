@@ -7,8 +7,8 @@ Change "proposed" to "agreed" once the team confirms it.
 | Repo | Private team repo, no fork | Done |
 | Dataset | Deloitte's repo cloned into `data/`, not committed | Done |
 | Live test | 10 alerts | From the deck |
-| Main LLM | `gemini-3.6-flash` on Gemini's free tier | Proposed |
-| LLM calls | One per alert, one follow-up at most | Proposed |
+| Main LLM | `ornith` on the UAB's servers, which the guide says has no token or request limits. Gemini's free tier allows `gemini-3.6-flash` 20 requests a day (Google's 429, 7 Nov), so it is only an emergency fallback, by changing `.env` and adding `LLM_STREAM=false` | Proposed |
+| LLM calls | Three per alert at most: an answer, one extra log search and one correction of a rejected answer | Proposed |
 | UI | Python backend, React and CSS frontend | For now |
 | Ticket language | Spanish text, English field names | Proposed |
 | Contracts | Pydantic models in `contracts/models.py`, examples in `contracts/examples/` | Proposed |
@@ -19,8 +19,12 @@ Change "proposed" to "agreed" once the team confirms it.
 | SCCM account | Accept `NT AUTHORITY\SYSTEM` for the calendar's `svc_sccm` only with the `CcmExec` parent, the one known command and the daily window | Proposed |
 | Approved-change verdict | `benign_true_positive`, following `politica_soc.md` rather than deck slide 5 | Decided by Francesco |
 | Containment | A person approves every action, including `block_ioc` and `purge_email`, which is stricter than section 4 of the policy. OT actions are never proposed | Proposed |
-| Prompt budget | 28,000 characters, about 14,000 of them for data. Don't search on IPs shared by many identities. Data sends rows most important first: linked events, then changes of state, then repeats as counts (analysis section 5) | Proposed |
+| Prompt budget | 29,000 characters, about 14,000 of them for data. Don't search on IPs shared by many identities. Data sends rows most important first: linked events, then changes of state, then repeats as counts (analysis section 5) | Proposed |
 | Incomplete evidence | A truncated search or rows cut from the prompt can't support the −1, and the ticket says the evidence is incomplete (analysis section 4) | Proposed |
+| Closing without data | A `false_positive` with no log rows, or a `high` or `critical` one citing no event, becomes `needs_more_info` and goes to a person, because the alert's own text can be written by an attacker | Proposed |
+| Alerts in other formats | Other field names and wrappers are accepted, gaps are filled from Deloitte's rule catalogue, and the ticket lists every assumption. Original fields are kept | Proposed |
+| Grouping (level 2) | Plain code links alerts by exact identifiers only: account, host, session, message, sender, mail domain, file hash, outside IP, domain, customer, cloud identity or event. Two escalated alerts may link by anything they share, but by account or host only within 14 days. A closed alert joins an escalated one only by a specific identifier. Two closed true positives link by a specific identifier within 14 days. False positives and authorised alerts never link to each other, and are counted instead. An identifier in more than 25 alerts of the history links nothing. An incident takes its highest severity, and escalates as a chain when it holds a true positive and at least two rules | Proposed |
+| Containment (level 4) | The LLM only writes suggestions. Plain code maps them onto the mock's 7 actions, takes targets from the CMDB, the directory or the alert, and sets approvers from section 4 of the policy: the SOC analyst for `block_ioc` and `purge_email`, N2 for accounts, keys and laptops, N2 plus the service owner for servers, and N2 plus the business for tills and web front ends. Each role needs a different person, an approval runs once, and OT, internal or shared IPs and our own domain are never proposed. Approvers are named but not authenticated: the console is local only | Proposed |
 | Data leakage | ID numbers are only citation handles: no code, prompt, rule, test selection, label or score uses them as a signal. Prompts stay general and use no alert from the data as an example. Labels are written without seeing the agent's answer | Proposed |
 | Held-out incident | The stolen cloud key case: `ALR-20261015-011819`, `ALR-20261015-011820` and `ALR-20261016-011821`, the last of which is in the development sample. Also `ALR-20261013-011901` until someone checks the link. Leave them out while tuning, and don't call it blind: the analysis has read them | Proposed |
 

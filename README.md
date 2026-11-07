@@ -13,11 +13,13 @@ pip install -r requirements.txt
 ```
 Create a `.env` file with your own key:
 ```text
-LLM_API_KEY=your_key
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-LLM_MODEL=gemini-3.6-flash
+LLM_API_KEY=uth-your_team_key
+LLM_BASE_URL=https://dcc-llm-gw.uab.cat/uabthehack/v1
+LLM_MODEL=ornith
+LLM_ENABLE_THINKING=false
 MOCK_API_URL=http://localhost:8000
 ```
+With `LLM_ENABLE_THINKING=false`, `ornith` answers in seconds. Without it, the model reasons first and an alert takes minutes.
 The UI also needs Node 22 or newer (on a Mac, `brew install node`):
 ```bash
 cd ui && npm install
@@ -40,14 +42,64 @@ UI, at http://localhost:5173:
 ```bash
 cd ui && npm run dev
 ```
+Backend with an empty queue that holds only the alerts you import, using its own database:
+```bash
+TRIAGE_MODE=real APP_SAMPLE=none APP_DB_PATH=runs/final.sqlite3 uvicorn src.app.main:app --port 8001
+```
+The import button takes JSON, JSONL or CSV, with other field names too. Save an Excel file as CSV first.
+
 Test the LLM:
 ```bash
 python scripts/test_llm.py
 ```
+Tests:
+```bash
+pytest
+```
+
+## Practice exam
+`scripts/exam.py` triages alerts and scores them against `eval/labels.csv`. It starts the mock API if needed, and a run that stops can be repeated without redoing anything. On each laptop:
+```bash
+python3 scripts/exam.py setup
+```
+```bash
+python3 scripts/exam.py run --laptop 1 --laptops 3
+```
+```bash
+python3 scripts/exam.py pack --laptop 1
+```
+Change `--laptop` to 2 and 3 on the others, and send their zips to one laptop. There:
+```bash
+python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_laptop3.zip
+```
+```bash
+python3 scripts/exam.py score
+```
+All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `final` is 40 more with answers kept for the honest final score (never tune on them), `extra` is the other 62 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
+
+Each run also keeps a call log in `calls/`: for every alert, the prompts sent, the model's raw answers and reasoning, and what our code changed. To read one:
+```bash
+python3 scripts/exam.py explain ALR-20261007-011785
+```
+Add `--prompt` to see the prompts. The app keeps the same for real runs in `runs/app_calls/`. These files hold alert and log text, which may contain attackers' instructions, so read them as data. `runs/` is not in git, and `pack` includes the logs.
+
 Analysis notebook:
 ```bash
 jupyter notebook analysis/explore.ipynb
 ```
+
+## Incidents (level 2)
+`src/agent/correlate.py` groups the alerts of one attack into a single incident ticket, with plain code. Each link records what the two alerts share, such as the same account, sender or event, and the Incidentes page in the side menu shows it. To group a folder of tickets from the exam:
+```bash
+python -m src.agent.correlate runs/v3-ornith-nothink
+```
+To score with alerts marked by their incident's ticket:
+```bash
+python3 scripts/exam.py score --grouped
+```
+
+## Containment (level 4)
+On an escalated ticket, the alert page's "Política y acciones" tab lists the containment actions built from the LLM's suggestions. `src/policy/containment.py` maps each one onto the mock's 7 actions, finds the exact target and decides who must approve, with plain code. Each required role is approved by a different named person, and only then does "Ejecutar en la API simulada" call the mock, once. OT actions are never proposed. The page also shows the mock's containment log.
 
 ## Folders
 ```text
@@ -68,4 +120,5 @@ data/         deloitte dataset (not in git)
 - [Overview](docs/overview.md): what we're building
 - [Decisions](docs/decisions.md): what's decided and what's open
 - [Data traps](docs/data_traps.md): what the analysis found in the data
+- [Agent versions](docs/agent_versions.md): each version of the agent and its exam results
 - [AGENTS.md](AGENTS.md): rules for coding agents

@@ -4,7 +4,7 @@ Plain code, no LLM. Text from the data (subjects, prompts, descriptions) is copi
 it is evidence, never instructions, and it is never removed or cleaned for what it says.
 """
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from contracts.models import Context
@@ -81,7 +81,8 @@ _CLOUD_TYPES = {"identity": "cloud_identity", "new_user": "cloud_identity", "acc
 
 
 def _parse_utc(s):
-    return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    moment = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment  # the dataset's times are UTC
 
 
 def to_madrid(ts):
@@ -242,7 +243,8 @@ def _fetch_related(alert):
 def _gather_logs(alert, rows, searches, lo, hi):
     """Adds entity searches in [lo, hi] to rows. Returns (api-truncated sources,
     {source: rows not sent because the search was on a shared IP})."""
-    sources = list(RULE_LOG_SOURCES.get(alert.get("rule_id"), []))
+    # A rule we don't know has no list of logs to check, so it gets all of them.
+    sources = list(RULE_LOG_SOURCES.get(alert.get("rule_id")) or LOG_FIELDS)
     for eid in alert.get("related_events") or []:
         s = _source_of(eid)
         if s and s not in sources:
@@ -332,7 +334,8 @@ def build_context(alert: dict) -> Context:
     it can't look up.
 
     Time windows use event times: ±CONTEXT_WINDOW around every linked event, or the alert's
-    creation time if it links none (some rules link events after the alert was created)."""
+    creation time if it links none (some rules link events after the alert was created).
+    With no usable time at all, the whole period is searched."""
     alert = dict(alert)
     alert["created_at_madrid"] = to_madrid(alert.get("created_at"))
 
@@ -357,11 +360,7 @@ def build_context(alert: dict) -> Context:
     ctx.changes = match_changes(api_client.get_changes(), alert, named, list(rows.values()), event_times,
                                 _linked_assets(rows.values()))
     ctx.trips, ctx.hr_events = split_hr_events(users, event_times)
-    if not event_times:
-        ctx.entities = _entities_by_type(entities)
-        return ctx  # no time at all: no window for logs
-
-    lo, hi = min(event_times) - CONTEXT_WINDOW, max(event_times) + CONTEXT_WINDOW
+    lo, hi = (min(event_times) - CONTEXT_WINDOW, max(event_times) + CONTEXT_WINDOW) if event_times else (None, None)
     api_truncated, shared = _gather_logs(alert, rows, searches, lo, hi)
     for e in entities:  # shared IPs: their rows are counted on the entity, not sent
         if e["type"] == "ip" and e["value"] in SHARED_IPS:

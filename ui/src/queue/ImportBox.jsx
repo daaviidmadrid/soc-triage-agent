@@ -1,4 +1,4 @@
-// Import alerts from a JSON or JSONL file. The file's text is sent as the request body; no path ever leaves the browser.
+// Import alerts from a JSON, JSONL or CSV file. The file's text is sent as the request body; no path ever leaves the browser.
 import { useRef, useState } from "react";
 import { api } from "../api.js";
 import { ErrorBox, Notice } from "../components.jsx";
@@ -38,7 +38,7 @@ export function ImportButton({ onDone, onReport }) {
         ref={input}
         id="import-file"
         type="file"
-        accept=".json,.jsonl,application/json"
+        accept=".json,.jsonl,.csv,.tsv,.txt,application/json,text/csv,text/plain"
         className="visually-hidden"
         tabIndex={-1}
         aria-hidden="true"
