@@ -135,8 +135,10 @@ def test_repeated_ids_run_once(tmp_path):
 
 def test_leaves_no_temporary_files(tmp_path):
     run(tmp_path, ["ALR-0"])
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["ALR-0.json", "traces"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["ALR-0.json", "calls", "traces"]
     assert [path.name for path in (tmp_path / "traces").iterdir()] == ["ALR-0.json"]
+    assert [path.name for path in (tmp_path / "calls").iterdir()] == ["ALR-0.json"]
+    assert not list(tmp_path.rglob("*.tmp"))
 
 
 def test_trace_says_which_model_answered_and_holds_no_ticket(tmp_path):
