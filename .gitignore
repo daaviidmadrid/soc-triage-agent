@@ -1,2 +1,11 @@
 data/
 .venv/
+.env
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+*.sqlite3
+.DS_Store
+node_modules/
+runs/
