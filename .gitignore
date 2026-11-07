@@ -10,6 +10,7 @@ __pycache__/
 node_modules/
 dist/
 runs/
+Codex.md
 
 # Local agent / editor tooling (installed per developer, not project code)
 .claude/

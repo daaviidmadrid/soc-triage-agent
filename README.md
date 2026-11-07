@@ -63,4 +63,5 @@ data/         deloitte dataset (not in git)
 ## Docs
 - [Overview](docs/overview.md): what we're building
 - [Decisions](docs/decisions.md): what's decided and what's open
+- [Data traps](docs/data_traps.md): what the analysis found in the data
 - [AGENTS.md](AGENTS.md): rules for coding agents

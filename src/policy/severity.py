@@ -134,8 +134,11 @@ _services = None
 def service_criticality(name):
     global _services
     if _services is None:
-        with open(SERVICES_CSV, encoding="utf-8") as f:
-            _services = {r["servicio"]: r["criticidad"] for r in csv.DictReader(f)}
+        try:
+            with open(SERVICES_CSV, encoding="utf-8") as f:
+                _services = {r["servicio"]: r["criticidad"] for r in csv.DictReader(f)}
+        except OSError:
+            return None  # no services file: resolve_criticality falls back to the default
     c = _services.get(name)
     return normalise_criticality(c) if c else None
 
@@ -152,10 +155,32 @@ def _max_crit(pairs):
     return max(pairs, key=lambda p: CRITICALITIES.index(p[0])) if pairs else None
 
 
+_ENTITY_KEYS = {"hosts": "host", "ips": "ip", "users": "user"}
+
+
+def _entity_pairs(entities):
+    """(type, value) from a list of {type, value} or a dict by type. The dict may hold
+    {value} items (Context.entities) or raw alert items ({hostname}, {upn}, strings)."""
+    if isinstance(entities, dict):
+        for key, items in entities.items():
+            etype = _ENTITY_KEYS.get(key, key)
+            for it in items if isinstance(items, list) else [items]:
+                if isinstance(it, dict):
+                    value = it.get("value") or it.get("hostname") or it.get("ip") or it.get("upn")
+                else:
+                    value = it
+                if value:
+                    yield etype, str(value)
+        return
+    for e in entities or []:
+        yield _get(e, "type"), str(_get(e, "value"))
+
+
 def resolve_criticality(alert, context):
     """(criticality, source) following docs/decisions.md: the machine named, then the
     user's workstation, then the service the rule targets (RULE_SERVICE), then
-    DEFAULT_CRITICALITY. The source says which step decided, for the UI.
+    DEFAULT_CRITICALITY. source is "asset", "workstation", "service" or "default"
+    (contracts.Context.criticality_source).
 
     context: Context or dict with `entities` and `assets` (and `users` for workstations).
     A machine counts as named if it is a host entity, or an IP entity that the CMDB knows.
@@ -166,12 +191,11 @@ def resolve_criticality(alert, context):
         if a.get("ip"):
             assets[a["ip"]] = a
     named = []
-    for e in _get(context, "entities", []) or []:
-        etype, value = _get(e, "type"), str(_get(e, "value"))
+    for etype, value in _entity_pairs(_get(context, "entities", [])):
         if etype in ("host", "ip"):
             a = assets.get(value.lower()) or assets.get(value)
             if a:
-                named.append((a.get("criticality"), f"asset:{a['hostname']}"))
+                named.append((a.get("criticality"), "asset"))
     best = _max_crit(named)
     if best:
         return best
@@ -181,7 +205,7 @@ def resolve_criticality(alert, context):
         ws = u.get("workstation")
         a = assets.get(str(ws).lower()) if ws else None
         if a:
-            workstations.append((a.get("criticality"), f"workstation:{a['hostname']} ({u.get('upn')})"))
+            workstations.append((a.get("criticality"), "workstation"))
     best = _max_crit(workstations)
     if best:
         return best
@@ -190,6 +214,6 @@ def resolve_criticality(alert, context):
     if service:
         c = service_criticality(service)
         if c:
-            return c, f"service:{service}"
+            return c, "service"
 
     return DEFAULT_CRITICALITY, "default"
