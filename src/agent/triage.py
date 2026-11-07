@@ -26,13 +26,15 @@ from contracts.models import (
     TraceEvent,
     Verdict,
 )
-from src.agent.llm import LLMBlocked, LLMError, complete
+from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, complete
 from src.agent.prompts import LOG_SOURCES, build_prompt_with_info, context_to_dict
 from src.policy.severity import compute_severity as default_compute_severity
+from src.tools.alert_fields import normalise_alert
 from src.tools.context import build_context as default_build_context
 from src.tools.logs import search_logs as default_search_logs
 
-MAX_LLM_CALLS = 2
+# One to answer, one for an extra log search and one to correct a rejected answer.
+MAX_LLM_CALLS = 3
 
 SEVERITIES = ("informational", "low", "medium", "high", "critical")
 DEFAULT_RULE_SEVERITY = "medium"
@@ -48,6 +50,15 @@ TRUNCATED_QUESTION = "Algunos resultados de log estaban truncados ({sources}): l
 # Analysis section 4: logs come oldest first, so a limit removes the later rows, and rows cut to fit a prompt are lost too.
 # Incomplete evidence can't show that nothing happened afterwards, which the -1 requires. It can still support a +1.
 NO_LOWERING_QUESTION = "No se aplicó el −1: la evidencia está incompleta y no descarta actividad posterior."
+
+# Below this confidence a ticket that would close goes to a person instead. On the 80 practice alerts,
+# answers under 0.85 were right 6 times in 14, and answers at 0.95 or more 35 times in 37.
+LOW_CONFIDENCE = 0.85
+LOW_CONFIDENCE_REASON = "Confianza del modelo baja ({confidence} %): debe revisarlo una persona antes de cerrar"
+
+# Text in an alert can be written by an attacker, so it can't be the only basis for closing.
+NO_DATA_QUESTION = "No se ha encontrado ningún log de esta alerta: no se puede cerrar como falso positivo sin datos."
+UNSUPPORTED_QUESTION = "Falso positivo de severidad {severity} sin ningún evento citado: no se puede cerrar solo con el texto de la alerta."
 
 # Sources that have no event ID, so evidence from them can leave event_id empty.
 NO_EVENT_ID_SOURCES = {"alert", "users", "assets", "changes", "trips", "hr_events", "intel", "sandbox"}
@@ -171,6 +182,16 @@ def check_evidence(draft, ids):
     return errors
 
 
+def check_authorisation(draft, context):
+    """Gives the model a chance to correct a claim of authorisation that nothing backs up."""
+    if draft.verdict != "benign_true_positive":
+        return []
+    if draft.authorised_by and draft.authorised_by.id in _authorising_ids(context):
+        return []
+    return ["benign_true_positive needs an authorised_by id copied from the changes or trips list, and this answer has none that is there. "
+            "Harmless isn't authorised: choose true_positive, false_positive or needs_more_info instead."]
+
+
 def _authorising_ids(context):
     ids = set()
     for section in AUTHORISATION_SECTIONS:
@@ -241,37 +262,52 @@ def _final_actions(proposed, escalate, target, reason):
     return actions
 
 
-def build_ticket(alert, context, draft, compute, seconds):
+def _has_log_rows(context):
+    return any(_log_groups(context.get("logs")).values()) or bool(context.get("extra_logs"))
+
+
+def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
     """Returns (ticket, notes). This is where plain code overrides the LLM."""
     notes = []
-    questions = list(draft.open_questions)
+    questions = [*assumptions, *draft.open_questions]
     verdict = draft.verdict
     authorised_by = None
+
+    def override(question):
+        questions.append(question)
+        notes.append(question)
+        return "needs_more_info"
 
     if verdict == "benign_true_positive":
         cited = draft.authorised_by.id if draft.authorised_by else ""
         if cited in _authorising_ids(context):
             authorised_by = draft.authorised_by
         else:
-            verdict = "needs_more_info"
-            question = "Se propuso actividad autorizada sin un cambio aprobado que exista en el calendario de cambios."
-            questions.append(question)
-            notes.append(question)
+            verdict = override("Se propuso actividad autorizada sin un cambio aprobado que exista en el calendario de cambios.")
+    if verdict == "false_positive" and not _has_log_rows(context):
+        verdict = override(NO_DATA_QUESTION)
 
     # An unresolved ticket can't have its severity lowered by the LLM, and neither can incomplete evidence.
     incomplete = bool(context.get("truncated_sources") or context.get("trimmed_for_prompt"))
-    can_lower = verdict != "needs_more_info" and not incomplete
-    adjustments = [a for a in draft.severity_adjustments if can_lower or a.delta > 0]
-    if incomplete and any(a.delta < 0 for a in draft.severity_adjustments):
-        questions.append(NO_LOWERING_QUESTION)
-        notes.append(NO_LOWERING_QUESTION)
     rule_id = alert.get("rule_id")
     rule = _rule_severity(alert)
     criticality = context.get("criticality") or DEFAULT_CRITICALITY
     source = context.get("criticality_source") or "default"
-    floor = RUNBOOK_FLOORS.get(rule_id) if verdict in ("true_positive", "needs_more_info") else None
+
+    def severity_for(current):
+        can_lower = current != "needs_more_info" and not incomplete
+        kept = [a for a in draft.severity_adjustments if can_lower or a.delta > 0]
+        floor = RUNBOOK_FLOORS.get(rule_id) if current in ("true_positive", "needs_more_info") else None
+        return kept, floor, _final_severity(compute, rule, criticality, kept, floor, current == "benign_true_positive")
+
+    adjustments, floor, (severity, severity_note, problem) = severity_for(verdict)
+    if verdict == "false_positive" and severity in ("high", "critical") and not any(item.event_id for item in draft.evidence):
+        verdict = override(UNSUPPORTED_QUESTION.format(severity=severity))
+        adjustments, floor, (severity, severity_note, problem) = severity_for(verdict)
     authorised = verdict == "benign_true_positive"
-    severity, severity_note, problem = _final_severity(compute, rule, criticality, adjustments, floor, authorised)
+    if incomplete and any(a.delta < 0 for a in draft.severity_adjustments):
+        questions.append(NO_LOWERING_QUESTION)
+        notes.append(NO_LOWERING_QUESTION)
     if problem:
         questions.append(problem)
         notes.append(problem)
@@ -288,6 +324,8 @@ def build_ticket(alert, context, draft, compute, seconds):
         notes.append("Escalado obligatorio aplicado por la política: " + "; ".join(reasons))
     if verdict == "needs_more_info":
         reasons.append("Evidencia insuficiente: debe revisarlo una persona")
+    if not reasons and not draft.escalate and draft.confidence < LOW_CONFIDENCE:
+        reasons.append(LOW_CONFIDENCE_REASON.format(confidence=round(draft.confidence * 100)))
     if flags and verdict != "true_positive":
         reasons.append("Hay texto que intenta influir en el triaje: debe revisarlo una persona")
     escalate = draft.escalate or bool(reasons)
@@ -336,7 +374,7 @@ def build_ticket(alert, context, draft, compute, seconds):
     return ticket, notes
 
 
-def failsafe_ticket(alert, context, reason, compute, seconds):
+def failsafe_ticket(alert, context, reason, compute, seconds, assumptions=()):
     """Used when the triage couldn't finish. It stays open for a person and can never close."""
     context = context or {}
     rule = _rule_severity(alert)
@@ -357,7 +395,7 @@ def failsafe_ticket(alert, context, reason, compute, seconds):
         evidence=[],
         recommended_actions=_final_actions([], True, target, reason),
         escalation=Escalation(escalate=True, to=target, reason=reason),
-        open_questions=[item for item in (reason, problem) if item],
+        open_questions=[item for item in (reason, problem, *assumptions) if item],
         triage_seconds=seconds,
         severity_inputs=SeverityInputs(rule_severity=rule, criticality=criticality, criticality_source=source, runbook_floor=floor),
     )
@@ -443,9 +481,12 @@ def _extra_search(request, context, search, emit):
 
 
 def _ask_llm(context, llm, search, emit, max_calls):
-    """Returns a checked draft, or None. The extra search and the retry share the same call limit."""
+    """Returns a checked draft, or None. The extra search and the retry share the same call limit.
+
+    A claim of authorisation the model never corrects still comes back, and build_ticket turns it into needs_more_info."""
     calls = 0
     feedback = None
+    unauthorised = None
     while calls < max_calls:
         can_search = calls == 0 and max_calls > 1
         system, user, omitted = build_prompt_with_info(context, allow_search=can_search, feedback=feedback)
@@ -477,10 +518,13 @@ def _ask_llm(context, llm, search, emit, max_calls):
         if not errors:
             errors = check_evidence(answer, retrieved_ids(context))
         if not errors:
+            errors = check_authorisation(answer, context)
+            unauthorised = answer if errors else unauthorised
+        if not errors:
             return answer
         feedback = errors
         yield emit("note", tool="llm", args={"call": calls}, summary="La respuesta no pasó las comprobaciones: " + " ".join(errors))
-    return None
+    return unauthorised
 
 
 def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS) -> Iterator[TraceEvent]:
@@ -489,7 +533,7 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
     compute = compute_severity or default_compute_severity
     search = search_logs or default_search_logs
     ask = llm or complete
-    alert = alert if isinstance(alert, dict) else {}
+    alert, assumptions = normalise_alert(alert if isinstance(alert, dict) else {})
     emit = _Trace()
     started = time.monotonic()
     context = None
@@ -502,11 +546,15 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         return emit("ticket_ready", summary=f"{ticket.verdict}, severidad {ticket.severity}", event_ids=event_ids, ticket=ticket)
 
     def fail(reason):
-        return finish(failsafe_ticket(alert, context, reason, compute, seconds()))
+        return finish(failsafe_ticket(alert, context, reason, compute, seconds(), assumptions))
 
     yield emit("started", args={"alert_id": _alert_id(alert)}, summary=f"Triaje de {_alert_id(alert)}")
+    for assumption in assumptions:
+        yield emit("note", summary=assumption)
     try:
         context = yield from _gather(alert, build, emit)
+        if assumptions:
+            context["data_gaps"] = list(assumptions)
     except Exception as error:
         problem = "no está disponible" if isinstance(error, NotImplementedError) else f"falló ({type(error).__name__})"
         yield emit("error", tool="build_context", args={"kind": "context"}, summary=f"El contexto {problem}")
@@ -517,6 +565,10 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
     except LLMBlocked as error:
         yield emit("error", tool="llm", args={"kind": "blocked", "attempts": error.attempts}, summary=str(error))
         yield fail("El proveedor del LLM bloqueó la llamada.")
+        return
+    except LLMQuotaExhausted as error:
+        yield emit("error", tool="llm", args={"kind": "quota", "attempts": error.attempts}, summary=str(error))
+        yield fail("Se ha agotado el límite diario del LLM.")
         return
     except LLMError as error:
         yield emit("error", tool="llm", args={"kind": "unavailable", "attempts": error.attempts}, summary=str(error))
@@ -529,7 +581,7 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
     if draft is None:
         yield fail("El modelo no dio una respuesta que pasara las comprobaciones.")
         return
-    ticket, notes = build_ticket(alert, context, draft, compute, seconds())
+    ticket, notes = build_ticket(alert, context, draft, compute, seconds(), assumptions)
     for note in notes:
         yield emit("note", summary=note)
     yield finish(ticket)

@@ -1,10 +1,10 @@
 """Compares tickets with eval/labels.csv and prints a scorecard. Branch: data/eval
 
-Usage: python eval/score.py   (reads runs/*.json and eval/labels.csv)
+Usage: python eval/score.py [runs/v2]   (reads the tickets in that folder, by default the newest in runs/, and eval/labels.csv)
 """
 import csv
-import glob
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +14,7 @@ ALL_ALERTS = ROOT / "data" / "03_alertas" / "alertas.jsonl"
 EXTRA_FILE = EVAL / "extra_alerts.txt"
 HELDOUT_FILE = EVAL / "heldout_alerts.txt"
 LABELS_FILE = EVAL / "labels.csv"
-RUNS_GLOB = str(ROOT / "runs" / "*.json")
+RUNS_DIR = ROOT / "runs"
 
 LEVELS = ["informational", "low", "medium", "high", "critical"]
 
@@ -98,8 +98,11 @@ def score(tickets, labels):
 
     A ticket covers every alert in its alert_ids. Each metric only counts alerts that
     have a ticket and a value for that field in the label.
-    Missed attacks: labelled true_positive but with no ticket, a non-true_positive
-    verdict, or no escalation.
+    Missed attacks: labelled true_positive and needing a person, but with no ticket or no
+    escalation. A blocked scan labelled true_positive that closes is correct, and so isn't
+    missed. A needs_more_info that escalates isn't either, because a person still sees it.
+    Needless escalations: the label says no escalation and the ticket escalates. That is
+    extra work for an analyst, which is what the system is meant to reduce.
     """
     by_alert, dupes = {}, set()
     for t in tickets:
@@ -110,14 +113,14 @@ def score(tickets, labels):
             by_alert[aid] = t
 
     counts = {k: [0, 0] for k in ("verdict", "severity_exact", "severity_within_one", "escalation")}
-    no_ticket, missed, rows = [], [], []
+    no_ticket, missed, needless, rows = [], [], [], []
     for lab in labels:
         aid = lab["alert_id"]
         t = by_alert.get(aid)
         lv, ls, le = _norm(lab.get("verdict")), _norm(lab.get("severity")), _bool(lab.get("escalate"))
         if t is None:
             no_ticket.append(aid)
-            if lv == "true_positive":
+            if lv == "true_positive" and le is not False:
                 missed.append({"alert_id": aid, "reason": "no ticket"})
             continue
         tv, ts, te = _norm(t.get("verdict")), _norm(t.get("severity")), _ticket_escalates(t)
@@ -138,14 +141,11 @@ def score(tickets, labels):
             counts["escalation"][0] += te == le
             row["escalate"] = (te, le)
         rows.append(row)
-        if lv == "true_positive":
-            reasons = []
-            if tv != "true_positive":
-                reasons.append(f"verdict {tv or 'missing'}")
-            if te is not True:
-                reasons.append("not escalated")
-            if reasons:
-                missed.append({"alert_id": aid, "ticket_id": t.get("ticket_id"), "reason": ", ".join(reasons)})
+        if lv == "true_positive" and le is not False and te is not True:
+            reasons = [f"verdict {tv or 'missing'}"] if tv != "true_positive" else []
+            missed.append({"alert_id": aid, "ticket_id": t.get("ticket_id"), "reason": ", ".join([*reasons, "not escalated"])})
+        if le is False and te is True:
+            needless.append({"alert_id": aid, "ticket_id": t.get("ticket_id"), "verdict": tv})
 
     metrics = {k: {"correct": c, "total": n, "rate": (c / n if n else None)} for k, (c, n) in counts.items()}
     return {
@@ -153,6 +153,7 @@ def score(tickets, labels):
         "metrics": metrics,
         "no_ticket": no_ticket,
         "missed_attacks": missed,
+        "needless_escalations": needless,
         "alerts_in_several_tickets": sorted(dupes),
         "per_alert": rows,
     }
@@ -169,19 +170,30 @@ def _print(report):
     print(f"MISSED ATTACKS: {len(report['missed_attacks'])}")
     for m in report["missed_attacks"]:
         print(f"  {m['alert_id']}  {m.get('ticket_id') or '-'}  {m['reason']}")
+    print(f"Needless escalations: {len(report['needless_escalations'])}")
     if report["alerts_in_several_tickets"]:
         print(f"Alerts in several tickets: {', '.join(report['alerts_in_several_tickets'])}")
 
 
-def main():
+def runs_folder(argument=None):
+    """The batch saves tickets in runs/<prompt version>/. Uses the folder named, or else the newest one."""
+    if argument:
+        return Path(argument)
+    folders = [path for path in RUNS_DIR.glob("*") if path.is_dir()]
+    return max(folders, key=lambda path: path.stat().st_mtime, default=RUNS_DIR)
+
+
+def main(arguments=None):
+    arguments = sys.argv[1:] if arguments is None else arguments
+    folder = runs_folder(arguments[0] if arguments else None)
     tickets = []
-    for path in sorted(glob.glob(RUNS_GLOB)):
+    for path in sorted(folder.glob("*.json")):
         tickets += load_tickets(path)
     test_ids = {a["alert_id"] for a in load_test_set()}
     labels = [l for l in load_labels() if l["alert_id"] in test_ids]
     if not labels:
         print("No labels for the test set in eval/labels.csv yet.")
-    print(f"Tickets read: {len(tickets)} from {RUNS_GLOB}")
+    print(f"Tickets read: {len(tickets)} from {folder}")
     _print(score(tickets, labels))
 
 
