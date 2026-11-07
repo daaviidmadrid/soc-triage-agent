@@ -1,6 +1,15 @@
 // One small icon family: 16px grid, 1.75 stroke, round caps, drawn in currentColor.
 // Authored here, never loaded from anywhere. Icons are decorative; the text next to them carries the meaning.
 const PATHS = {
+  search: <><circle cx="6.5" cy="6.5" r="4.5" /><path d="m10 10 4 4" /></>,
+  device: <><rect x="2" y="2" width="12" height="9" rx="1.5" /><path d="M6 14h4M8 11v3" /></>,
+  identity: <><circle cx="8" cy="5" r="2.5" /><path d="M3 14v-1a5 5 0 0 1 10 0v1" /></>,
+  mail: <><rect x="1.5" y="3" width="13" height="10" rx="1.5" /><path d="m2 4 6 4.5L14 4" /></>,
+  network: <><rect x="6" y="1.5" width="4" height="4" rx="1" /><rect x="1.5" y="10.5" width="4" height="4" rx="1" /><rect x="10.5" y="10.5" width="4" height="4" rx="1" /><path d="M8 5.5v3M3.5 10.5v-2h9v2" /></>,
+  cloud: <path d="M4 12.5a3 3 0 0 1-.4-6 4.5 4.5 0 0 1 8.7 0 3 3 0 0 1-.3 6Z" />,
+  code: <><path d="m5 4-4 4 4 4M11 4l4 4-4 4M9 2 7 14" /></>,
+  play: <path d="m5 2.5 8 5.5-8 5.5Z" />,
+  upload: <><path d="M8 11V1.5M4.5 5 8 1.5 11.5 5M2 10v3.5h12V10" /></>,
   dashboard: <><rect x="2" y="2" width="4.5" height="4.5" rx="1" /><rect x="9.5" y="2" width="4.5" height="4.5" rx="1" /><rect x="2" y="9.5" width="4.5" height="4.5" rx="1" /><rect x="9.5" y="9.5" width="4.5" height="4.5" rx="1" /></>,
   queue: <><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M5 6h6M5 9h6" /></>,
   review: <><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3M7 4.5V7l1.5 1" /></>,

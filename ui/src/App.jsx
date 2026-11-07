@@ -3,6 +3,7 @@ import Queue from "./pages/Queue.jsx";
 import Ticket from "./pages/Ticket.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Icon from "./icons.jsx";
+import { useMotionInput, useSelectionIndicator, useWorkspaceMotion } from "./motion.js";
 import { api } from "./api.js";
 import { L } from "./labels.js";
 import { filtersFromQuery, nextPendingId, queueHash } from "./queue/model.js";
@@ -41,13 +42,16 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 700px)").matches);
-  const sidebar = useRef(null);
-  const restoreMenuFocus = useRef(false);
-  const closeMenu = useCallback(() => { restoreMenuFocus.current = true; setMenuOpen(false); }, []);
+  const sidebar = useRef(null), nav = useRef(null), workspace = useRef(null);
+  useMotionInput();
+  const prepareWorkspace = useWorkspaceMotion(workspace, collapsed);
+  const restoreMenuFocus = useRef(null);
+  const closeMenu = useCallback(() => { restoreMenuFocus.current = "menu-toggle"; setMenuOpen(false); }, []);
   useEffect(() => {
     if (!menuOpen && restoreMenuFocus.current) {
-      restoreMenuFocus.current = false;
-      document.getElementById("menu-toggle")?.focus({ preventScroll: true });
+      const target = restoreMenuFocus.current;
+      restoreMenuFocus.current = null;
+      document.getElementById(target)?.focus({ preventScroll: true });
     }
   }, [menuOpen]);
   useEffect(() => {
@@ -153,6 +157,8 @@ export default function App() {
     { id: "resolved", icon: "archive", label: L.navResolved, filters: { state: "decided" } },
   ];
 
+  const navigationStyle = useSelectionIndicator(nav, `${current}:${collapsed}:${mobile}:${menuOpen}`, '[aria-current="page"]', true);
+
   return (
     <div className={`app console-shell${menuOpen ? " menu-open" : ""}${collapsed ? " sidebar-collapsed" : ""}`}>
       {/* A button, not a #fragment link: the hash is this app's navigation */}
@@ -161,15 +167,14 @@ export default function App() {
       </button>
       <aside className="sidebar" id="main-navigation" ref={sidebar} inert={mobile && !menuOpen} role={mobile && menuOpen ? "dialog" : undefined} aria-modal={mobile && menuOpen ? true : undefined} aria-label={L.navLabel}>
         <button className="btn sidebar-close" aria-label={L.closeMenu} onClick={closeMenu}><Icon name="cross" /></button>
-        <a className="console-brand" href="#/dashboard" onClick={() => setMenuOpen(false)} aria-label="Tarvia · Operaciones de seguridad"><span className="console-mark"><Icon name="shield" /></span><span className="brand-name">Tarvia<span className="brand-caption">{L.brandCaption}</span></span></a>
-        <div className="sidebar-section">{L.navWorkspace}</div>
-        <nav aria-label={L.navLabel}>{navigation.map(item => <a key={item.id} href={item.href || queueHash({ q: "", product: "", severity: "", state: "", injection: false, ...item.filters })} className={`sidebar-link${current === item.id ? " selected" : ""}`} aria-label={item.label} aria-current={current === item.id ? "page" : undefined} onClick={event => { if (item.filters) { event.preventDefault(); showQueue(item.filters); } else setMenuOpen(false); }}><Icon name={item.icon} /><span className="nav-label">{item.label}</span>{current === item.id && <span className="nav-active-dot" />}</a>)}</nav>
+        <a className="console-brand" href="#/dashboard" onClick={() => { if (mobile && menuOpen) restoreMenuFocus.current = "main"; setMenuOpen(false); }} aria-label="Tarvia · Operaciones de seguridad"><span className="console-mark"><Icon name="shield" /></span><span className="brand-name">Tarvia</span></a>
+        <nav aria-label={L.navLabel} ref={nav}>{navigationStyle && <span className="navigation-indicator" aria-hidden="true" style={navigationStyle} />}{navigation.map(item => <a key={item.id} href={item.href || queueHash({ q: "", product: "", severity: "", state: "", injection: false, ...item.filters })} className={`sidebar-link${current === item.id ? " selected" : ""}`} aria-label={item.label} aria-current={current === item.id ? "page" : undefined} onClick={event => { if (mobile && menuOpen) restoreMenuFocus.current = "main"; if (item.filters) { event.preventDefault(); showQueue(item.filters); } else setMenuOpen(false); }}><Icon name={item.icon} /><span className="nav-label">{item.label}</span></a>)}</nav>
       </aside>
       {mobile && menuOpen && <button className="menu-scrim" tabIndex={-1} aria-label={L.closeMenu} onClick={closeMenu} />}
-      <div className="console-workspace" inert={mobile && menuOpen}>
+      <div className="console-workspace" ref={workspace} inert={mobile && menuOpen}>
         <header className="topbar">
-          <div className="topbar-left"><button className="btn btn-icon navigation-toggle" id="menu-toggle" aria-label={mobile ? (menuOpen ? L.closeMenu : L.openMenu) : (collapsed ? L.expandMenu : L.collapseMenu)} aria-expanded={mobile ? menuOpen : !collapsed} aria-controls="main-navigation" onClick={() => mobile ? setMenuOpen(value => !value) : setCollapsed(value => !value)}><Icon name={mobile && menuOpen ? "cross" : "menu"} /></button><span className="topbar-workspace">{L.workspaceName}</span><span className="breadcrumb-divider">/</span><strong>{alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : L.queueTitle}</strong></div>
-          <div className="topbar-right">{mode && <span className={`mode mode-${mode === "real" ? "real" : "example"}`}><span className="status-dot" />{mode === "real" ? L.modeReal : L.modeExample}</span>}<span className="workspace-avatar" aria-label={L.workspaceName}>TG</span></div>
+          <div className="topbar-left"><button className="btn btn-icon navigation-toggle" id="menu-toggle" aria-label={mobile ? (menuOpen ? L.closeMenu : L.openMenu) : (collapsed ? L.expandMenu : L.collapseMenu)} aria-expanded={mobile ? menuOpen : !collapsed} aria-controls="main-navigation" onClick={() => { if (mobile) setMenuOpen(value => !value); else { prepareWorkspace(); setCollapsed(value => !value); } }}><Icon name={mobile && menuOpen ? "cross" : "menu"} /></button><span className="topbar-workspace">{L.workspaceName}</span><span className="breadcrumb-divider">/</span><strong>{alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : L.queueTitle}</strong></div>
+          <div className="topbar-right">{mode && <span className={`mode mode-${mode === "real" ? "real" : "example"}`}><span className="status-dot" />{mode === "real" ? L.modeReal : L.modeExample}</span>}</div>
         </header>
         {(mode === "example" || exampleOnScreen) && <ExampleBanner mode={mode} />}
         <main className="content" id="main" ref={main} tabIndex={-1}>

@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { Chip, Clip, ErrorBox, ModeTag, NA, Notice, Severity, Skeleton, SlaCell, formatTime } from "../components.jsx";
 import { Pager } from "../ticket/Paging.jsx";
 import Icon from "../icons.jsx";
+import { useListMotion } from "../motion.js";
 import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
 import { EMPTY_FILTERS, countsOf, effective, filterAndSort, isFiltered, productsOf, stateOf } from "../queue/model.js";
 import { L, OUTCOME, SEVERITY, SEVERITY_ORDER, STATE_FILTERS, VERDICT } from "../labels.js";
@@ -13,56 +14,38 @@ const PAGE_SIZE = 8;
 // The last queue the screen showed, so coming back from a ticket draws it at once (then refreshes).
 let cachedData = null;
 
+const STATE_ICONS = { none: "queue", running: "refresh", pending: "review", decided: "check", failed: "alert" };
+const PRODUCT_ICONS = { EDR: "device", IDP: "identity", AD: "identity", EMAIL_GW: "mail", WAF: "shield", PROXY: "network", DNS: "network", NGFW: "network", VPN: "network", CLOUD: "cloud", CICD: "code", AI_GATEWAY: "code" };
+
 function StateCell({ item, changed }) {
   const state = stateOf(item);
-  const flash = changed ? " state-changed" : "";
-  if (state === "decided") {
-    return (
-      <span className={`state state-decided${flash}`}>
-        {L.stateDecided}: {OUTCOME[item.decision.outcome] || item.decision.outcome}
-        <span className="muted"> · {item.decision.analyst}</span>
-      </span>
-    );
-  }
-  const text = { none: L.stateNone, running: `${L.stateRunning}…`, failed: L.stateFailed, pending: L.statePending }[state];
-  return <span className={`state state-${state}${flash}`}>{text}</span>;
+  const text = { none: L.stateNone, running: `${L.stateRunning}…`, failed: L.stateFailed, pending: L.statePending, decided: L.stateDecided }[state];
+  return <span className={`state state-${state} operational-state${changed ? " state-changed" : ""}`}>
+    <span className={`state-symbol${state === "running" ? " is-running" : ""}`}><Icon name={STATE_ICONS[state]} /></span>
+    <span>{text}{state === "decided" && <>: {OUTCOME[item.decision.outcome] || item.decision.outcome}<span className="sub">{item.decision.analyst}</span></>}</span>
+  </span>;
 }
 
-// Counts over the whole queue. Each one is also a filter: press it to show only those alerts, press again to undo.
+// The overview and the filters use the same counts and existing filter state.
 function Counts({ counts, filters, setFilters }) {
-  const states = ["pending", "running", "failed", "decided", "none"];
+  const states = ["none", "running", "pending", "decided", "failed"];
+  const total = states.reduce((sum, key) => sum + counts[key], 0);
   const labels = { pending: L.statePending, running: L.stateRunning, failed: L.stateFailed, decided: L.stateDecided, none: L.stateNone };
-  return (
-    <div className="counts" role="group" aria-label={L.countsLabel}>
-      {states.map((key) => (
-        <button
-          key={key}
-          type="button"
-          className={`count count-${key}${counts[key] === 0 ? " is-zero" : ""}`}
-          aria-pressed={filters.state === key}
-          onClick={() => setFilters((f) => ({ ...f, state: f.state === key ? "" : key }))}
-        >
-          <span className="count-n num">{counts[key]}</span>
-          <span>{labels[key]}</span>
-        </button>
-      ))}
-      <button
-        type="button"
-        className={`count count-injection${counts.injection === 0 ? " is-zero" : ""}`}
-        aria-pressed={filters.injection}
-        onClick={() => setFilters((f) => ({ ...f, injection: !f.injection }))}
-      >
-        <span className="count-n num">{counts.injection}</span>
-        <Icon name="alert" />
-        <span>{L.countInjection}</span>
-      </button>
-      {isFiltered(filters) && (
-        <button type="button" className="link-btn" onClick={() => setFilters(EMPTY_FILTERS)}>
-          {L.countClear}
-        </button>
-      )}
+  const filter = key => setFilters(previous => ({ ...previous, state: previous.state === key ? "" : key }));
+  return <section className="queue-overview" aria-label={L.countsLabel}>
+    <div className="queue-state-track" role="img" aria-label={states.map(key => `${labels[key]}: ${counts[key]}`).join("; ")}>
+      {states.filter(key => counts[key] > 0).map(key => <span key={key} className={`workload-segment workload-${key}`} style={{ flexGrow: counts[key] / total }} />)}
     </div>
-  );
+    <div className="counts" role="group" aria-label={L.countsLabel}>
+      {states.map(key => <button key={key} type="button" className={`count count-${key}${counts[key] === 0 ? " is-zero" : ""}`} aria-pressed={filters.state === key} onClick={() => filter(key)}>
+        <span className={`count-symbol${key === "running" && counts.running > 0 ? " is-running" : ""}`}><Icon name={STATE_ICONS[key]} /></span><span className="count-label">{labels[key]}</span><span className="count-n num">{counts[key]}</span>
+      </button>)}
+      <button type="button" className={`count count-injection${counts.injection === 0 ? " is-zero" : ""}`} aria-pressed={filters.injection} onClick={() => setFilters(previous => ({ ...previous, injection: !previous.injection }))}>
+        <span className="count-symbol"><Icon name="shield" /></span><span className="count-label">{L.countInjection}</span><span className="count-n num">{counts.injection}</span>
+      </button>
+      {isFiltered(filters) && <button type="button" className="link-btn count-clear" onClick={() => { setFilters(EMPTY_FILTERS); if (document.documentElement.dataset.motionInput === "keyboard") requestAnimationFrame(() => document.querySelector(".filters input")?.focus({ preventScroll: true })); }}><Icon name="cross" />{L.countClear}</button>}
+    </div>
+  </section>;
 }
 
 function Filters({ filters, setFilters, products }) {
@@ -74,7 +57,7 @@ function Filters({ filters, setFilters, products }) {
     <form className="filters" onSubmit={(e) => e.preventDefault()} role="search">
       <label className="control">
         <span className="control-label">{L.filterSearch}</span>
-        <input type="search" value={filters.q} onChange={set("q")} placeholder={L.filterSearchPlaceholder} />
+        <span className="search-control"><Icon name="search" /><input type="search" value={filters.q} onChange={set("q")} placeholder={L.filterSearchPlaceholder} /></span>
       </label>
       <label className="control">
         <span className="control-label">{L.filterProduct}</span>
@@ -162,34 +145,36 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
 
   const classes = ["row", example && "row-example", active && "is-active"].filter(Boolean).join(" ");
   return (
-    <tr ref={rowRef} className={classes} tabIndex={tabbable ? 0 : -1} onClick={onClick} onKeyDown={onKeyDown} onFocus={() => onFocusRow(id)}>
+    <tr ref={rowRef} data-motion-key={id} className={classes} tabIndex={tabbable ? 0 : -1} onClick={onClick} onKeyDown={onKeyDown} onFocus={() => onFocusRow(id)}>
       <td className="rule" data-label={L.colAlert}>
+        <div className="alert-identity"><span className="alert-source-symbol"><Icon name={PRODUCT_ICONS[item.source_product] || "shield"} /></span><div className="alert-identity-text">
         <strong className="queue-rule">{item.rule_name || L.na}</strong>
         <div className="queue-meta"><code className="id">{id}</code>{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}</div>
         <div className="sub">{item.source_product || L.na}{item.rule_id && <> · <span className="id-plain">{item.rule_id}</span></>}</div>
+        </div></div>
       </td>
-      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span><span className="sub">UTC</span></td>
-      <td data-label={L.filterSeverity}><Severity value={eff.severity} /><div className="sub">{L.fromRule}: {SEVERITY[item.rule_severity] || L.na}</div></td>
+      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span></td>
+      <td data-label={L.filterSeverity}><Severity value={eff.severity} />{t && <div className="sub">{L.fromRule}: {SEVERITY[item.rule_severity] || L.na}</div>}</td>
       <td data-label={L.queueResult}>
         {t && <div className="queue-verdict">{VERDICT[t.verdict] || t.verdict || L.na}</div>}
         <StateCell item={item} changed={changed} />
         <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
       </td>
       <td data-label={L.colSla}><SlaCell severity={eff.severity} fromRule={eff.fromRule} seconds={item.run?.status === "done" ? item.run.duration_seconds : null} running={running} /></td>
-      <td className="actions">
+      <td className="actions"><div className="row-actions">
         <button
           type="button"
-          className="btn btn-sm btn-primary"
+          className={`btn btn-sm btn-primary${running || starting ? " is-running" : ""}`}
           onClick={() => onStart(item)}
           disabled={running || starting}
-          aria-label={`${startLabel} ${id}`}
+          aria-label={`${running ? L.stateRunning : startLabel} ${id}`}
         >
-          {starting ? L.starting : item.run ? L.retriageShort : L.triage}
+          <Icon name={running || starting || item.run ? "refresh" : "play"} />{running ? L.stateRunning : starting ? L.starting : item.run ? L.retriageShort : L.triage}
         </button>
         <button type="button" className="btn btn-sm" onClick={() => onOpen(id)} aria-label={`${L.open} ${id}`}>
-          {L.open}
+          {L.open}<Icon name="arrowRight" />
         </button>
-      </td>
+      </div></td>
     </tr>
   );
 }
@@ -206,6 +191,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   const [help, setHelp] = useState(false);
   const [changed, setChanged] = useState(() => new Set());
   const rowEls = useRef(new Map());
+  const tableBody = useRef(null);
   const prevStates = useRef(new Map());
   const restored = useRef(false);
 
@@ -271,6 +257,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   const currentPage = Math.min(page, pages - 1);
   const visibleRows = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const filterKey = JSON.stringify(filters);
+  useListMotion(tableBody, visibleRows.map(row => row.alert_id).join("|"));
   const previousFilters = useRef(filterKey);
   useEffect(() => { if (previousFilters.current !== filterKey) { previousFilters.current = filterKey; setPage(0); } }, [filterKey]);
   useLayoutEffect(() => {
@@ -350,7 +337,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         <div className="page-actions">
           <ImportButton onDone={load} onReport={setImportReport} />
           <button type="button" className="btn" onClick={load}>
-            {L.refresh}
+            <Icon name="refresh" />{L.refresh}
           </button>
           <button type="button" className="btn btn-ghost shortcuts-toggle" aria-expanded={help} aria-controls="shortcuts" onClick={() => setHelp((h) => !h)}>
             <kbd aria-hidden="true">?</kbd>
@@ -385,16 +372,14 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         </Notice>
       ) : (
         <div className="table-wrap">
-          <p className="table-caption" id="queue-sort">
-            {L.sortCaption}
-          </p>
+          <div className="queue-table-toolbar"><p className="table-caption" id="queue-sort">{L.sortCaption}</p><span className="queue-range num">{currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} / {rows.length}</span></div>
           <table className="grid" aria-describedby="queue-sort">
             <thead>
               <tr>
                 <th scope="col">{L.colAlert}</th><th scope="col">{L.colTime}</th><th scope="col">{L.filterSeverity}</th><th scope="col">{L.queueResult}</th><th scope="col">{L.colSla}</th><th scope="col" className="actions">{L.colActions}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tableBody}>
               {visibleRows.map((item) => (
                 <Row
                   key={item.alert_id}

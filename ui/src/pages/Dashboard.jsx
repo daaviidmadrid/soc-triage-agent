@@ -114,10 +114,10 @@ export default function Dashboard({ onReport, onOpen, onQueue }) {
   const summary = useMemo(() => dashboardData(data?.alerts), [data]);
   const period = summary.timeline.length ? `${shortDate(summary.timeline[0].day)} — ${shortDate(summary.timeline.at(-1).day)}` : L.noPeriod;
   const kpis = [
-    { label: L.totalAlerts, value: summary.total, note: `${summary.products.length} ${L.sourcesUnit}`, icon: "queue", action: {} },
-    { label: L.highPriority, value: summary.high, note: L.highPriorityNote, icon: "alert", action: { severity: "priority" }, tone: "focal" },
-    { label: L.pendingReview, value: summary.states.pending, note: `${summary.states.running} ${L.runningUnit}`, icon: "review", action: { state: "pending" } },
-    { label: L.resolvedAlerts, value: summary.states.decided, note: `${summary.total ? Math.round(summary.states.decided / summary.total * 100) : 0} % ${L.ofQueue}`, icon: "check", action: { state: "decided" } },
+    { label: L.totalAlerts, value: summary.total, note: `${summary.products.length} ${L.sourcesUnit}`, action: {} },
+    { label: L.highPriority, value: summary.high, note: L.highPriorityNote, action: { severity: "priority" }, tone: "focal" },
+    { label: L.pendingReview, value: summary.states.pending, note: `${summary.states.running} ${L.runningUnit}`, action: { state: "pending" } },
+    { label: L.resolvedAlerts, value: summary.states.decided, note: `${summary.total ? Math.round(summary.states.decided / summary.total * 100) : 0} % ${L.ofQueue}`, action: { state: "decided" } },
   ];
   // Details are derived on every render, so an open tooltip follows queue updates.
   const details = new Map();
@@ -135,10 +135,13 @@ export default function Dashboard({ onReport, onOpen, onQueue }) {
   };
 
   return <div className="dashboard">
-    <header className="page-head dashboard-head"><div><h1>{L.dashboardTitle}</h1><p className="page-subtitle">{L.dashboardSubtitle}</p></div><div className="page-actions"><span className="period-label"><Icon name="calendar" />{period}</span><button className="btn" onClick={load} disabled={refreshing}><Icon name="refresh" />{L.refresh}</button></div></header>
+    <header className="page-head dashboard-head"><div><h1>{L.dashboardTitle}</h1></div><div className="page-actions"><span className="period-label"><Icon name="calendar" />{period}</span><button className="btn" onClick={load} disabled={refreshing}><Icon name="refresh" />{L.refresh}</button></div></header>
     {error && <ErrorBox message={error} onRetry={load} />}
     {!data && !error ? <div className="dashboard-loading"><Skeleton rows={3} cols={4} label={L.loading} /></div> : !data ? null : <>
-      <div className="kpi-grid">{kpis.map(kpi => <button key={kpi.label} className={`kpi-card ${kpi.tone || "neutral"}`} onClick={() => onQueue(kpi.action)}><span className="kpi-label">{kpi.label}<span className="kpi-icon"><Icon name={kpi.icon} /></span></span><strong className="kpi-value">{number(kpi.value)}</strong><span className="kpi-note">{kpi.note}<Icon name="arrowRight" /></span></button>)}</div>
+      <div className="kpi-grid">{kpis.map(kpi => <button key={kpi.label} className={`kpi-card ${kpi.tone || "neutral"}`} onClick={() => onQueue(kpi.action)}><span className="kpi-label">{kpi.label}</span><strong className="kpi-value">{number(kpi.value)}</strong><span className="kpi-note">{kpi.note}</span></button>)}</div>
+      <ChartCard title={L.priorityTitle} detail={L.prioritySubtitle} className="priority-panel" action={<button className="link-btn" onClick={() => onQueue({})}>{L.viewQueue}<Icon name="arrowRight" /></button>}>
+        {summary.priority.length ? <div className="priority-table-wrap"><table className="priority-table"><thead><tr><th>{L.colAlert}</th><th>{L.colRule}</th><th>{L.colProduct}</th><th>{L.filterSeverity}</th><th><span className="visually-hidden">{L.open}</span></th></tr></thead><tbody>{summary.priority.map(row => <tr key={row.alert_id} {...alertBindings(row.alert_id)}><td><button className="id priority-id" onClick={() => onOpen(row.alert_id)}>{row.alert_id}</button></td><td><Clip value={row.rule_name} max={90} /></td><td><span className="source-tag">{row.source_product || "—"}</span></td><td><Severity value={effective(row).severity} /></td><td><button className="btn btn-sm btn-ghost" aria-label={`${L.open} ${row.alert_id}`} onClick={() => onOpen(row.alert_id)}><Icon name="arrowRight" /></button></td></tr>)}</tbody></table></div> : <p className="chart-empty">{L.noPendingAlerts}</p>}
+      </ChartCard>
       <div className="dashboard-main-grid">
         <ChartCard title={L.timelineTitle} detail={L.byAlertDate} className="timeline-panel"><Timeline points={summary.timeline} interaction={interaction} /></ChartCard>
         <ChartCard title={L.workloadTitle} detail={`${summary.triaged} / ${summary.total} ${L.triagedUnit}`}><StateChart summary={summary} onQueue={onQueue} /></ChartCard>
@@ -148,10 +151,8 @@ export default function Dashboard({ onReport, onOpen, onQueue }) {
         <ChartCard title={L.sourcesTitle} detail={L.sourceProduct}><div className="product-bars">{summary.products.slice(0, 6).map(row => <button className="product-row" key={row.key} onClick={() => onQueue({ product: row.key === "—" ? "" : row.key })}><span className="product-label">{row.key}</span><span className="product-track"><span style={{ width: `${summary.total ? row.count / summary.total * 100 : 0}%` }} /></span><strong>{number(row.count)}</strong></button>)}{!summary.products.length && <p className="chart-empty">{L.noData}</p>}</div></ChartCard>
         <ChartCard title={L.resolutionTitle}><div className="resolution-number"><strong>{summary.total ? Math.round(summary.triaged / summary.total * 100) : 0}<span>%</span></strong><span>{L.withTicket}</span></div><div className="completion-track" role="img" aria-label={`${L.resolutionTitle}: ${shareLabel(summary.triaged, summary.total)}`}><span style={{ width: `${summary.total ? summary.triaged / summary.total * 100 : 0}%` }} /></div><dl className="resolution-facts"><div><dt>{L.stateNone}</dt><dd>{summary.states.none}</dd></div><div><dt>{L.stateFailed}</dt><dd className={summary.states.failed ? "bad" : ""}>{summary.states.failed}</dd></div><div><dt>{L.meanDuration}</dt><dd>{formatSeconds(summary.averageSeconds) || "—"}</dd></div></dl></ChartCard>
       </div>
-      <ChartCard title={L.priorityTitle} detail={L.prioritySubtitle} className="priority-panel" action={<button className="link-btn" onClick={() => onQueue({})}>{L.viewQueue}<Icon name="arrowRight" /></button>}>
-        {summary.priority.length ? <div className="priority-table-wrap"><table className="priority-table"><thead><tr><th>{L.colAlert}</th><th>{L.colRule}</th><th>{L.colProduct}</th><th>{L.filterSeverity}</th><th><span className="visually-hidden">{L.open}</span></th></tr></thead><tbody>{summary.priority.map(row => <tr key={row.alert_id} {...alertBindings(row.alert_id)}><td><button className="id priority-id" onClick={() => onOpen(row.alert_id)}>{row.alert_id}</button></td><td><Clip value={row.rule_name} max={90} /></td><td><span className="source-tag">{row.source_product || "—"}</span></td><td><Severity value={effective(row).severity} /></td><td><button className="btn btn-sm btn-ghost" aria-label={`${L.open} ${row.alert_id}`} onClick={() => onOpen(row.alert_id)}><Icon name="arrowRight" /></button></td></tr>)}</tbody></table></div> : <p className="chart-empty">{L.noPendingAlerts}</p>}
-      </ChartCard>
-      <footer className="dashboard-footer"><span><span className="status-dot" />{L.queueSnapshot}</span>{updated && <span>{L.updatedAt} {updated.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>}</footer>
+
+      <footer className="dashboard-footer">{updated && <span>{L.updatedAt} {updated.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>}</footer>
     </>}
     <ChartTooltip interaction={interaction} data={details.get(interaction.activeKey)} />
   </div>;
