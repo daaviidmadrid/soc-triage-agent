@@ -10,7 +10,8 @@
     python3 scripts/exam.py score                        marks the tickets against eval/labels.csv
 
 --set chooses the alerts: exam (40 hard cases with answers, the default), normal (40 alerts in a normal
-day's mix, with answers), scored (both), extra (the other test alerts, with no answers), all (everything)
+day's mix, with answers), scored (both), final (40 kept for the honest final score: never tune on
+them), extra (the other test alerts, with no answers), all (everything)
 or the path of a file with one alert ID per line.
 
 If a run stops for any reason, run the same command again. Saved tickets are never redone.
@@ -39,6 +40,7 @@ DATA_REPO = "https://github.com/dttdfr/DTT-UAB-The-Hack.git"
 ALERTS_FILE = ROOT / "data" / "03_alertas" / "alertas.jsonl"
 EXAM_FILE = ROOT / "eval" / "key40_alerts.txt"
 NORMAL_FILE = ROOT / "eval" / "key_normal40_alerts.txt"
+FINAL_FILE = ROOT / "eval" / "key_final40_alerts.txt"
 LABELS_FILE = ROOT / "eval" / "labels.csv"
 MOCK_FILE = ROOT / "data" / "06_herramientas" / "mock_soc_api.py"
 ENV_TEMPLATE = """LLM_API_KEY=
@@ -105,16 +107,19 @@ def choose_ids(name):
 
     exam = score._read_ids(EXAM_FILE)
     normal = score._read_ids(NORMAL_FILE)
+    final = score._read_ids(FINAL_FILE)
     if name == "exam":
         ids = exam
     elif name == "normal":
         ids = normal
+    elif name == "final":
+        ids = final
     elif name == "scored":
         ids = exam + normal
     elif name in ("extra", "all"):
-        chosen = set(exam + normal)
+        chosen = set(exam + normal + final)
         extra = [alert["alert_id"] for alert in score.load_test_set() if alert["alert_id"] not in chosen]
-        ids = extra if name == "extra" else exam + normal + extra
+        ids = extra if name == "extra" else exam + normal + final + extra
     else:
         path = Path(name)
         if not path.exists():
@@ -385,7 +390,7 @@ def command_status(args):
     _use_project()
     folder = _folder(args)
     print(f"Results in {folder}")
-    names = ("exam", "normal", "extra")
+    names = ("exam", "normal", "final", "extra")
     for name in names:
         ids = choose_ids(name)
         done = sum((folder / f"{alert_id}.json").exists() for alert_id in ids)

@@ -51,8 +51,10 @@ def test_sets_have_the_expected_sizes_and_no_held_out_alerts():
     assert len(normal) == 40 and not set(normal) & set(chosen) and not held_out & set(normal)
     assert exam.choose_ids("scored") == chosen + normal
     extra = exam.choose_ids("extra")
-    assert len(extra) == 102 and not set(extra) & set(chosen + normal) and not held_out & set(extra)
-    assert exam.choose_ids("all") == chosen + normal + extra
+    final = exam.choose_ids("final")
+    assert len(final) == 40 and not set(final) & set(chosen + normal) and not held_out & set(final)
+    assert len(extra) == 62 and not set(extra) & set(chosen + normal + final) and not held_out & set(extra)
+    assert exam.choose_ids("all") == chosen + normal + final + extra
 
 
 def test_progress_bar_counts_saved_alerts_and_names_failures(capsys):

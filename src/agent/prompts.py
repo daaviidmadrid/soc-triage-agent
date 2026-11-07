@@ -5,7 +5,7 @@ from pathlib import Path
 
 from contracts.models import Context
 
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
 CONTEXT_DIR = Path(__file__).resolve().parents[2] / "data" / "01_contexto"
 
@@ -65,6 +65,7 @@ How to decide. Each verdict has one meaning:
 Severity:
 - You don't decide the final severity. Code computes it from the policy matrix.
 - Propose adjustments in severity_adjustments, each with delta 1 or -1 and a reason. Check every condition in section 2 of the policy: +1 for confirmed execution or access, a VIP or privileged identity, or personal data or payments; -1 if a control blocked it before any effect and nothing happened afterwards.
+- Look for the -1 every time something was blocked, denied, quarantined or answered with an error code such as 403. If the logs show no later activity from the same source, user or host, propose it, including for a true_positive.
 
 Escalation:
 - Set policy_flags from the evidence, using section 5 of the policy. Set escalate and escalation_reason.
