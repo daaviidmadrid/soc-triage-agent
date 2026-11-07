@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { Chip, Clip, ErrorBox, ModeTag, NA, Notice, Severity, Skeleton, SlaCell, formatTime } from "../components.jsx";
+import { Pager } from "../ticket/Paging.jsx";
 import Icon from "../icons.jsx";
 import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
 import { EMPTY_FILTERS, countsOf, effective, filterAndSort, isFiltered, productsOf, stateOf } from "../queue/model.js";
 import { L, OUTCOME, SEVERITY, SEVERITY_ORDER, STATE_FILTERS, VERDICT } from "../labels.js";
 
 const POLL_MS = 2000;
+const PAGE_SIZE = 8;
 // The last queue the screen showed, so coming back from a ticket draws it at once (then refreshes).
 let cachedData = null;
 
@@ -89,6 +91,7 @@ function Filters({ filters, setFilters, products }) {
         <span className="control-label">{L.filterSeverity}</span>
         <select value={filters.severity} onChange={set("severity")}>
           <option value="">{L.filterAllF}</option>
+          <option value="priority">{L.priorityFilter}</option>
           {SEVERITY_ORDER.map((s) => (
             <option key={s} value={s}>
               {SEVERITY[s]}
@@ -160,47 +163,19 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
   const classes = ["row", example && "row-example", active && "is-active"].filter(Boolean).join(" ");
   return (
     <tr ref={rowRef} className={classes} tabIndex={tabbable ? 0 : -1} onClick={onClick} onKeyDown={onKeyDown} onFocus={() => onFocusRow(id)}>
-      <td>
-        <code className="id">{id}</code>
-        {item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}
+      <td className="rule" data-label={L.colAlert}>
+        <strong className="queue-rule">{item.rule_name || L.na}</strong>
+        <div className="queue-meta"><code className="id">{id}</code>{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}</div>
+        <div className="sub">{item.source_product || L.na}{item.rule_id && <> · <span className="id-plain">{item.rule_id}</span></>}</div>
       </td>
-      <td className="rule">
-        {item.rule_name ? <Clip value={item.rule_name} max={70} /> : <NA />}
-        {item.rule_id && <div className="sub id-plain">{item.rule_id}</div>}
-      </td>
-      <td>{item.source_product || <NA />}</td>
-      <td className="nowrap num">{formatTime(item.created_at) || <NA />}</td>
-      <td>
-        <Severity value={item.rule_severity} />
-      </td>
-      <td>
-        {t ? (
-          <span className="verdict-cell">
-            <ModeTag mode={t.mode} />
-            <span>{t.verdict ? VERDICT[t.verdict] || t.verdict : <NA />}</span>
-            {t.injection_flags > 0 && (
-              <Chip kind="warn">
-                <Icon name="alert" />
-                {L.injectionShort}
-              </Chip>
-            )}
-          </span>
-        ) : (
-          <span className="muted">—</span>
-        )}
-      </td>
-      <td>{t ? <Severity value={t.severity} /> : <span className="muted">—</span>}</td>
-      <td>
+      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span><span className="sub">UTC</span></td>
+      <td data-label={L.filterSeverity}><Severity value={eff.severity} /><div className="sub">{L.fromRule}: {SEVERITY[item.rule_severity] || L.na}</div></td>
+      <td data-label={L.queueResult}>
+        {t && <div className="queue-verdict">{VERDICT[t.verdict] || t.verdict || L.na}</div>}
         <StateCell item={item} changed={changed} />
+        <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
       </td>
-      <td>
-        <SlaCell
-          severity={eff.severity}
-          fromRule={eff.fromRule}
-          seconds={item.run && item.run.status === "done" ? item.run.duration_seconds : null}
-          running={running}
-        />
-      </td>
+      <td data-label={L.colSla}><SlaCell severity={eff.severity} fromRule={eff.fromRule} seconds={item.run?.status === "done" ? item.run.duration_seconds : null} running={running} /></td>
       <td className="actions">
         <button
           type="button"
@@ -226,6 +201,8 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   const [startError, setStartError] = useState(null);
   const [importReport, setImportReport] = useState(null);
   const [activeId, setActiveId] = useState(returnTo && returnTo.alertId);
+  const [page, setPage] = useState(0);
+  const pendingFocus = useRef(null);
   const [help, setHelp] = useState(false);
   const [changed, setChanged] = useState(() => new Set());
   const rowEls = useRef(new Map());
@@ -290,11 +267,26 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   const counts = useMemo(() => (data ? countsOf(data.alerts) : null), [data]);
   const rows = useMemo(() => (data ? filterAndSort(data.alerts, filters) : []), [data, filters]);
 
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pages - 1);
+  const visibleRows = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const filterKey = JSON.stringify(filters);
+  const previousFilters = useRef(filterKey);
+  useEffect(() => { if (previousFilters.current !== filterKey) { previousFilters.current = filterKey; setPage(0); } }, [filterKey]);
+  useLayoutEffect(() => {
+    if (pendingFocus.current) {
+      const el = rowEls.current.get(pendingFocus.current);
+      if (el) { el.focus({ preventScroll: true }); pendingFocus.current = null; }
+    }
+  }, [currentPage, activeId, data]);
+
   // Back from a ticket: same scroll position, focus on the row that was opened.
   useLayoutEffect(() => {
     if (restored.current || !data) return;
     restored.current = true;
     if (!returnTo || !returnTo.alertId) return;
+    const index = rows.findIndex(row => row.alert_id === returnTo.alertId);
+    if (index >= 0) { setPage(Math.floor(index / PAGE_SIZE)); pendingFocus.current = returnTo.alertId; }
     window.scrollTo(0, returnTo.scrollY || 0);
     const el = rowEls.current.get(returnTo.alertId);
     if (el) el.focus({ preventScroll: true });
@@ -326,6 +318,8 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         const delta = event.key === "j" ? 1 : -1;
         const next = i === -1 ? (delta > 0 ? 0 : s.rows.length - 1) : Math.min(s.rows.length - 1, Math.max(0, i + delta));
         const id = s.rows[next].alert_id;
+        pendingFocus.current = id;
+        setPage(Math.floor(next / PAGE_SIZE));
         setActiveId(id);
         focusRow(id);
       } else if (event.key === "t") {
@@ -344,7 +338,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   if (!data) return <Skeleton rows={10} cols={6} label={L.loading} />;
 
   // Only one row is a Tab stop: the active one, or the first.
-  const tabRow = rows.some((r) => r.alert_id === activeId) ? activeId : rows[0] && rows[0].alert_id;
+  const tabRow = visibleRows.some((r) => r.alert_id === activeId) ? activeId : visibleRows[0]?.alert_id;
 
   return (
     <div className="queue">
@@ -397,22 +391,11 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
           <table className="grid" aria-describedby="queue-sort">
             <thead>
               <tr>
-                <th scope="col">{L.colAlert}</th>
-                <th scope="col">{L.colRule}</th>
-                <th scope="col">{L.colProduct}</th>
-                <th scope="col">{L.colTime}</th>
-                <th scope="col">{L.colRuleSeverity}</th>
-                <th scope="col">{L.colVerdict}</th>
-                <th scope="col">{L.colFinalSeverity}</th>
-                <th scope="col">{L.colState}</th>
-                <th scope="col">{L.colSla}</th>
-                <th scope="col" className="actions">
-                  <span className="visually-hidden">{L.colActions}</span>
-                </th>
+                <th scope="col">{L.colAlert}</th><th scope="col">{L.colTime}</th><th scope="col">{L.filterSeverity}</th><th scope="col">{L.queueResult}</th><th scope="col">{L.colSla}</th><th scope="col" className="actions">{L.colActions}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((item) => (
+              {visibleRows.map((item) => (
                 <Row
                   key={item.alert_id}
                   item={item}
@@ -431,6 +414,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
               ))}
             </tbody>
           </table>
+          <Pager page={currentPage} pages={pages} onPage={setPage} label={L.queueTitle} />
         </div>
       )}
     </div>

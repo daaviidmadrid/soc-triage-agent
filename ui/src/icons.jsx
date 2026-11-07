@@ -1,6 +1,15 @@
 // One small icon family: 16px grid, 1.75 stroke, round caps, drawn in currentColor.
 // Authored here, never loaded from anywhere. Icons are decorative; the text next to them carries the meaning.
 const PATHS = {
+  dashboard: <><rect x="2" y="2" width="4.5" height="4.5" rx="1" /><rect x="9.5" y="2" width="4.5" height="4.5" rx="1" /><rect x="2" y="9.5" width="4.5" height="4.5" rx="1" /><rect x="9.5" y="9.5" width="4.5" height="4.5" rx="1" /></>,
+  queue: <><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M5 6h6M5 9h6" /></>,
+  review: <><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3M7 4.5V7l1.5 1" /></>,
+  archive: <><rect x="2" y="2" width="12" height="3" rx="1" /><path d="M3.5 5v8h9V5M6 8h4" /></>,
+  shield: <><path d="m8 1.5 5.5 2v4.2c0 3.3-5.5 6.8-5.5 6.8S2.5 11 2.5 7.7V3.5L8 1.5Z" /><path d="m5.5 7.5 1.7 1.7 3.3-3.4" /></>,
+  trend: <><path d="M2 12.5 6 8l3 2 5-7M10 3h4v4" /></>,
+  refresh: <><path d="M13 5a5.5 5.5 0 1 0 .2 5M13.5 1.5V5H10" /></>,
+  menu: <path d="M2 4h12M2 8h12M2 12h12" />,
+  calendar: <><rect x="2" y="3.5" width="12" height="10" rx="1.5" /><path d="M5 2v3M11 2v3M2 7h12" /></>,
   alert: (
     <>
       <path d="M8 2.2 14.3 13H1.7L8 2.2Z" />
