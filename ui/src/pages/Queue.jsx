@@ -1,7 +1,7 @@
 // The alert queue: what is waiting, what has been triaged, and what a person still has to decide.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, ModeTag, NA, Notice, Severity, Skeleton, SlaCell, formatTime } from "../components.jsx";
+import { Chip, Clip, ErrorBox, ModeTag, NA, Notice, Severity, Skeleton, SlaCell, ViewSwitch, formatTime } from "../components.jsx";
 import Icon from "../icons.jsx";
 import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
 import { EMPTY_FILTERS, countsOf, effective, filterAndSort, isFiltered, productsOf, stateOf } from "../queue/model.js";
@@ -163,6 +163,11 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
       <td>
         <code className="id">{id}</code>
         {item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}
+        {item.incident_id && (
+          <Chip kind="warn" title={item.incident_id}>
+            {L.inIncident}
+          </Chip>
+        )}
       </td>
       <td className="rule">
         {item.rule_name ? <Clip value={item.rule_name} max={70} /> : <NA />}
@@ -219,7 +224,7 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
   );
 }
 
-export default function Queue({ onOpen, onReport, filters, setFilters, returnTo }) {
+export default function Queue({ onOpen, onReport, filters, setFilters, returnTo, onIncidents }) {
   const [data, setData] = useState(cachedData);
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState({});
@@ -354,6 +359,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
           <span className="muted num">{L.queueCount(rows.length, data.alerts.length)}</span>
         </div>
         <div className="page-actions">
+          <ViewSwitch view="alerts" onIncidents={onIncidents} />
           <ImportButton onDone={load} onReport={setImportReport} />
           <button type="button" className="btn" onClick={load}>
             {L.refresh}

@@ -76,6 +76,16 @@ python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_lapt
 python3 scripts/exam.py score
 ```
 All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `extra` is the other 102 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
+## Incidents (level 2)
+`src/agent/correlate.py` groups the alerts of one attack into a single incident ticket, with plain code. Each link records what the two alerts share, such as the same account, sender or event, and the queue's Incidentes view shows it. To group a folder of tickets from the exam:
+```bash
+python -m src.agent.correlate runs/v3-ornith-nothink
+```
+To score with alerts marked by their incident's ticket:
+```bash
+python3 scripts/exam.py score --grouped
+```
+
 Analysis notebook:
 ```bash
 jupyter notebook analysis/explore.ipynb
