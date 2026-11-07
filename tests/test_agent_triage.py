@@ -233,12 +233,12 @@ def test_invalid_json_is_retried_once_with_feedback():
     assert any(event.type == "note" for event in events)
 
 
-def test_invalid_json_twice_stays_open():
-    llm = FakeLLM("nope", "still nope")
+def test_invalid_json_every_time_stays_open():
+    llm = FakeLLM("nope", "still nope", "nope again")
     ticket, _ = run(llm)
     assert_stays_open(ticket)
     assert ticket.confidence == 0
-    assert len(llm.prompts) == 2
+    assert len(llm.prompts) == MAX_LLM_CALLS
 
 
 def test_json_in_a_code_fence_is_accepted():
@@ -295,12 +295,13 @@ def test_a_verdict_needs_evidence(verdict):
 
 
 def test_benign_with_a_made_up_change_id_becomes_needs_more_info():
-    llm = FakeLLM(answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-MADE-UP"}))
+    made_up = answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-MADE-UP"})
+    llm = FakeLLM(made_up, made_up, made_up)
     ticket, _ = run(llm)
     assert_stays_open(ticket)
     assert ticket.authorised_by is None
     assert any("cambio aprobado" in question for question in ticket.open_questions)
-    assert len(llm.prompts) == 1
+    assert len(llm.prompts) == MAX_LLM_CALLS
 
 
 def test_benign_without_any_change_id_becomes_needs_more_info():
@@ -483,19 +484,19 @@ def test_llm_may_ask_for_one_extra_search_and_cite_its_rows():
     assert any(event.tool == "search_logs" and event.type == "tool_call" for event in events)
 
 
-def test_never_more_than_two_llm_calls():
+def test_never_more_than_three_llm_calls():
     request = {"action": "search_logs", "source": "proxy", "value": "x"}
-    llm = FakeLLM(request, request, answer())
+    llm = FakeLLM(request, request, request, answer())
     ticket, _ = run(llm, search_logs=lambda **a: [])
-    assert MAX_LLM_CALLS == 2
-    assert len(llm.prompts) == 2
+    assert MAX_LLM_CALLS == 3
+    assert len(llm.prompts) == 3
     assert_stays_open(ticket)
 
 
 def test_after_a_search_a_bad_answer_stays_open_because_the_limit_is_reached():
-    llm = FakeLLM({"action": "search_logs", "source": "proxy", "value": "x"}, "not json")
+    llm = FakeLLM({"action": "search_logs", "source": "proxy", "value": "x"}, "not json", "not json")
     ticket, _ = run(llm, search_logs=lambda **a: [])
-    assert len(llm.prompts) == 2
+    assert len(llm.prompts) == 3
     assert_stays_open(ticket)
 
 
@@ -516,6 +517,27 @@ def test_search_that_is_not_built_yet_does_not_stop_the_triage():
     ticket, events = run(llm, search_logs=not_built)
     assert ticket.verdict == "true_positive"
     assert any("no está disponible" in event.summary for event in events)
+
+
+def test_an_unsupported_claim_of_authorisation_gets_one_correction():
+    llm = FakeLLM(answer(verdict="benign_true_positive"), answer(verdict="false_positive"))
+    ticket, events = run(llm)
+    assert ticket.verdict == "false_positive" and len(llm.prompts) == 2
+    assert "Harmless isn't authorised" in llm.prompts[1][1]
+    assert any("Harmless" in event.summary for event in events if event.type == "note")
+
+
+def test_a_claim_never_corrected_goes_to_a_person_rather_than_failing():
+    llm = FakeLLM(*[answer(verdict="benign_true_positive") for _ in range(3)])
+    ticket, _ = run(llm)
+    assert ticket.verdict == "needs_more_info" and ticket.escalation.escalate is True
+    assert ticket.confidence == 0.9 and ticket.evidence
+    assert any("calendario de cambios" in question for question in ticket.open_questions)
+
+
+def test_a_real_claim_of_authorisation_needs_no_correction():
+    llm = FakeLLM(answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-TEST-1"}))
+    assert run(llm)[0].verdict == "benign_true_positive" and len(llm.prompts) == 1
 
 
 def test_false_positive_with_no_log_rows_cant_close():

@@ -7,7 +7,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from src.agent.prompts import PROMPT_VERSION
@@ -68,10 +70,46 @@ def _save(path, ticket, events):
     _write_json(path, ticket.model_dump(exclude_none=True))
 
 
-def run_batch(alert_ids, alerts=None, triage_options=None, out_dir=None, pace_seconds=PACE_SECONDS, max_calls=MAX_CALLS_PER_RUN, sleep=time.sleep, on_result=None):
+def _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, report, notify):
+    """Several alerts at a time, for providers with no request limit. Every failure still counts, and nothing is saved twice."""
+    lock = threading.Lock()
+    stop = threading.Event()
+    waiting = iter(todo)
+    failures = {"in_a_row": 0}
+
+    def work():
+        while not stop.is_set():
+            with lock:
+                alert_id = next(waiting, None)
+            if alert_id is None:
+                return
+            started = time.monotonic()
+            ticket, events = run_triage(alerts[alert_id], **(triage_options or {}))
+            saved = _should_save(events)
+            if saved:
+                _save(out_dir / f"{alert_id}.json", ticket, events)
+            with lock:
+                report["calls_used"] += _calls_used(events)
+                report["done" if saved else "failed"].append(alert_id)
+                failures["in_a_row"] = 0 if saved else failures["in_a_row"] + 1
+                if _out_of_quota(events):
+                    report["quota_exhausted"] = True
+                if report["quota_exhausted"] or failures["in_a_row"] >= MAX_FAILURES_IN_A_ROW * workers or report["calls_used"] + MAX_LLM_CALLS > max_calls:
+                    stop.set()
+            notify(alert_id, "done" if saved else "failed", time.monotonic() - started)
+
+    with ThreadPoolExecutor(workers) as pool:
+        for future in [pool.submit(work) for _ in range(workers)]:
+            future.result()
+    report["not_started"] = [item for item in todo if item not in report["done"] and item not in report["failed"]]
+    return report
+
+
+def run_batch(alert_ids, alerts=None, triage_options=None, out_dir=None, pace_seconds=PACE_SECONDS, max_calls=MAX_CALLS_PER_RUN, sleep=time.sleep, on_result=None, workers=1):
     """Returns a report: done, skipped, failed, not_found, invalid_ids, not_started, calls_used and quota_exhausted.
 
-    on_result(alert_id, status, seconds) is called after each alert, for showing progress."""
+    on_result(alert_id, status, seconds) is called after each alert, for showing progress.
+    workers above 1 runs that many alerts at a time, with no pause between them."""
     alert_ids = list(dict.fromkeys(alert_ids))
     out_dir = Path(out_dir or RUNS_DIR / PROMPT_VERSION)
     report = {"done": [], "skipped": [], "failed": [], "not_found": [], "invalid_ids": [], "not_started": [], "calls_used": 0, "quota_exhausted": False}
@@ -81,6 +119,19 @@ def run_batch(alert_ids, alerts=None, triage_options=None, out_dir=None, pace_se
         (safe_ids if re.fullmatch(r"[A-Za-z0-9_-]+", alert_id) else report["invalid_ids"]).append(alert_id)
     alerts = load_alerts(safe_ids) if alerts is None else alerts
     notify = on_result or (lambda *_: None)
+
+    if workers > 1:
+        todo = []
+        for alert_id in safe_ids:
+            if (out_dir / f"{alert_id}.json").exists():
+                report["skipped"].append(alert_id)
+                notify(alert_id, "skipped", 0.0)
+            elif alert_id not in alerts:
+                report["not_found"].append(alert_id)
+                notify(alert_id, "not_found", 0.0)
+            else:
+                todo.append(alert_id)
+        return _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, report, notify)
 
     failures_in_a_row = 0
     called_yet = False

@@ -47,6 +47,22 @@ def test_missed_attacks():
     assert missed["A6"] == "no ticket"
 
 
+def test_a_blocked_attack_that_closes_is_not_missed():
+    report = sc.score([T("T", ["A"], "true_positive", "low", False)], [L("A", "true_positive", "low", "false")])
+    assert report["missed_attacks"] == []
+
+
+def test_an_attack_sent_to_a_person_as_unresolved_is_not_missed():
+    report = sc.score([T("T", ["A"], "needs_more_info", "high", True)], [L("A", "true_positive", "high", "true")])
+    assert report["missed_attacks"] == [] and report["metrics"]["verdict"]["correct"] == 0
+
+
+def test_needless_escalations_are_counted():
+    tickets = [T("T1", ["A"], "needs_more_info", "low", True), T("T2", ["B"], "false_positive", "low", False)]
+    labels = [L("A", "false_positive", "", "false"), L("B", "false_positive", "", "false")]
+    assert [item["alert_id"] for item in sc.score(tickets, labels)["needless_escalations"]] == ["A"]
+
+
 def test_blank_label_fields_are_skipped():
     r = sc.score([T("T", ["X"], "true_positive", "low", True)], [L("X", "", "", "")])
     assert all(v["total"] == 0 and v["rate"] is None for v in r["metrics"].values())

@@ -58,6 +58,8 @@ def settings(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "main-model")
     monkeypatch.setenv("LLM_BACKUP_MODEL", "backup-model")
     monkeypatch.setenv("LLM_API_KEY", "secret-test-key")
+    monkeypatch.setenv("LLM_STREAM", "false")
+    monkeypatch.delenv("LLM_ENABLE_THINKING", raising=False)
 
 
 def no_sleep(_seconds):
@@ -177,6 +179,82 @@ def test_the_client_is_reused_between_calls(monkeypatch):
     complete("s", "u", sleep=no_sleep)
     complete("s", "u", sleep=no_sleep)
     assert len(made) == 1
+
+
+def chunk(text=None, finish_reason=None, usage=None):
+    if text is None and finish_reason is None:
+        return SimpleNamespace(choices=[], usage=usage)
+    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text), finish_reason=finish_reason)], usage=usage)
+
+
+def streamed(*chunks, then=None):
+    def generate():
+        yield from chunks
+        if then:
+            raise then
+    return generate()
+
+
+@pytest.fixture
+def streaming(monkeypatch):
+    monkeypatch.delenv("LLM_STREAM")
+
+
+def test_streams_by_default_and_rebuilds_the_answer(streaming):
+    usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+    client = FakeClient(streamed(chunk('{"ok"'), chunk(": true}"), chunk("", "stop"), chunk(usage=usage)))
+    result = complete("s", "u", client=client, sleep=no_sleep)
+    assert (result.text, result.prompt_tokens, result.completion_tokens) == ('{"ok": true}', 10, 5)
+    assert client.last_request["stream"] is True
+
+
+def test_streaming_can_be_turned_off(monkeypatch):
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep)
+    assert "stream" not in client.last_request
+
+
+def test_a_stream_cut_halfway_is_retried(streaming):
+    client = FakeClient(streamed(chunk('{"ok"'), then=ConnectionResetError("cut")), streamed(chunk('{"ok": true}'), chunk("", "stop")))
+    result = complete("s", "u", client=client, sleep=no_sleep)
+    assert result.text == '{"ok": true}' and result.attempts == 2
+
+
+def test_a_provider_error_inside_a_stream_is_retried(streaming):
+    client = FakeClient(streamed(then=overloaded()), streamed(chunk('{"ok": true}'), chunk("", "stop")))
+    assert complete("s", "u", client=client, sleep=no_sleep).attempts == 2
+
+
+def test_a_stream_is_checked_like_any_other_answer(streaming):
+    with pytest.raises(LLMBlocked):
+        complete("s", "u", client=FakeClient(streamed(chunk("", "content_filter"))), sleep=no_sleep)
+    with pytest.raises(LLMBlocked):
+        complete("s", "u", client=FakeClient(streamed(chunk(usage=None))), sleep=no_sleep)
+    with pytest.raises(LLMError, match="stopped early"):
+        complete("s", "u", client=FakeClient(streamed(chunk("{", "length"))), sleep=no_sleep)
+    with pytest.raises(LLMError, match="empty"):
+        complete("s", "u", client=FakeClient(streamed(chunk("", "stop"))), sleep=no_sleep)
+
+
+def test_reasoning_stays_on_unless_turned_off(monkeypatch):
+    monkeypatch.delenv("LLM_ENABLE_THINKING", raising=False)
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep)
+    assert "extra_body" not in client.last_request
+    monkeypatch.setenv("LLM_ENABLE_THINKING", "false")
+    client = FakeClient(reply())
+    complete("s", "u", client=client, sleep=no_sleep)
+    assert client.last_request["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_reasoning_text_is_removed_from_the_answer():
+    client = FakeClient(reply(text='<think>maybe {"a": 1}\nor not</think>\n{"ok": true}'))
+    assert complete("s", "u", client=client, sleep=no_sleep).text == '{"ok": true}'
+
+
+def test_only_reasoning_counts_as_an_empty_answer():
+    with pytest.raises(LLMError, match="empty"):
+        complete("s", "u", client=FakeClient(reply(text="<think>hmm</think>")), sleep=no_sleep)
 
 
 def test_waits_between_retries_and_caps_retry_after():
