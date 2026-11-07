@@ -4,12 +4,13 @@ Plain code, no LLM. Text from the data (subjects, prompts, descriptions) is copi
 it is evidence, never instructions, and it is never removed or cleaned for what it says.
 """
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from contracts.models import Context, Entity, TruncatedSource
+from contracts.models import Context
 from src.policy.severity import resolve_criticality
 from src.tools import api_client
+from src.tools.authorisation import match_changes, split_hr_events
 from src.tools.logs import LOG_FIELDS, search_logs
 
 # Policy section 1.4: correlate with logs of the same entities within ±24 h.
@@ -27,11 +28,9 @@ MAX_CONTEXT_CHARS = 14_000
 # so they are deliberately searched as normal.
 SHARED_IPS = {"198.18.200.10", "198.18.200.11"}
 
-# Event timestamps are UTC. The change calendar has no offset; analysis section 7 shows it is
-# Madrid wall time (scanner traffic moves one UTC hour at the 25 Oct clock change), so it is
-# converted with zoneinfo, never a fixed offset. This is an inference, not a declared zone.
+# Event timestamps are UTC; we add Madrid time next to them. The change calendar is converted
+# in src/tools/authorisation.py (analysis section 7).
 MADRID = ZoneInfo("Europe/Madrid")
-CHANGES_TZ = MADRID
 
 # Prefix of an event_id in related_events -> log source.
 EVENT_PREFIX_SOURCE = {
@@ -149,6 +148,7 @@ def _parse_entities(alert):
 
 def _lookup_entities(alert):
     entities, users, assets, intel, sandbox = [], {}, {}, [], []
+    named = {}     # assets the alert itself names (host entities, IPs the CMDB knows)
     searches = []  # (criterion, value) pairs for log search
 
     def add_asset(a):
@@ -171,6 +171,8 @@ def _lookup_entities(alert):
         elif etype == "host":
             a = api_client.get_asset(value)
             add_asset(a)
+            if a:
+                named[a["hostname"]] = a
             known = a is not None
             searches.append(("host", value))
             ip = extra.get("ip") or (a or {}).get("ip")
@@ -179,6 +181,8 @@ def _lookup_entities(alert):
         elif etype == "ip":
             a = api_client.get_asset(value)
             add_asset(a)
+            if a:
+                named[a["hostname"]] = a
             i = api_client.get_intel(value)
             if i:
                 intel.append(i)
@@ -208,43 +212,14 @@ def _lookup_entities(alert):
             searches.append(("value", value))
         elif etype in VALUE_TYPES:
             searches.append(("value", value))
-        entities.append(Entity(type=etype, value=value, known=known))
+        entities.append({"type": etype, "value": value, "known": known})
 
     # Users' workstations, for criticality and context.
     for u in list(users.values()):
         ws = u.get("workstation")
         if ws and ws not in assets:
             add_asset(api_client.get_asset(ws))
-    return entities, list(users.values()), list(assets.values()), intel, sandbox, searches
-
-
-def madrid_wall_to_utc(text):
-    """Calendar wall time ("2026-10-08 08:00", Madrid) -> aware UTC datetime.
-    Raises ValueError on ambiguous (clock goes back) or nonexistent (clock goes forward) times."""
-    naive = datetime.fromisoformat(text)
-    a, b = naive.replace(tzinfo=CHANGES_TZ, fold=0), naive.replace(tzinfo=CHANGES_TZ, fold=1)
-    if a.utcoffset() != b.utcoffset():
-        raise ValueError(f"ambiguous or nonexistent Madrid time: {text}")
-    return a.astimezone(timezone.utc)
-
-
-def _active_changes(lo, hi):
-    """Changes whose window overlaps [lo, hi], each with inicio_utc/fin_utc added
-    (None when the calendar value can't be converted; such changes are kept, not hidden)."""
-    out = []
-    for c in api_client.get_changes():
-        c = dict(c)
-        try:
-            start, end = madrid_wall_to_utc(c["inicio"]), madrid_wall_to_utc(c["fin"])
-        except (KeyError, TypeError, ValueError):
-            c["inicio_utc"] = c["fin_utc"] = None
-            out.append(c)
-            continue
-        c["inicio_utc"] = start.isoformat().replace("+00:00", "Z")
-        c["fin_utc"] = end.isoformat().replace("+00:00", "Z")
-        if start <= hi and end >= lo:
-            out.append(c)
-    return out
+    return entities, list(users.values()), list(assets.values()), list(named.values()), intel, sandbox, searches
 
 
 def _source_of(event_id):
@@ -325,49 +300,88 @@ def _trim(rows, related_ids, anchors, budget):
     return kept, dropped
 
 
-def build_context(alert: dict) -> Context:
-    """Everything known about one alert, from the mock API. Takes the full alert dict
-    (live alerts may not exist in the API). Never fails on an entity it can't look up.
+def _linked_assets(rows):
+    """CMDB machines whose hostname or IP appears in the alert's linked events."""
+    keys = set()
+    for r in rows:
+        spec = LOG_FIELDS.get(r.get("log_source"), {})
+        for field in [*spec.get("ip", []), *spec.get("host", [])]:
+            v = r.get(field)
+            if v:
+                keys.add(str(v))
+    found = {}
+    for k in sorted(keys):
+        a = api_client.get_asset(k)
+        if a:
+            found[a["hostname"]] = a
+    return list(found.values())
 
-    Time windows use event times: ±CONTEXT_WINDOW around the alert's creation and around
-    every linked event (some rules link events after the alert was created)."""
+
+def _entities_by_type(entities):
+    """{type: [{"value", "known", ...}]}, the shape of Context.entities."""
+    out = {}
+    for e in entities:
+        item = {k: v for k, v in e.items() if k != "type"}
+        out.setdefault(e["type"], []).append(item)
+    return out
+
+
+def build_context(alert: dict) -> Context:
+    """Everything known about one alert, from the mock API, in the shape of contracts.Context.
+    Takes the full alert dict (live alerts may not exist in the API). Never fails on an entity
+    it can't look up.
+
+    Time windows use event times: ±CONTEXT_WINDOW around every linked event, or the alert's
+    creation time if it links none (some rules link events after the alert was created)."""
     alert = dict(alert)
     alert["created_at_madrid"] = to_madrid(alert.get("created_at"))
 
-    entities, users, assets, intel, sandbox, searches = _lookup_entities(alert)
-    ctx = Context(alert=alert, entities=entities, users=users, assets=assets,
-                  intel=intel, sandbox=sandbox)
-    ctx.criticality, ctx.criticality_source = resolve_criticality(alert, ctx)
+    entities, users, assets, named, intel, sandbox, searches = _lookup_entities(alert)
+    ctx = Context(alert=alert, users=users, assets=assets, intel=intel, sandbox=sandbox)
+    ctx.criticality, ctx.criticality_source = resolve_criticality(
+        alert, {"entities": entities, "assets": assets, "users": users})
 
     rows = _fetch_related(alert)
-    anchors = []
-    for t in [alert.get("created_at")] + [r.get("timestamp") for r in rows.values()]:
+    event_times = []
+    for r in rows.values():
         try:
-            anchors.append(_parse_utc(t))
+            event_times.append(_parse_utc(r.get("timestamp")))
         except (TypeError, ValueError):
             pass
-    if not anchors:
-        return ctx  # no time at all: no window for changes or logs
-    lo, hi = min(anchors) - CONTEXT_WINDOW, max(anchors) + CONTEXT_WINDOW
-    ctx.changes = _active_changes(lo, hi)
+    if not event_times:
+        try:
+            event_times = [_parse_utc(alert.get("created_at"))]
+        except (TypeError, ValueError):
+            event_times = []
 
+    ctx.changes = match_changes(api_client.get_changes(), alert, named, list(rows.values()), event_times,
+                                _linked_assets(rows.values()))
+    ctx.trips, ctx.hr_events = split_hr_events(users, event_times)
+    if not event_times:
+        ctx.entities = _entities_by_type(entities)
+        return ctx  # no time at all: no window for logs
+
+    lo, hi = min(event_times) - CONTEXT_WINDOW, max(event_times) + CONTEXT_WINDOW
     api_truncated, shared = _gather_logs(alert, rows, searches, lo, hi)
+    for e in entities:  # shared IPs: their rows are counted on the entity, not sent
+        if e["type"] == "ip" and e["value"] in SHARED_IPS:
+            e["shared_by_many_identities"] = True
+            e["rows_not_sent"] = dict(sorted(shared.items()))
+    ctx.entities = _entities_by_type(entities)
+
     related_ids = [e for e in alert.get("related_events") or [] if e]
     rows = list(rows.values())
     for r in rows:
         r["timestamp_madrid"] = to_madrid(r.get("timestamp"))
         r["related"] = r.get("event_id") in related_ids
 
-    ctx.truncated_sources = [TruncatedSource(source=s, reason="api_limit") for s in sorted(api_truncated)]
-    ctx.truncated_sources += [TruncatedSource(source=s, reason="shared_ip", rows_dropped=n)
-                              for s, n in sorted(shared.items()) if n]
-    # Leave room for one size_limit record per source that returned rows.
-    reserve = _size(TruncatedSource(source="x" * 12, reason="size_limit", rows_dropped=99999).model_dump()) + 2
-    reserve *= len({r["log_source"] for r in rows})
-    budget = MAX_CONTEXT_CHARS - _size(ctx.model_dump()) - reserve
-    ctx.logs, dropped = _trim(rows, related_ids, anchors, budget)
-    ctx.truncated_sources += [
-        TruncatedSource(source=s, reason="size_limit", rows_dropped=len(ids))
-        for s, ids in sorted(dropped.items())
-    ]
+    budget = MAX_CONTEXT_CHARS - _size(ctx.model_dump())
+    kept, dropped = _trim(rows, related_ids, event_times, budget)
+    logs = {}
+    for r in kept:  # keeps the most-important-first order inside each source
+        logs.setdefault(r.pop("log_source"), []).append(r)
+    ctx.logs = logs
+    # Rows the API cut off and rows cut for size are both missing evidence: the agent then
+    # can't use the -1 (analysis section 4).
+    ctx.truncated_sources = sorted(set(api_truncated) | set(dropped))
     return ctx

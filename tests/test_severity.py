@@ -136,35 +136,35 @@ SRV = {"hostname": "WEB-ECOM01", "ip": "10.50.1.11", "criticality": "Crítica"}
 
 def test_named_machine_first_and_most_critical():
     c = ctx([("host", "WS-BCN-1380"), ("host", "WEB-ECOM01")], [WS_MEDIA, SRV])
-    assert resolve_criticality({"rule_id": "UC-EDR-002"}, c) == ("Crítica", "asset:WEB-ECOM01")
+    assert resolve_criticality({"rule_id": "UC-EDR-002"}, c) == ("Crítica", "asset")
 
 
 def test_named_machine_beats_service():
     c = ctx([("host", "WS-BCN-1380")], [WS_MEDIA])
-    assert resolve_criticality({"rule_id": "UC-WEB-001"}, c) == ("Media", "asset:WS-BCN-1380")
+    assert resolve_criticality({"rule_id": "UC-WEB-001"}, c) == ("Media", "asset")
 
 
 def test_ip_known_to_cmdb_counts_as_machine():
     c = ctx([("ip", "10.50.1.11")], [SRV])
-    assert resolve_criticality({"rule_id": "UC-NET-003"}, c) == ("Crítica", "asset:WEB-ECOM01")
+    assert resolve_criticality({"rule_id": "UC-NET-003"}, c) == ("Crítica", "asset")
 
 
 def test_workstation_when_no_machine():
     user = {"upn": "enric.bosch@tarvia.example", "workstation": "WS-BCN-1001"}
     c = ctx([("user", user["upn"])], [WS_ALTA], [user])
     crit, src = resolve_criticality({"rule_id": "UC-IDP-001"}, c)
-    assert crit == "Alta" and src.startswith("workstation:WS-BCN-1001")
+    assert (crit, src) == ("Alta", "workstation")
 
 
 def test_workstation_beats_service():
     user = {"upn": "x@tarvia.example", "workstation": "WS-BCN-1380"}
     c = ctx([("user", user["upn"])], [WS_MEDIA], [user])
-    assert resolve_criticality({"rule_id": "UC-WEB-003"}, c)[1].startswith("workstation:")
+    assert resolve_criticality({"rule_id": "UC-WEB-003"}, c)[1] == "workstation"
 
 
 def test_service_when_no_machine_or_workstation():
     c = ctx([("ip", "198.18.11.49")])
-    assert resolve_criticality({"rule_id": "UC-WEB-001"}, c) == ("Crítica", "service:Tienda online y app")
+    assert resolve_criticality({"rule_id": "UC-WEB-001"}, c) == ("Crítica", "service")
 
 
 def test_default_media():
@@ -173,10 +173,25 @@ def test_default_media():
 
 def test_unknown_host_falls_through():
     c = ctx([("host", "NOT-IN-CMDB")])
-    assert resolve_criticality({"rule_id": "UC-WEB-001"}, c) == ("Crítica", "service:Tienda online y app")
+    assert resolve_criticality({"rule_id": "UC-WEB-001"}, c) == ("Crítica", "service")
     assert resolve_criticality({"rule_id": "UC-OT-001"}, c) == ("Media", "default")
 
 
 def test_every_mapped_service_exists():
     for service in severity.RULE_SERVICE.values():
         assert severity.service_criticality(service), service
+
+
+def test_entities_as_dict_by_type():
+    # Context.entities on main: {type: [{"value", "known"}]}; raw alert shape also accepted
+    c = {"entities": {"host": [{"value": "WEB-ECOM01", "known": True}]}, "assets": [SRV], "users": []}
+    assert resolve_criticality({"rule_id": "UC-EDR-002"}, c) == ("Crítica", "asset")
+    c = {"entities": {"hosts": [{"hostname": "WEB-ECOM01"}]}, "assets": [SRV], "users": []}
+    assert resolve_criticality({"rule_id": "UC-EDR-002"}, c) == ("Crítica", "asset")
+
+
+def test_missing_services_file_falls_back(monkeypatch, tmp_path):
+    monkeypatch.setattr(severity, "SERVICES_CSV", tmp_path / "none.csv")
+    monkeypatch.setattr(severity, "_services", None)
+    assert resolve_criticality({"rule_id": "UC-WEB-001"}, ctx()) == ("Media", "default")
+    monkeypatch.setattr(severity, "_services", None)

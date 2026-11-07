@@ -32,14 +32,17 @@ Judged on: correct and well-argued triage, working on the real data, clear roles
 - Some indicators in the data are real. Look them up only in reputation services. Never visit, download from or scan them
 
 ## How our system works
-1. Plain code gathers the facts for an alert from the mock API.
+1. Plain code gathers the facts for an alert from the mock API. Log search uses each log's identity format and filters on exact fields.
 2. The LLM gets those facts, the policy and the runbook, and returns a ticket. It can ask for one more lookup.
 3. Plain code checks the ticket: the format, that the evidence was really retrieved, and the final severity.
 4. The web UI shows the queue, every lookup and the reasoning.
 5. The LLM can propose containment. Plain code works out who must approve, and only a person's click runs it.
 
 ## Test case
-Laura Ferrer's incident is our test at every level: a fake login page, a stolen session, a hidden inbox rule, then a fake IBAN change for 148,320 euros. Alerts `ALR-20261007-011785`, `-011786`, `-011787`, `-011788` and `ALR-20261008-011789`.
+The incident on the account `laura.ferrer2` is our test at every level (`laura.ferrer` is someone else with the same display name): a fake login page, a stolen session, a hidden inbox rule, then a fake IBAN change for 148,320 euros. Alerts `ALR-20261007-011785`, `-011786`, `-011787`, `-011788` and `ALR-20261008-011789`.
 
 ## More
 - `docs/decisions.md`: what's decided and what's still open
+- `docs/data_traps.md`: what the analysis found in the data
+
+Code comments and the notebook name work areas such as `data/search-logs` and `agent/triage`. The branches are `data/tools` and `agent/core`.
