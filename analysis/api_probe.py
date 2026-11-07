@@ -90,6 +90,11 @@ def probe_api():
             }
             record("exact-size result reports truncated", client.get("/logs/idp_audit", params={"limit":len(api.logs("idp_audit"))}), 200)
             truncation = client.get("/logs/idp_audit", params={"limit":len(api.logs("idp_audit"))}).json()["truncated"]
+            # q searches JSON text, where a backslash is written twice.
+            domain_user = next(e["user"] for e in api.logs("edr_events")
+                               if "\\" in (e.get("user") or "") and not e["user"].startswith("NT "))
+            literal_rows = client.get("/logs/edr_events", params={"q":domain_user, "limit":2000}).json()["count"]
+            doubled_rows = client.get("/logs/edr_events", params={"q":domain_user.replace("\\", "\\\\"), "limit":2000}).json()["count"]
             journal = client.get("/containment/log").json()
             assert len(journal) == sum(status == 200 for _, status in observations[:15])
         # Source code and original data location remain untouched by this probe.
@@ -99,5 +104,7 @@ def probe_api():
             "writes_confined_to_temporary_copy":True,
             "synthetic_containment_log_rows":len(journal),
             "exact_size_result_truncated_flag":truncation,
+            "domain_user_q_rows_typed_normally":literal_rows,
+            "domain_user_q_rows_backslash_doubled":doubled_rows,
             **search,
         }
