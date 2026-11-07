@@ -51,11 +51,6 @@ TRUNCATED_QUESTION = "Algunos resultados de log estaban truncados ({sources}): l
 # Incomplete evidence can't show that nothing happened afterwards, which the -1 requires. It can still support a +1.
 NO_LOWERING_QUESTION = "No se aplicó el −1: la evidencia está incompleta y no descarta actividad posterior."
 
-# Below this confidence a ticket that would close goes to a person instead. On the 80 practice alerts,
-# answers under 0.85 were right 6 times in 14, and answers at 0.95 or more 35 times in 37.
-LOW_CONFIDENCE = 0.85
-LOW_CONFIDENCE_REASON = "Confianza del modelo baja ({confidence} %): debe revisarlo una persona antes de cerrar"
-
 # Text in an alert can be written by an attacker, so it can't be the only basis for closing.
 NO_DATA_QUESTION = "No se ha encontrado ningún log de esta alerta: no se puede cerrar como falso positivo sin datos."
 UNSUPPORTED_QUESTION = "Falso positivo de severidad {severity} sin ningún evento citado: no se puede cerrar solo con el texto de la alerta."
@@ -324,8 +319,6 @@ def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
         notes.append("Escalado obligatorio aplicado por la política: " + "; ".join(reasons))
     if verdict == "needs_more_info":
         reasons.append("Evidencia insuficiente: debe revisarlo una persona")
-    if not reasons and not draft.escalate and draft.confidence < LOW_CONFIDENCE:
-        reasons.append(LOW_CONFIDENCE_REASON.format(confidence=round(draft.confidence * 100)))
     if flags and verdict != "true_positive":
         reasons.append("Hay texto que intenta influir en el triaje: debe revisarlo una persona")
     escalate = draft.escalate or bool(reasons)
