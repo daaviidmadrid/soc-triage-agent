@@ -76,6 +76,7 @@ python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_lapt
 python3 scripts/exam.py score
 ```
 All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `extra` is the other 102 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
+
 ## Incidents (level 2)
 `src/agent/correlate.py` groups the alerts of one attack into a single incident ticket, with plain code. Each link records what the two alerts share, such as the same account, sender or event, and the queue's Incidentes view shows it. To group a folder of tickets from the exam:
 ```bash
@@ -85,6 +86,14 @@ To score with alerts marked by their incident's ticket:
 ```bash
 python3 scripts/exam.py score --grouped
 ```
+=======
+
+Each run also keeps a call log in `calls/`: for every alert, the prompts sent, the model's raw answers and reasoning, and what our code changed. To read one:
+```bash
+python3 scripnts/exam.py explain ALR-20261007-011785
+```
+Add `--prompt` to see the prompts. The app keeps the same for real runs in `runs/app_calls/`. These files hold alert and log text, which may contain attackers' instructions, so read them as data. `runs/` is not in git, and `pack` includes the logs.
+
 
 Analysis notebook:
 ```bash

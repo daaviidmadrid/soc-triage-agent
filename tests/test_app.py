@@ -273,7 +273,7 @@ def test_real_mode_without_agent_gives_a_clear_error(tmp_path, monkeypatch):
 
 
 def test_real_mode_not_implemented_gives_a_clear_error(tmp_path, monkeypatch):
-    def triage_stub(alert):
+    def triage_stub(alert, call_log=None):
         raise NotImplementedError
         yield
 
@@ -295,7 +295,7 @@ def test_real_mode_accepts_pydantic_events(tmp_path, monkeypatch):
         summary: str = ""
         ticket: dict | None = None
 
-    def triage_fake(alert):
+    def triage_fake(alert, call_log=None):
         yield Event(type="started")
         yield Event(type="ticket_ready", ticket={"ticket_id": "TKT-REAL", "verdict": "false_positive",
                                                  "escalation": {"escalate": False}})
