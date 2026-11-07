@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.agent import batch  # noqa: E402
 from src.agent.batch import load_alerts, main, run_batch  # noqa: E402
-from src.agent.llm import LLMBlocked, LLMResult, LLMUnavailable  # noqa: E402
+from src.agent.llm import LLMBlocked, LLMQuotaExhausted, LLMResult, LLMUnavailable  # noqa: E402
 
 ANSWER = {
     "title": "Título",
@@ -135,7 +135,30 @@ def test_repeated_ids_run_once(tmp_path):
 
 def test_leaves_no_temporary_files(tmp_path):
     run(tmp_path, ["ALR-0"])
-    assert [path.name for path in tmp_path.iterdir()] == ["ALR-0.json"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["ALR-0.json", "traces"]
+    assert [path.name for path in (tmp_path / "traces").iterdir()] == ["ALR-0.json"]
+
+
+def test_trace_says_which_model_answered_and_holds_no_ticket(tmp_path):
+    run(tmp_path, ["ALR-0"])
+    events = json.loads((tmp_path / "traces" / "ALR-0.json").read_text(encoding="utf-8"))
+    assert any(event.get("args", {}).get("model") == "fake" for event in events)
+    assert all("ticket" not in event for event in events)
+
+
+def test_daily_limit_stops_the_run_and_saves_nothing_new(tmp_path):
+    llm = FakeLLM(failure=LLMQuotaExhausted("Daily limit", 1))
+    report = run(tmp_path, ["ALR-0", "ALR-1", "ALR-2"], llm=llm)
+    assert llm.calls == 1
+    assert report["quota_exhausted"] is True
+    assert report["failed"] == ["ALR-0"] and report["not_started"] == ["ALR-1", "ALR-2"]
+    assert not (tmp_path / "ALR-0.json").exists()
+
+
+def test_reports_progress_for_each_alert(tmp_path):
+    seen = []
+    run(tmp_path, ["ALR-0", "NOT-THERE"], on_result=lambda alert_id, status, seconds: seen.append((alert_id, status)))
+    assert seen == [("ALR-0", "done"), ("NOT-THERE", "not_found")]
 
 
 def test_load_alerts_returns_only_what_was_asked(tmp_path):

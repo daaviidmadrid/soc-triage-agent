@@ -1,10 +1,10 @@
 """Compares tickets with eval/labels.csv and prints a scorecard. Branch: data/eval
 
-Usage: python eval/score.py   (reads runs/*.json and eval/labels.csv)
+Usage: python eval/score.py [runs/v2]   (reads the tickets in that folder, by default the newest in runs/, and eval/labels.csv)
 """
 import csv
-import glob
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +14,7 @@ ALL_ALERTS = ROOT / "data" / "03_alertas" / "alertas.jsonl"
 EXTRA_FILE = EVAL / "extra_alerts.txt"
 HELDOUT_FILE = EVAL / "heldout_alerts.txt"
 LABELS_FILE = EVAL / "labels.csv"
-RUNS_GLOB = str(ROOT / "runs" / "*.json")
+RUNS_DIR = ROOT / "runs"
 
 LEVELS = ["informational", "low", "medium", "high", "critical"]
 
@@ -173,15 +173,25 @@ def _print(report):
         print(f"Alerts in several tickets: {', '.join(report['alerts_in_several_tickets'])}")
 
 
-def main():
+def runs_folder(argument=None):
+    """The batch saves tickets in runs/<prompt version>/. Uses the folder named, or else the newest one."""
+    if argument:
+        return Path(argument)
+    folders = [path for path in RUNS_DIR.glob("*") if path.is_dir()]
+    return max(folders, key=lambda path: path.stat().st_mtime, default=RUNS_DIR)
+
+
+def main(arguments=None):
+    arguments = sys.argv[1:] if arguments is None else arguments
+    folder = runs_folder(arguments[0] if arguments else None)
     tickets = []
-    for path in sorted(glob.glob(RUNS_GLOB)):
+    for path in sorted(folder.glob("*.json")):
         tickets += load_tickets(path)
     test_ids = {a["alert_id"] for a in load_test_set()}
     labels = [l for l in load_labels() if l["alert_id"] in test_ids]
     if not labels:
         print("No labels for the test set in eval/labels.csv yet.")
-    print(f"Tickets read: {len(tickets)} from {RUNS_GLOB}")
+    print(f"Tickets read: {len(tickets)} from {folder}")
     _print(score(tickets, labels))
 
 

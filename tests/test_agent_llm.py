@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.agent import llm  # noqa: E402
-from src.agent.llm import LLMBlocked, LLMError, LLMUnavailable, complete  # noqa: E402
+from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, LLMUnavailable, complete  # noqa: E402
 
 REQUEST = httpx2.Request("POST", "https://llm.test/chat/completions")
 
@@ -114,6 +114,69 @@ def test_does_not_call_the_same_model_twice_as_backup(monkeypatch):
     with pytest.raises(LLMUnavailable):
         complete("s", "u", client=client, sleep=no_sleep)
     assert len(client.models) == 2
+
+
+def daily_limit(seconds="44107s"):
+    body = [{"error": {"details": [{"violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}]},
+                                   {"retryDelay": seconds}]}}]
+    return openai.RateLimitError("quota", response=httpx2.Response(429, request=REQUEST), body=body)
+
+
+def per_minute_limit(seconds="40s"):
+    body = [{"error": {"details": [{"violations": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}, {"retryDelay": seconds}]}}]
+    return openai.RateLimitError("quota", response=httpx2.Response(429, request=REQUEST), body=body)
+
+
+@pytest.fixture
+def no_exhausted_models(monkeypatch):
+    monkeypatch.setattr(llm, "_exhausted", {})
+
+
+def test_daily_limit_skips_retries_and_goes_to_the_backup(no_exhausted_models):
+    waits = []
+    client = FakeClient(daily_limit(), reply())
+    result = complete("s", "u", client=client, sleep=waits.append)
+    assert client.models == ["main-model", "backup-model"] and result.model == "backup-model"
+    assert waits == []
+
+
+def test_a_model_at_its_daily_limit_isnt_called_again(no_exhausted_models):
+    first = FakeClient(daily_limit(), reply())
+    complete("s", "u", client=first, sleep=no_sleep)
+    second = FakeClient(reply())
+    assert complete("s", "u", client=second, sleep=no_sleep).model == "backup-model"
+    assert second.models == ["backup-model"]
+
+
+def test_every_model_at_its_daily_limit_says_so(monkeypatch, no_exhausted_models):
+    monkeypatch.setenv("LLM_BACKUP_MODEL", "main-model")
+    client = FakeClient(daily_limit("7200s"))
+    with pytest.raises(LLMQuotaExhausted, match="2.0 h"):
+        complete("s", "u", client=client, sleep=no_sleep)
+    assert len(client.models) == 1
+    with pytest.raises(LLMQuotaExhausted):
+        complete("s", "u", client=FakeClient(), sleep=no_sleep)
+
+
+def test_per_minute_limit_waits_as_long_as_asked_then_retries(no_exhausted_models):
+    waits = []
+    client = FakeClient(per_minute_limit("40s"), reply())
+    assert complete("s", "u", client=client, sleep=waits.append).model == "main-model"
+    assert waits == [40.0]
+
+
+def test_a_daily_limit_is_tried_again_once_its_time_has_passed(monkeypatch, no_exhausted_models):
+    llm._exhausted["main-model"] = llm.time.monotonic() - 1
+    assert complete("s", "u", client=FakeClient(reply()), sleep=no_sleep).model == "main-model"
+
+
+def test_the_client_is_reused_between_calls(monkeypatch):
+    made = []
+    monkeypatch.setattr(llm, "load_dotenv", lambda: None)
+    monkeypatch.setattr(llm, "OpenAI", lambda **options: made.append(options) or FakeClient(reply(), reply()))
+    complete("s", "u", sleep=no_sleep)
+    complete("s", "u", sleep=no_sleep)
+    assert len(made) == 1
 
 
 def test_waits_between_retries_and_caps_retry_after():

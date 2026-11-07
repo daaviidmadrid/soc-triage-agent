@@ -15,7 +15,7 @@ Create a `.env` file with your own key:
 ```text
 LLM_API_KEY=your_key
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-LLM_MODEL=gemini-3.6-flash
+LLM_MODEL=gemini-3.5-flash-lite
 MOCK_API_URL=http://localhost:8000
 ```
 The UI also needs Node 22 or newer (on a Mac, `brew install node`):
@@ -40,10 +40,40 @@ UI, at http://localhost:5173:
 ```bash
 cd ui && npm run dev
 ```
+Backend with an empty queue that holds only the alerts you import, using its own database:
+```bash
+TRIAGE_MODE=real APP_SAMPLE=none APP_DB_PATH=runs/final.sqlite3 uvicorn src.app.main:app --port 8001
+```
+The import button takes JSON, JSONL or CSV, with other field names too. Save an Excel file as CSV first.
+
 Test the LLM:
 ```bash
 python scripts/test_llm.py
 ```
+Tests:
+```bash
+pytest
+```
+
+## Practice exam
+`scripts/exam.py` triages alerts and scores them against `eval/labels.csv`. It starts the mock API if needed, and a run that stops can be repeated without redoing anything. On each laptop:
+```bash
+python3 scripts/exam.py setup
+```
+```bash
+python3 scripts/exam.py run --laptop 1 --laptops 3
+```
+```bash
+python3 scripts/exam.py pack --laptop 1
+```
+Change `--laptop` to 2 and 3 on the others, and send their zips to one laptop. There:
+```bash
+python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_laptop3.zip
+```
+```bash
+python3 scripts/exam.py score
+```
+All laptops must be on the same commit and model. `--set extra` runs the other 142 test alerts, which have no answers yet, and `--set all` runs both.
 Analysis notebook:
 ```bash
 jupyter notebook analysis/explore.ipynb

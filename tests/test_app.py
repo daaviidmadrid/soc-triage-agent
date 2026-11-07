@@ -114,6 +114,27 @@ def test_queue_without_sample_is_empty_with_message(tmp_path):
     assert data["alerts"] == [] and data["sample"]["error"]
 
 
+def test_app_sample_none_starts_with_an_empty_queue_and_no_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_SAMPLE", "none")
+    with TestClient(create_app(db_path=":memory:", run_fn=instant_runner), headers=UI) as c:
+        data = c.get("/api/queue").json()
+        assert data["alerts"] == [] and data["sample"] == {"path": None, "loaded": 0, "error": None}
+        assert c.post("/api/alerts/import", content='alert_id,severity\nA-1,Alta\n').json()["imported"] == ["A-1"]
+        row = c.get("/api/queue").json()["alerts"][0]
+        assert row["rule_severity"] == "high" and row["origin"] == "imported"
+
+
+def test_the_rule_name_comes_from_the_catalogue_for_display_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("APP_SAMPLE", "none")
+    with TestClient(create_app(db_path=":memory:", run_fn=instant_runner), headers=UI) as c:
+        c.post("/api/alerts/import", content='ID;Regla\nA-1;UC-EDR-002\n')
+        row = c.get("/api/queue").json()["alerts"][0]
+        assert row["rule_name"] == "PowerShell con comando codificado" and row["source_product"] == "EDR"
+        detail = c.get("/api/alerts/A-1").json()
+        assert detail["shown"]["rule_name"] == row["rule_name"]
+        assert "rule_name" not in detail["alert"] and detail["alert"]["Regla"] == "UC-EDR-002"
+
+
 def test_default_queue_is_the_development_sample_not_all_alerts():
     from src.app import main
     assert main.DEFAULT_SAMPLE.name == "alertas_muestra_desarrollo.jsonl"
@@ -396,9 +417,9 @@ def test_import_jsonl_reports_bad_rows(client):
         json.dumps({"alert_id": "ALR-LIVE-0004"}),
     ]
     result = client.post("/api/alerts/import", content="\n".join(lines)).json()
-    assert result["format"] == "jsonl" and result["imported"] == ["ALR-LIVE-0002", "ALR-LIVE-0004"]
+    assert result["format"] == "jsonl" and result["imported"] == ["ALR-LIVE-0002", "42", "ALR-LIVE-0004"]
     errors = {e["row"]: e["error"] for e in result["errors"]}
-    assert set(errors) == {2, 3, 4, 5, 6, 8, 9}
+    assert set(errors) == {2, 3, 4, 6, 8, 9}
     assert "JSON" in errors[2] and "objeto" in errors[3] and "alert_id" in errors[4]
     assert "formato" in errors[6] and "repetido" in errors[8]
     assert all("passwd" not in e for e in errors.values())  # errors never repeat the file's content
