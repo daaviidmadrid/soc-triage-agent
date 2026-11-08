@@ -11,7 +11,7 @@ const STAGES = [
   { key: "proposal", name: L.stageProposal, target: "sec-proposal" },
   { key: "person", name: L.stagePerson, target: "sec-decision" },
 ];
-const STAGE_TEXT = { done: L.stageDone, active: L.stageActive, waiting: L.stageWaiting, todo: L.stageTodo, failed: L.stageFailed };
+const STAGE_TEXT = { done: L.stageDone, active: L.stageActive, waiting: L.stageWaiting, todo: L.stageTodo, failed: L.stageFailed, omitted: "No requerida" };
 
 // done | active | waiting | todo | failed, for each of the four stages.
 export function stageStates({ run, events, ticket, decided, fallback }) {
@@ -129,6 +129,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
   const authorTag = byCode ? L.tagCode : L.tagLlm;
   const authorKind = byCode ? "code" : "llm";
   const changed = decision && decision.decision !== "accept" && proposal && decision.outcome !== proposal;
+  const automatic = ticketRow.disposition?.origin === "automation" && ticketRow.disposition.state === "closed";
 
   return (
     <>
@@ -151,8 +152,8 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
             <NA />
           )}
         </Fact>
-        <Fact tag={L.tagPerson} kind="person" label={L.stagePerson}>
-          {decision ? (
+        <Fact tag={L.tagPerson} kind="person" label="Disposición final">
+          {automatic ? <strong>Cierre automático · {ticketRow.disposition.rule}</strong> : decision ? (
             <span className="decided-line">
               <strong className="ok">{L.barDecided(OUTCOME[decision.outcome] || asText(decision.outcome), asText(decision.analyst))}</strong>
               {changed && <span className="sub">{L.barChanged(OUTCOME[proposal], OUTCOME[decision.outcome] || asText(decision.outcome))}</span>}
@@ -198,7 +199,8 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
 export default function DecisionBar(props) {
   const { run, ticketRow, decision, events, running, fallback, finished, now, ruleSeverity, starting, onStart, onGo, onReviewByHand, onNext, next } = props;
   const ticket = ticketRow && !running ? obj(ticketRow.ticket) : null;
-  const states = stageStates({ run, events, ticket, decided: Boolean(decision), fallback });
+  const states = stageStates({ run, events, ticket, decided: Boolean(decision && decision.outcome !== "reopen"), fallback });
+  if (ticketRow?.disposition?.origin === "automation" && ticketRow.disposition.state === "closed") states[3] = "omitted";
   const available = (id) => (id === "steps-title" ? Boolean(run) : Boolean(ticket));
 
   return (

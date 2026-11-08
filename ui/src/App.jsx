@@ -169,12 +169,12 @@ export default function App() {
     setMenuOpen(false);
     window.scrollTo(0, 0);
   }, []);
-  const current = route.view === "dashboard" || route.view === "incidents" ? route.view : route.view === "report" ? "incidents" : alertId ? "queue" : filters.state === "pending" ? "review" : filters.state === "decided" ? "resolved" : "queue";
+  const current = route.view === "dashboard" || route.view === "incidents" ? route.view : route.view === "report" ? "incidents" : alertId ? "queue" : ["pending", "attention:review"].includes(filters.state) ? "review" : ["decided", "attention:human"].includes(filters.state) ? "resolved" : "queue";
   const navigation = [
     { id: "dashboard", icon: "dashboard", label: L.navDashboard, href: "#/dashboard" },
     { id: "queue", icon: "queue", label: L.navAlerts, filters: {} },
-    { id: "review", icon: "review", label: L.navReview, filters: { state: "pending" } },
-    { id: "resolved", icon: "archive", label: L.navResolved, filters: { state: "decided" } },
+    { id: "review", icon: "review", label: L.navReview, filters: { state: "attention:review" } },
+    { id: "resolved", icon: "archive", label: L.navResolved, filters: { state: "attention:human" } },
     { id: "incidents", icon: "incidents", label: L.navIncidents, href: "#/incidentes" },
   ];
 

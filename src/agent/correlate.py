@@ -286,7 +286,9 @@ def merge(members, links, items):
                        lambda a: (a.get("action"), a.get("target")))
     affected = {field: _dedupe([x for t in tickets for x in (t.get("affected") or {}).get(field) or []], json.dumps)
                 for field in ("users", "hosts", "business_services", "customers")}
-    group_links = [{"alert_id": second, "linked_to": first, "reasons": reasons_} for (first, second), reasons_ in sorted(links.items())]
+    group_links = [{"alert_id": second, "linked_to": first, "reasons": reasons_,
+                    "strength": "specific" if any(not r.startswith((LABELS["account"] + " (", LABELS["host"] + " (")) for r in reasons_) else "lead"}
+                   for (first, second), reasons_ in sorted(links.items())]
     ticket = Ticket(
         ticket_id=incident_id,
         alert_ids=ordered,

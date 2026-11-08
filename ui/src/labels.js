@@ -91,7 +91,7 @@ export const L = {
   incidentAlerts: (n) => `${n} alertas`,
   incidentEscalate: "Escalar a",
   incidentClose: "Cerrar",
-  chainChip: "Cadena de ataque",
+  chainChip: "Posible cadena · revisión obligatoria",
   membersTitle: "Alertas del incidente",
   linksTitle: "Por qué se agrupan",
   linkWith: "con",
@@ -170,6 +170,8 @@ export const L = {
   // Run states
   stateNone: "Sin triaje",
   stateRunning: "En curso",
+  stateQueued: "Encoladas",
+  stateAutoClosed: "Cerradas automáticamente",
   stateFailed: "Fallido",
   statePending: "En revisión",
   stateDecided: "Resuelto",
@@ -238,12 +240,12 @@ export const L = {
   byCodeHelp: "",
   byPerson: "Resolución",
   byPersonDone: "Resolución registrada",
-  closedByRule: "Cerrada por regla",
-  closedByRuleId: (id) => `Cerrada por regla ${id}`,
-  closedByRuleHelp: "Una regla fija de código cerró esta alerta sin llamar al LLM.",
-  ruleTitle: "Cerrada por una regla fija, sin LLM",
+  closedByRule: "Analizada por regla",
+  closedByRuleId: (id) => `Analizada por regla ${id}`,
+  closedByRuleHelp: "Una regla fija preparó la recomendación sin llamar al LLM. La disposición final se registra por separado.",
+  ruleTitle: "Recomendación de cierre por regla, sin LLM",
   ruleHelp:
-    "Código determinista: cada condición se cumplió exactamente con campos de los logs, la CMDB y el calendario de cambios. El texto de la alerta no cuenta. No se consultó al modelo.",
+    "Código determinista: cada condición se cumplió exactamente con campos de los logs, la CMDB y el calendario de cambios. El texto de la alerta no cuenta. No se consultó al modelo. La disposición final se registra por separado.",
   ruleName: "Regla",
   ruleConditions: "Condiciones que se cumplieron",
   ruleEvents: "Eventos en los que se basa",
@@ -476,7 +478,7 @@ export const VERDICT = {
   needs_more_info: "Necesita más información",
 };
 
-export const OUTCOME = { close: "cerrar", escalate: "escalar" };
+export const OUTCOME = { close: "cerrar", escalate: "escalar", reopen: "reabrir" };
 
 export const ACTION_NAME = {
   isolate_host: "Aislar el equipo",
@@ -496,7 +498,7 @@ export const CONTAINMENT_STATUS = {
   rejected: "Rechazada por una persona",
 };
 
-export const DECISION = { accept: "aceptó la propuesta", close: "cambió a cerrar", escalate: "cambió a escalar" };
+export const DECISION = { accept: "aceptó la propuesta", close: "cambió a cerrar", escalate: "cambió a escalar", reopen: "reabrió para revisión" };
 
 export const RUN_STATUS = { running: "En curso", done: "Terminada", failed: "Fallida" };
 
@@ -534,9 +536,15 @@ export const SLA = {
 };
 
 export const STATE_FILTERS = {
+  "attention:review": "Requieren revisión",
+  "attention:processing": "Pendientes o en procesamiento",
+  "attention:automatic": "Cerradas automáticamente",
+  "attention:human": "Resueltas por una persona",
   none: "Sin triaje",
+  queued: "Encolada",
   running: "En curso",
   failed: "Fallido",
   pending: "En revisión",
   decided: "Resuelto",
+  auto_closed: "Cierre automático",
 };

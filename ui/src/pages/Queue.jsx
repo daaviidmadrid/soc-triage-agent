@@ -6,6 +6,7 @@ import { Pager } from "../ticket/Paging.jsx";
 import Icon from "../icons.jsx";
 import { useListMotion } from "../motion.js";
 import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
+import Flow from "../queue/Flow.jsx";
 import { EMPTY_FILTERS, countsOf, effective, filterAndSort, isFiltered, productsOf, stateOf } from "../queue/model.js";
 import { L, OUTCOME, SEVERITY, SEVERITY_ORDER, STATE_FILTERS, VERDICT } from "../labels.js";
 
@@ -14,12 +15,12 @@ const PAGE_SIZE = 8;
 // The last queue the screen showed, so coming back from a ticket draws it at once (then refreshes).
 let cachedData = null;
 
-const STATE_ICONS = { none: "queue", running: "refresh", pending: "review", decided: "check", failed: "alert" };
+const STATE_ICONS = { none: "queue", queued: "queue", auto_closed: "check", running: "refresh", pending: "review", decided: "check", failed: "alert" };
 const PRODUCT_ICONS = { EDR: "device", IDP: "identity", AD: "identity", EMAIL_GW: "mail", WAF: "shield", PROXY: "network", DNS: "network", NGFW: "network", VPN: "network", CLOUD: "cloud", CICD: "code", AI_GATEWAY: "code" };
 
 function StateCell({ item, changed }) {
   const state = stateOf(item);
-  const text = { none: L.stateNone, running: `${L.stateRunning}…`, failed: L.stateFailed, pending: L.statePending, decided: L.stateDecided }[state];
+  const text = { none: L.stateNone, queued: "Encolada", auto_closed: "Cierre automático", running: "Procesando", failed: L.stateFailed, pending: L.statePending, decided: L.stateDecided }[state];
   return <span className={`state state-${state} operational-state${changed ? " state-changed" : ""}`}>
     <span className={`state-symbol${state === "running" ? " is-running" : ""}`}><Icon name={STATE_ICONS[state]} /></span>
     <span>{text}{state === "decided" && <>: {OUTCOME[item.decision.outcome] || item.decision.outcome}<span className="sub">{item.decision.analyst}</span></>}</span>
@@ -28,9 +29,9 @@ function StateCell({ item, changed }) {
 
 // The overview and the filters use the same counts and existing filter state.
 function Counts({ counts, filters, setFilters }) {
-  const states = ["none", "running", "pending", "decided", "failed"];
+  const states = ["pending", "queued", "running", "auto_closed", "decided", "failed", "none"];
   const total = states.reduce((sum, key) => sum + counts[key], 0);
-  const labels = { pending: L.statePending, running: L.stateRunning, failed: L.stateFailed, decided: L.stateDecided, none: L.stateNone };
+  const labels = { pending: L.statePending, queued: "Encoladas", auto_closed: "Cierre automático", running: L.stateRunning, failed: L.stateFailed, decided: L.stateDecided, none: L.stateNone };
   const filter = key => setFilters(previous => ({ ...previous, state: previous.state === key ? "" : key }));
   return <section className="queue-overview" aria-label={L.countsLabel}>
     <div className="queue-state-track" role="img" aria-label={states.map(key => `${labels[key]}: ${counts[key]}`).join("; ")}>
@@ -153,20 +154,25 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
         <div className="sub">{item.source_product || L.na}{item.rule_id && <> · <span className="id-plain">{item.rule_id}</span></>}</div>
         </div></div>
       </td>
-      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span></td>
+      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span>{item.job?.queued_at && <span className="sub">Encolada: {formatTime(item.job.queued_at)} UTC</span>}</td>
       <td data-label={L.filterSeverity}><Severity value={eff.severity} />{t && <div className="sub">{L.fromRule}: {SEVERITY[item.rule_severity] || L.na}</div>}</td>
       <td data-label={L.queueResult}>
         {t && <div className="queue-verdict">{VERDICT[t.verdict] || t.verdict || L.na}</div>}
         <StateCell item={item} changed={changed} />
         <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.closed_by_rule && <Chip kind="code" title={L.closedByRuleHelp}>{L.closedByRule}</Chip>}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
+        {t?.attention_reason && <p className="sub queue-attention">{t.attention_reason}</p>}
+        {t?.affected && <p className="sub">{[...(t.affected.hosts || []), ...(t.affected.users || [])].map(v => typeof v === "string" ? v : v.upn || v.hostname).filter(Boolean).join(", ")}</p>}
+        {item.report_state && <div className="sub">Informe: {({ pending: "pendiente", running: "en preparación", ready: "preparado", stale: "desactualizado", needed: "sin preparar", not_required: "no requerido" })[item.report_state.status]}</div>}
+        {t?.evidence_incomplete && <div className="sub">Evidencia incompleta o sin validar</div>}
+        {item.disposition?.sampled_for_review && <Chip kind="warn">Muestra de auditoría</Chip>}
       </td>
       <td data-label={L.colSla}><SlaCell severity={eff.severity} fromRule={eff.fromRule} seconds={item.run?.status === "done" ? item.run.duration_seconds : null} running={running} /></td>
       <td className="actions"><div className="row-actions">
         <button
           type="button"
-          className={`btn btn-sm btn-primary${running || starting ? " is-running" : ""}`}
+          className={`btn btn-sm${running || starting ? " is-running" : ""}`}
           onClick={() => onStart(item)}
-          disabled={running || starting}
+          disabled={running || starting || item.job?.status === "pending"}
           aria-label={`${running ? L.stateRunning : startLabel} ${id}`}
         >
           <Icon name={running || starting || item.run ? "refresh" : "play"} />{running ? L.stateRunning : starting ? L.starting : item.run ? L.retriageShort : L.triage}
@@ -187,6 +193,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   const [importReport, setImportReport] = useState(null);
   const [activeId, setActiveId] = useState(returnTo && returnTo.alertId);
   const [page, setPage] = useState(0);
+  const [rowOrder, setRowOrder] = useState([]), [orderFilter, setOrderFilter] = useState(null);
   const pendingFocus = useRef(null);
   const [help, setHelp] = useState(false);
   const [changed, setChanged] = useState(() => new Set());
@@ -225,9 +232,10 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
 
   const anyRunning = Boolean(data && data.alerts.some((a) => a.run && a.run.status === "running"));
   useEffect(() => {
-    if (!anyRunning) return undefined;
     const timer = setInterval(load, POLL_MS);
-    return () => clearInterval(timer);
+    const reconcile = () => load();
+    window.addEventListener("online", reconcile);
+    return () => { clearInterval(timer); window.removeEventListener("online", reconcile); };
   }, [anyRunning, load]);
 
   const start = useCallback(
@@ -251,12 +259,21 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
 
   const products = useMemo(() => (data ? productsOf(data.alerts) : []), [data]);
   const counts = useMemo(() => (data ? countsOf(data.alerts) : null), [data]);
-  const rows = useMemo(() => (data ? filterAndSort(data.alerts, filters) : []), [data, filters]);
+  const filterKey = JSON.stringify(filters);
+  const rows = useMemo(() => {
+    const sorted = data ? filterAndSort(data.alerts, filters) : [];
+    if (orderFilter !== filterKey || !rowOrder.length) return sorted;
+    const index = new Map(rowOrder.map((id, i) => [id, i]));
+    return sorted.sort((a, b) => (index.get(a.alert_id) ?? Infinity) - (index.get(b.alert_id) ?? Infinity));
+  }, [data, filters, filterKey, rowOrder, orderFilter]);
+  const orderKey = rows.map(r => r.alert_id).join("|");
+  useEffect(() => {
+    if (orderFilter !== filterKey || rowOrder.join("|") !== orderKey) { setRowOrder(rows.map(r => r.alert_id)); setOrderFilter(filterKey); }
+  }, [orderKey, filterKey, orderFilter]);
 
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages - 1);
   const visibleRows = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  const filterKey = JSON.stringify(filters);
   useListMotion(tableBody, visibleRows.map(row => row.alert_id).join("|"));
   const previousFilters = useRef(filterKey);
   useEffect(() => { if (previousFilters.current !== filterKey) { previousFilters.current = filterKey; setPage(0); } }, [filterKey]);
@@ -336,7 +353,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         </div>
         <div className="page-actions">
           <ImportButton onDone={load} onReport={setImportReport} />
-          <button type="button" className="btn" onClick={load}>
+          <button type="button" className="btn" onClick={() => { setOrderFilter(null); load(); }}>
             <Icon name="refresh" />{L.refresh}
           </button>
           <button type="button" className="btn btn-ghost shortcuts-toggle" aria-expanded={help} aria-controls="shortcuts" onClick={() => setHelp((h) => !h)}>
@@ -356,6 +373,10 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
       {startError && <ErrorBox message={startError} />}
       <ImportReport report={importReport} onDismiss={() => setImportReport(null)} />
 
+      <Flow data={data} onOpen={onOpen} onRefresh={load} connectionError={error} />
+      <div className="attention-filters" role="group" aria-label="Atención humana">{[["review", "Requieren revisión"], ["processing", "Pendientes o en procesamiento"], ["automatic", "Cerradas automáticamente"], ["human", "Resueltas por una persona"]].map(([key, label]) => <button key={key} type="button" className="btn btn-sm" aria-pressed={filters.state === `attention:${key}`} onClick={() => setFilters(f => ({ ...f, state: f.state === `attention:${key}` ? "" : `attention:${key}` }))}>{label}</button>)}
+        <button type="button" className="btn btn-sm" disabled={!rows.length || !data.automation?.auto_triage} onClick={async () => { try { await api.enqueue(rows.slice(0, 2000).map(a => a.alert_id)); await load(); } catch (e) { setStartError(e.message); } }}>Encolar lote filtrado ({Math.min(rows.length, 2000)})</button></div>
+
       <Counts counts={counts} filters={filters} setFilters={setFilters} />
       <Filters filters={filters} setFilters={setFilters} products={products} />
 
@@ -372,7 +393,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         </Notice>
       ) : (
         <div className="table-wrap">
-          <div className="queue-table-toolbar"><p className="table-caption" id="queue-sort">{L.sortCaption}</p><span className="queue-range num">{currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} / {rows.length}</span></div>
+          <div className="queue-table-toolbar"><p className="table-caption" id="queue-sort">Atención humana y severidad. El orden se conserva durante la lectura; Actualizar vuelve a priorizar.</p><span className="queue-range num">{currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} / {rows.length}</span></div>
           <table className="grid" aria-describedby="queue-sort">
             <thead>
               <tr>

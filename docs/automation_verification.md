@@ -1,0 +1,47 @@
+# Verificación de la automatización
+
+Comprobación local del 8 de noviembre de 2026. Backend con SQLite temporal, alertas
+sintéticas y proveedores falsos. La suite existente usa una copia temporal de la API
+simulada para que sus escrituras no afecten a `data/`.
+
+| Comprobación | Resultado |
+|---|---|
+| Suite Python completa | 797 pruebas superadas; último run completo: 109,06 s |
+| Presupuesto tras el último ajuste de motivo de parada | 48 pruebas de automatización superadas |
+| Frontend | Tres archivos de pruebas Node superados: dashboard/model, dashboard/interaction y queue/model |
+| Producción | `npm run build` superado, sin nuevas dependencias |
+| Diff | `git diff --check` sin errores |
+| Importación en Firefox | Archivo sintético recibido; triaje, correlación e informe avanzan sin solicitudes a `/api/triage/` |
+| Streams | Máximo de una conexión SSE simultánea en el flujo; al navegar se cierran las anteriores |
+| Cierre y revisión | Regla sin LLM, disposición automática y revisión humana se muestran por separado |
+| Borrador | Conservado entre pestañas y al salir y volver al ticket |
+| Relaciones | Motivos guardados, enlace al informe y diagrama limitado con lista completa |
+| Cronología | Dos días, separación real de 26 horas, selección por modelo/código e ID que abre el paso de recuperación |
+| Tamaños de viewport | 390, 768, 1024 y 1440 px; sin desbordamiento horizontal ni paneles con scroll vertical anidado |
+| Tooltip | Puntero inmediato, una sola fila resaltada, `pointer-events: none`, transición de 0 s y cierre con Escape |
+| Menú móvil | Apertura y cierre con Escape comprobados |
+| Movimiento reducido | Firefox con `prefers-reduced-motion: reduce`; cero animaciones compartidas y transiciones de botón de 0 s |
+| Caída y recuperación | Se interrumpe solo el backend sintético con un trabajo activo; la UI muestra reconexión, recupera el trabajo y conserva run interrumpido y época de presupuesto |
+
+La prueba de caída también cubrió un proxy que conserva el socket SSE abierto tras
+perder el upstream. Al recuperarse la API de polling, el hook reabre la suscripción
+desde `after=2`, cierra la anterior y reconcilia el nuevo run recuperado. No se
+necesitó iniciar de nuevo el triaje.
+
+Los artefactos locales de esta sesión se guardan en `runs/automation-verification/`
+(directorio ignorado por Git): informes JSON y capturas de cola, actividad,
+relaciones, cronología y movimiento reducido.
+
+## Límites comprobables
+
+- No se hicieron llamadas reales al LLM ni se evaluó su calidad, latencia o cuota real.
+- Firefox headless devolvió `document.hasFocus() === false`; el foco nativo y la
+  aparición del tooltip por `:focus-visible` requieren comprobación en una ventana
+  interactiva. Se mantuvo el comportamiento existente; Escape y el menú sí se probaron.
+- Los tamaños móviles fueron viewports emulados de Firefox. No se probaron gestos
+  en teléfonos físicos, Safari ni Chromium.
+- No se implementan notificaciones reales a N2, responsable SOC o CISO. El escalado
+  es un estado/recomendación, no una notificación enviada.
+- La prueba de caída usa un backend y datos sintéticos. No demuestra rendimiento
+  bajo el volumen diario del SOC ni seguridad de un despliegue remoto; la API
+  conserva su ámbito exclusivamente local.

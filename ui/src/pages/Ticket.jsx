@@ -35,6 +35,8 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
 
   useEffect(() => {
     load();
+    const timer = setInterval(load, 2000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const run = detail ? detail.latest_run : null;
@@ -107,10 +109,10 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
   if (!detail) return <Skeleton rows={5} cols={4} label={L.loading} />;
 
   const alert = obj(detail.alert);
-  const ticketRow = detail.ticket;
+  const ticketRow = detail.ticket ? { ...detail.ticket, disposition: detail.disposition } : null;
   const decisions = detail.decisions || [];
   // Decisions come newest first; the one that counts is the newest on this version of the ticket.
-  const decision = ticketRow ? decisions.find((d) => d.run_id === ticketRow.run_id) || null : null;
+  const decision = ticketRow && detail.disposition?.state !== "review" ? decisions.find((d) => d.run_id === ticketRow.run_id) || null : null;
   const fallback = Boolean(ticketRow && !running && isFallback(obj(ticketRow.ticket), events));
 
   return (

@@ -1,5 +1,6 @@
 // Calls to the local backend, through Vite's /api proxy.
 import { L } from "./labels.js";
+let connectionLost = false;
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -16,6 +17,7 @@ async function request(method, path, body, contentType = "application/json") {
   try {
     response = await fetch(path, { method, headers, body, credentials: "same-origin" });
   } catch {
+    connectionLost = true;
     throw new ApiError(L.backendDown, 0);
   }
   let data = null;
@@ -26,10 +28,14 @@ async function request(method, path, body, contentType = "application/json") {
   }
   if (!response.ok) {
     // Vite's proxy answers 5xx with no JSON body when the backend isn't running.
-    if (data === null && response.status >= 500) throw new ApiError(L.backendDown, response.status);
+    if (data === null && response.status >= 500) { connectionLost = true; throw new ApiError(L.backendDown, response.status); }
     const detail = data && data.detail;
     const message = typeof detail === "string" ? detail : `${L.errorPrefix} ${response.status}`;
     throw new ApiError(message, response.status);
+  }
+  if (connectionLost) {
+    connectionLost = false;
+    window.dispatchEvent(new Event("tarvia:api-restored"));
   }
   return data;
 }
@@ -51,7 +57,10 @@ export const api = {
   executeAction: (id) => request("POST", `/api/containment/${encodeURIComponent(id)}/execute`, JSON.stringify({})),
   containmentLog: () => request("GET", "/api/containment/log"),
   report: (key) => request("GET", `/api/reports/${encodeURIComponent(key)}`),
-  investigate: (key) => request("POST", `/api/reports/${encodeURIComponent(key)}`),
+  investigate: (key, repeat = false) => request("POST", `/api/reports/${encodeURIComponent(key)}${repeat ? "?repeat=1" : ""}`),
   reportContainment: (key) => request("GET", `/api/reports/${encodeURIComponent(key)}/containment`),
-  eventsUrl: (runId) => `/api/runs/${encodeURIComponent(runId)}/events`,
+  eventsUrl: (runId, after = 0) => `/api/runs/${encodeURIComponent(runId)}/events${after > 0 ? `?after=${after}` : ""}`,
+  automation: () => request("GET", "/api/automation"),
+  controlAutomation: (action) => request("POST", "/api/automation/control", JSON.stringify({ action })),
+  enqueue: (alertIds) => request("POST", "/api/automation/enqueue", JSON.stringify({ alert_ids: alertIds })),
 };

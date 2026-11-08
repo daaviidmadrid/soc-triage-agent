@@ -146,6 +146,21 @@ def test_rule_1_closes_the_approved_sccm_inventory_without_the_llm():
     assert calls[0]["conditions"] == ticket.closed_by_rule.conditions and calls[0]["event_ids"] == ["EDR-T-1"]
 
 
+def test_rule_safety_metadata_keeps_r1_exception_and_unknown_ot():
+    from src.app.automation import auto_close_eligible
+    ctx = sccm_context(truncated_sources=["secondary_proxy_search"])
+    t, _, _, _ = run(SCCM_ALERT, ctx)
+    assert t.safety_checks["evidence_complete"] is True
+    assert t.safety_checks["not_ot"] is None
+    assert not auto_close_eligible(t.model_dump(), correlation_current=True, incident_escalates=False)
+    ctx["assets"][0]["zone"] = "CORPORATE"
+    t, _, _, _ = run(SCCM_ALERT, ctx)
+    assert auto_close_eligible(t.model_dump(), correlation_current=True, incident_escalates=False)
+    ctx["assets"][0]["zone"] = "LOGISTICS-OT"
+    t, _, _, _ = run(SCCM_ALERT, ctx)
+    assert not auto_close_eligible(t.model_dump(), correlation_current=True, incident_escalates=False)
+
+
 def test_rule_2_closes_a_blocked_internet_scan_on_the_shop_without_the_llm():
     find = FakeFind()
     ticket, events, llm, calls = run(WAF_ALERT, waf_context(), find)

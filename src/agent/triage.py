@@ -373,6 +373,18 @@ def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
         ),
         injection_flags=flags,
         authorised_by=authorised_by,
+        policy_flags={key: getattr(draft.policy_flags, key) if key in draft.policy_flags.model_fields_set else None for key in MANDATORY_FLAGS},
+        safety_checks={
+            "citations_valid": not bool(check_evidence(draft, ids)),
+            "authorisation_valid": not bool(check_authorisation(draft, context)),
+            "evidence_complete": not incomplete and not bool(assumptions),
+            "not_ot": _not_ot(context),
+            "injection_review_clear": not bool(flags),
+            "deterministic_eligible": False,
+        },
+        analysis_origin="model",
+        model_proposal={"verdict": draft.verdict, "escalate": draft.escalate,
+                        "severity_adjustments": [a.model_dump() for a in draft.severity_adjustments]},
     )
     return ticket, notes
 
@@ -438,8 +450,26 @@ def rule_ticket(alert, context, check, compute, seconds):
         closed_by_rule=RuleClosure(
             rule_id=check.rule_id, name=check.name, detection_rule=check.detection_rule, conditions=conditions, event_ids=check.event_ids
         ),
+        policy_flags={key: False for key in MANDATORY_FLAGS},
+        safety_checks={
+            "citations_valid": bool(check.event_ids) and set(check.event_ids) <= retrieved_ids(context) | {i for lookup in check.lookups for i in lookup["event_ids"]},
+            "authorisation_valid": not check.authorised_by or check.authorised_by.get("id") in _authorising_ids(context),
+            # R1 reads complete linked rows; unrelated truncated searches do not invalidate them.
+            "evidence_complete": not bool(context.get("data_gaps")) and (check.rule_id == "R1" or not bool(context.get("truncated_sources") or context.get("trimmed_for_prompt"))),
+            "not_ot": True if check.rule_id == "R2" and not context.get("assets") else _not_ot(context),
+            "injection_review_clear": not bool(context.get("injection_flags")),
+            "deterministic_eligible": True,
+        },
+        analysis_origin="deterministic",
     )
     return ticket, None
+
+
+def _not_ot(context):
+    assets = context.get("assets") or []
+    if not assets or any(not a.get("zone") for a in assets):
+        return None
+    return not any(a["zone"] == "LOGISTICS-OT" for a in assets)
 
 
 def failsafe_ticket(alert, context, reason, compute, seconds, assumptions=()):
@@ -518,13 +548,13 @@ def _gather(alert, build, emit):
     for section in ("users", "assets", "changes", "trips", "hr_events", "intel", "sandbox"):
         items = context.get(section)
         if items:
-            yield emit("tool_result", tool=section, summary=f"{len(items)} resultado(s)")
+            yield emit("tool_result", tool=section, args={"result_count": len(items)}, summary=f"{len(items)} resultado(s)")
     truncated = context.get("truncated_sources") or []
     for source, rows in _log_groups(context.get("logs")).items():
         yield emit(
             "tool_result",
             tool="search_logs",
-            args={"source": source},
+            args={"source": source, "result_count": len(rows)},
             summary=f"{len(rows)} fila(s) de {source}",
             event_ids=_row_ids(rows),
             truncated=source in truncated,
@@ -545,7 +575,7 @@ def _extra_search(request, context, search, emit):
     context["extra_search"] = "done"
     if truncated:
         context["truncated_sources"] = [*(context.get("truncated_sources") or []), request.source]
-    yield emit("tool_result", tool="search_logs", args=args, summary=f"{len(rows)} fila(s) de {request.source}", event_ids=_row_ids(rows), truncated=truncated)
+    yield emit("tool_result", tool="search_logs", args={**args, "result_count": len(rows)}, summary=f"{len(rows)} fila(s) de {request.source}", event_ids=_row_ids(rows), truncated=truncated)
 
 
 def _try_rules(alert, context, search, compute, emit, seconds, call_log):
@@ -572,7 +602,7 @@ def _try_rules(alert, context, search, compute, emit, seconds, call_log):
     yield emit("tool_call", tool="rules", args={"rule": check.rule_id}, summary=f"Comprobando la regla fija {check.rule_id}: {check.name}")
     for lookup in check.lookups:
         yield emit("tool_call", tool="search_logs", args=lookup["args"], summary=f"Búsqueda de la regla fija {check.rule_id}: actividad posterior del origen")
-        yield emit("tool_result", tool="search_logs", args=lookup["args"], summary=f"{lookup['count']} fila(s) de {lookup['source']}",
+        yield emit("tool_result", tool="search_logs", args={**lookup["args"], "result_count": lookup["count"]}, summary=f"{lookup['count']} fila(s) de {lookup['source']}",
                    event_ids=lookup["event_ids"], truncated=lookup["truncated"])
     if ticket is not None:
         yield emit("tool_result", tool="rules", args={"rule": check.rule_id, "result": "closed", "llm_calls": 0},

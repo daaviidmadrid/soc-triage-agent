@@ -6,9 +6,11 @@ export const DATA_COLORS = {
 };
 export const WORKFLOW_SERIES = [
   ["none", "var(--deloitte-blue)", "stateNone"],
+  ["queued", "var(--deloitte-border)", "stateQueued"],
   ["running", "var(--deloitte-navy)", "stateRunning"],
   ["pending", "var(--deloitte-gray)", "statePending"],
   ["decided", "var(--deloitte-sky)", "stateDecided"],
+  ["auto_closed", "var(--deloitte-navy)", "stateAutoClosed"],
   ["failed", "url(#workflow-failed)", "stateFailed"],
 ];
 

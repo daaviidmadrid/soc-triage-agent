@@ -46,14 +46,14 @@ function Members({ members, onOpen }) {
   );
 }
 
-function Links({ links }) {
+function Links({ links, onOpen }) {
   if (!links || links.length === 0) return <p className="muted">{L.none}</p>;
   return (
     <ul className="list links">
       {links.map((link) => (
         <li key={`${link.alert_id}-${link.linked_to}`}>
-          <code className="id">{link.alert_id}</code> {L.linkWith} <code className="id">{link.linked_to}</code>:{" "}
-          <span>{link.reasons.join("; ")}</span>
+          <button type="button" className="id id-jump" onClick={() => onOpen(link.alert_id)}>{link.alert_id}</button> {L.linkWith} <button type="button" className="id id-jump" onClick={() => onOpen(link.linked_to)}>{link.linked_to}</button>:{" "}
+          <span>{link.strength === "lead" ? "Pista por cuenta o equipo · " : link.strength === "specific" ? "Identificador específico compartido · " : ""}{link.reasons.join("; ")}</span>
         </li>
       ))}
     </ul>
@@ -95,7 +95,8 @@ function IncidentCard({ incident, report, onOpen, onOpenReport }) {
       <h3>{L.membersTitle}</h3>
       <Members members={incident.members} onOpen={onOpen} />
       <h3>{L.linksTitle}</h3>
-      <Links links={t.group_links} />
+      <figure className="relation-map"><figcaption>Relaciones observadas entre alertas. Compartir un identificador no demuestra un ataque.</figcaption>{(t.group_links || []).slice(0, 12).map(link => <div className="relation-pair" key={`${link.alert_id}:${link.linked_to}`}><button className="btn btn-sm id" type="button" onClick={() => onOpen(link.alert_id)}>{link.alert_id}</button><div className="relation-edge"><svg viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><path d="M0 4H100" stroke="currentColor" strokeWidth="1" strokeDasharray={link.strength === "lead" ? "4 3" : undefined} /></svg><span>{link.strength === "lead" ? "Pista · " : ""}{link.reasons.join("; ")}</span></div><button className="btn btn-sm id" type="button" onClick={() => onOpen(link.linked_to)}>{link.linked_to}</button></div>)}{(t.group_links || []).length > 12 && <p className="hint">Diagrama limitado a 12 relaciones; lista completa a continuación.</p>}</figure>
+      <details className="technical-details"><summary>Lista accesible de todas las relaciones</summary><Links links={t.group_links} onOpen={onOpen} /></details>
     </section>
   );
 }
@@ -147,6 +148,7 @@ export default function Incidents({ onOpen, onOpenReport }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [all, setAll] = useState(false), [query, setQuery] = useState(""), [limit, setLimit] = useState(6);
 
   const load = useCallback(async () => {
     try {
@@ -172,15 +174,15 @@ export default function Incidents({ onOpen, onOpenReport }) {
     }
   }, [load]);
 
-  // The first visit groups straight away if there are triaged alerts and nothing has been grouped yet.
   useEffect(() => {
-    load().then((result) => {
-      if (result && !result.built_at && result.triaged_now > 0) build();
-    });
-  }, [load, build]);
+    load();
+    const timer = setInterval(load, 2000);
+    return () => clearInterval(timer);
+  }, [load]);
 
   if (error && !data) return <ErrorBox message={error} onRetry={load} />;
   if (!data) return <Skeleton rows={6} cols={4} label={L.loading} />;
+  const filtered = data.incidents.filter(i => (all || i.ticket.escalation?.escalate) && `${i.incident_id} ${i.ticket.title} ${i.ticket.alert_ids.join(" ")}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="incidents">
@@ -198,6 +200,7 @@ export default function Incidents({ onOpen, onOpenReport }) {
       </header>
       {error && <ErrorBox message={error} onRetry={load} />}
       <Notice>{L.incidentsIntro}</Notice>
+      <div className="attention-filters"><label className="control">Filtrar incidentes<input type="search" value={query} onChange={e => { setQuery(e.target.value); setLimit(6); }} /></label><label className="choice"><input type="checkbox" checked={all} onChange={e => { setAll(e.target.checked); setLimit(6); }} />Incluir casos sin propuesta de escalado</label><span className="muted">{filtered.length} casos · hasta {limit} visibles</span></div>
       {data.built_at && <p className="hint">{L.builtAt(formatTime(data.built_at), data.alerts)}</p>}
       {data.stale && data.built_at && (
         <Notice kind="warn" role="status">
@@ -207,7 +210,7 @@ export default function Incidents({ onOpen, onOpenReport }) {
       {data.incidents.length === 0 ? (
         <Notice>{data.triaged_now > 0 ? L.incidentsNone : L.incidentsNothingTriaged}</Notice>
       ) : (
-        data.incidents.map((incident) => (
+        filtered.slice(0, limit).map((incident) => (
           <IncidentCard
             key={incident.incident_id}
             incident={incident}
@@ -217,6 +220,8 @@ export default function Incidents({ onOpen, onOpenReport }) {
           />
         ))
       )}
+      {data.incidents.length > 0 && filtered.length === 0 && <Notice>No hay incidentes que coincidan con esta vista.{!all && <button className="link-btn" type="button" onClick={() => setAll(true)}>Incluir casos sin escalado</button>}</Notice>}
+      {filtered.length > limit && <button type="button" className="btn" onClick={() => setLimit(n => n + 6)}>Mostrar más incidentes</button>}
       <Noise rows={data.noise} />
     </div>
   );

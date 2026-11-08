@@ -96,7 +96,7 @@ class AuthorisedBy(BaseModel):
 
 
 class RuleClosure(BaseModel):
-    """Set when a fixed rule in src/agent/rules.py closed the alert and no LLM was called.
+    """Origin of a fixed-rule triage result, with no LLM call; not a final closed disposition.
     Lists every condition that matched, in order, and the event IDs they rely on, so a person can audit it."""
 
     rule_id: str
@@ -112,10 +112,11 @@ class GroupLink(BaseModel):
     alert_id: str
     linked_to: str
     reasons: list[str]
+    strength: Literal["specific", "lead"] | None = None
 
 
 class Ticket(BaseModel):
-    """Follows data/01_contexto/ticket_salida.schema.json. The last six fields are our additions."""
+    """Follows the reference ticket schema, with optional provenance and operational metadata."""
 
     ticket_id: str
     alert_ids: list[str]
@@ -140,6 +141,11 @@ class Ticket(BaseModel):
     merged_into: str | None = None
     group_links: list[GroupLink] = Field(default_factory=list)
     closed_by_rule: RuleClosure | None = None
+    # Operational safety metadata: missing values are unknown, never assumed safe.
+    policy_flags: dict[str, bool | None] | None = None
+    safety_checks: dict[str, bool | None] | None = None
+    analysis_origin: Literal["model", "deterministic"] | None = None
+    model_proposal: dict | None = None
 
 
 class TimelineEvent(BaseModel):

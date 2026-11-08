@@ -154,6 +154,20 @@ def test_good_answer_becomes_a_valid_ticket():
     jsonschema.validate(ticket.model_dump(exclude_none=True), SCHEMA)
 
 
+def test_policy_flags_and_original_proposal_survive_storage_with_unknowns():
+    from src.app.store import Store
+    ticket, events = run(FakeLLM(answer(policy_flags={"persistence": True}, escalate=False)))
+    assert ticket.policy_flags["persistence"] is True
+    assert ticket.policy_flags["economic_fraud"] is None
+    assert ticket.model_proposal == {"verdict": "true_positive", "escalate": False, "severity_adjustments": []}
+    assert ticket.escalation.escalate is True
+    store = Store(":memory:")
+    store.save_ticket(ticket.model_dump(mode="json"), "RUN-SYNTHETIC", ALERT["alert_id"], "real")
+    saved = store.get_ticket(ticket.ticket_id)["ticket"]
+    assert saved["policy_flags"] == ticket.policy_flags
+    assert saved["safety_checks"]["deterministic_eligible"] is False
+
+
 def test_trace_shows_each_lookup_and_ends_with_the_ticket():
     _, events = run(FakeLLM(answer()))
     assert [event.seq for event in events] == list(range(1, len(events) + 1))

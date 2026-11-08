@@ -14,10 +14,33 @@ export function effective(item) {
 
 // none | running | failed | pending (waiting for a person) | decided
 export function stateOf(item) {
+  if (item.job?.status === "pending") return "queued";
   if (!item.run) return "none";
   if (item.run.status === "running") return "running";
   if (item.run.status === "failed") return "failed";
+  if (item.disposition?.state === "review") return "pending";
+  if (item.disposition?.origin === "automation" && item.disposition.state === "closed") return "auto_closed";
+  if (["pending", "running"].includes(item.report_state?.status) || item.correlation_pending) return "running";
   return item.decision ? "decided" : "pending";
+}
+
+export function attentionOf(item) {
+  const state = stateOf(item);
+  if (item.disposition?.sampled_for_review && state === "auto_closed") return "review";
+  if (["pending", "failed"].includes(state)) return "review";
+  if (state === "auto_closed") return "automatic";
+  if (state === "decided") return "human";
+  return "processing";
+}
+
+export function flowStage(item) {
+  if (item.run?.status === "running") return "triage";
+  if (item.job?.status === "pending" || !item.run) return "intake";
+  if (item.correlation_pending) return "correlation";
+  if (["pending", "running"].includes(item.report_state?.status)) return "investigation";
+  if (stateOf(item) === "auto_closed") return "finished";
+  if (["review", "processing"].includes(attentionOf(item))) return "review";
+  return "finished";
 }
 
 export function hasInjection(item) {
@@ -29,10 +52,10 @@ export function filterAndSort(alerts, filters) {
   return alerts
     .filter((a) => !filters.product || a.source_product === filters.product)
     .filter((a) => !filters.severity || (filters.severity === "priority" ? ["critical", "high"].includes(effective(a).severity) : effective(a).severity === filters.severity))
-    .filter((a) => !filters.state || stateOf(a) === filters.state)
+    .filter((a) => !filters.state || (filters.state.startsWith("attention:") ? attentionOf(a) === filters.state.slice(10) : stateOf(a) === filters.state))
     .filter((a) => !filters.injection || hasInjection(a))
     .filter((a) => !q || [a.alert_id, a.rule_name, a.rule_id].some((v) => typeof v === "string" && v.toLowerCase().includes(q)))
-    .sort((a, b) => rank(effective(a).severity) - rank(effective(b).severity) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    .sort((a, b) => ["review", "processing", "automatic", "human"].indexOf(attentionOf(a)) - ["review", "processing", "automatic", "human"].indexOf(attentionOf(b)) || rank(effective(a).severity) - rank(effective(b).severity) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
 export function productsOf(alerts) {
@@ -41,7 +64,7 @@ export function productsOf(alerts) {
 
 // How many alerts are in each state, over the whole queue (not the filtered rows).
 export function countsOf(alerts) {
-  const counts = { none: 0, running: 0, failed: 0, pending: 0, decided: 0, injection: 0 };
+  const counts = { none: 0, queued: 0, running: 0, failed: 0, pending: 0, auto_closed: 0, decided: 0, injection: 0 };
   for (const a of alerts) {
     counts[stateOf(a)] += 1;
     if (hasInjection(a)) counts.injection += 1;
