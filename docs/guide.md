@@ -20,9 +20,9 @@ All three used agent version v8 and the model `ornith`, on 8 Nov 2026, with `AUT
 
 | Run | Started (Madrid) | Code |
 |---|---|---|
-| 1 | 10:20 | `e3db316`, `main` before the automation |
+| 1 | 10:20 | `21a45ed`, `main` before the automation |
 | 2 | 10:22 | `agent/auto-triage` before its UI fixes |
-| 3, recorded for the video | 11:05 | `8ec49b4`, `main` with the automation off |
+| 3, recorded for the video | 11:05 | `94f270d`, `main` with the automation off |
 
 Run 3 took 4 min 14 s with all 10 started together. Its 13 model calls were 9 accepted answers, 3 requests for one more log search and 1 answer rejected by code and asked again. The fixed rule closed `ALR-20261005-000395` with no model call.
 
@@ -32,10 +32,10 @@ To check when the 10 arrived and when the agent last changed, from the repo's ro
 git -C data log -1 --format='%h %ci %s' -- 03_alertas/demo_alertas_comunes.jsonl
 ```
 ```bash
-git log -1 --format='%h %ci %s' 8ec49b4 -- src/agent/prompts.py
+git log -1 --format='%h %ci %s' 94f270d -- src/agent/prompts.py
 ```
 ```bash
-git diff 236012d 8ec49b4 -- src/agent src/tools src/policy contracts
+git diff 3470442 94f270d -- src/agent src/tools src/policy contracts
 ```
 The first prints Deloitte's commit at 09:02:45. The second prints the prompts' last change at 07:18:37. The third shows every agent change between then and the recorded run: the optional automation, SLA targets, a record of the checks kept on the ticket, the policy flags kept on the ticket, and a timezone fix in grouping. None changes how a ticket is decided, and run 1 had none of them.
 
