@@ -10,7 +10,7 @@ import { Affected, EvidenceList, EnrichmentList, InjectionFlags, RuleClosure } f
 
 export default function TriageWorkspace({ alert, detail, run, running, stream, events, live, tab, onTab, targetSeq, onSelectStep, ticketRow, decision, decisions, retrieved, onSaved, onNext, next, onIncidents, onOpenReport }) {
   const ticket = obj(ticketRow?.ticket), ready = Boolean(ticketRow && !running);
-  const trace = { retrieved, complete: stream === "ended", onJump: onSelectStep };
+  const trace = { retrieved, complete: stream === "ended", onJump: onSelectStep, own: new Set(arr(ticket.alert_ids).map(asText)) };
   const flags = arr(ticket.injection_flags).map(obj), messages = events.filter(e => e.type === "note" || e.type === "error");
   const truncated = events.filter(e => e.truncated), escalation = obj(ticket.escalation);
   const quota = quotaState(events, running);
