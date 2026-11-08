@@ -7,8 +7,6 @@ import ChartTooltip, { useChartFocus } from "../dashboard/ChartTooltip.jsx";
 import { DATA_COLORS, WORKFLOW_SERIES, dayComparison, shareLabel } from "../dashboard/interaction.js";
 import { effective, stateOf } from "../queue/model.js";
 import { L, VERDICT, STATE_FILTERS, SEVERITY } from "../labels.js";
-import Flow from "../queue/Flow.jsx";
-import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
 
 const number = value => value.toLocaleString("es-ES");
 const shortDate = value => new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(value));
@@ -86,16 +84,15 @@ function StateChart({ summary, onQueue }) {
     <defs><pattern id="workflow-failed" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="var(--deloitte-sky)" /><path d="M0 6L6 0" stroke="var(--deloitte-navy)" strokeWidth="2" /></pattern></defs><circle cx="75" cy="75" r="59" stroke="var(--deloitte-border)" strokeWidth="14" fill="none" />
     {segments.filter(segment => segment.count > 0).map(segment => <path key={segment.key} className="donut-segment"
       d={arcPath(segment.start + (segment.count < summary.total ? segment.gap : 0), segment.end - (segment.count < summary.total ? segment.gap : 0))} fill="none" stroke={segment.color} strokeWidth="14"
-      role="img" aria-label={`${L[segment.label] || STATE_FILTERS[segment.key]}: ${segment.count}`} />)}
+      role="img" aria-label={`${L[segment.label]}: ${segment.count}`} />)}
     </svg><div className="donut-center"><strong>{number(summary.total)}</strong><span>{L.alertsUnit}</span></div></div>
-    <div className="state-legend">{segments.map(segment => <button key={segment.key} onClick={() => onQueue({ state: segment.key })} className="legend-row"><span className={`key-dot state-swatch-${segment.key}`} style={{ background: segment.key === "failed" ? undefined : segment.color }} /><span>{L[segment.label] || STATE_FILTERS[segment.key]}</span><strong>{number(segment.count)}</strong><span className="legend-share">{shareLabel(segment.count, summary.total)}</span></button>)}</div>
+    <div className="state-legend">{segments.map(segment => <button key={segment.key} onClick={() => onQueue({ state: segment.key })} className="legend-row"><span className={`key-dot state-swatch-${segment.key}`} style={{ background: segment.key === "failed" ? undefined : segment.color }} /><span>{L[segment.label]}</span><strong>{number(segment.count)}</strong><span className="legend-share">{shareLabel(segment.count, summary.total)}</span></button>)}</div>
   </div>;
 }
 
 export default function Dashboard({ onReport, onOpen, onQueue }) {
   const [data, setData] = useState(null), [error, setError] = useState(null), [updated, setUpdated] = useState(null), [refreshing, setRefreshing] = useState(false);
   const interaction = useChartFocus();
-  const [importReport, setImportReport] = useState(null);
   const alive = useRef(false);
   const alertCache = useRef(new Map());
   const [alertDetails, setAlertDetails] = useState({});
@@ -113,26 +110,19 @@ export default function Dashboard({ onReport, onOpen, onQueue }) {
     } catch (problem) { if (alive.current) setError(problem.message); }
     finally { if (alive.current) setRefreshing(false); }
   }, [onReport]);
-  useEffect(() => { alive.current = true; load(); const timer = window.setInterval(load, 2000); return () => { alive.current = false; window.clearInterval(timer); }; }, [load]);
+  useEffect(() => { alive.current = true; load(); const timer = window.setInterval(load, 10000); return () => { alive.current = false; window.clearInterval(timer); }; }, [load]);
   const summary = useMemo(() => dashboardData(data?.alerts), [data]);
-  const [priorityIds, setPriorityIds] = useState([]);
-  const priorityKey = summary.priority.map(row => row.alert_id).join("|");
-  useEffect(() => {
-    if (!interaction.activeKey?.startsWith("alert:")) setPriorityIds(summary.priority.map(row => row.alert_id));
-  }, [priorityKey, interaction.activeKey]);
-  const byId = new Map((data?.alerts || []).map(row => [row.alert_id, row]));
-  const priorityRows = (priorityIds.length ? priorityIds : summary.priority.map(row => row.alert_id)).map(id => byId.get(id)).filter(Boolean);
   const period = summary.timeline.length ? `${shortDate(summary.timeline[0].day)} — ${shortDate(summary.timeline.at(-1).day)}` : L.noPeriod;
   const kpis = [
     { label: L.totalAlerts, value: summary.total, note: `${summary.products.length} ${L.sourcesUnit}`, action: {} },
     { label: L.highPriority, value: summary.high, note: L.highPriorityNote, action: { severity: "priority" }, tone: "focal" },
-    { label: L.pendingReview, value: summary.attention.review, note: `${summary.attention.processing} pendientes o en procesamiento`, action: { state: "attention:review" } },
+    { label: L.pendingReview, value: summary.states.pending, note: `${summary.states.running} ${L.runningUnit}`, action: { state: "pending" } },
     { label: L.resolvedAlerts, value: summary.states.decided, note: `${summary.total ? Math.round(summary.states.decided / summary.total * 100) : 0} % ${L.ofQueue}`, action: { state: "decided" } },
   ];
   // Details are derived on every render, so an open tooltip follows queue updates.
   const details = new Map();
   summary.timeline.forEach((point, i) => details.set(`day:${i}`, { label: fullDate(point.day), value: number(point.count), detail: L.dailyVolumeUtc, comparison: dayComparison(summary.timeline, i) }));
-  priorityRows.forEach(row => {
+  summary.priority.forEach(row => {
     const alert = alertDetails[row.alert_id]?.alert;
     const fields = [[L.colProduct, row.source_product || "—"], [L.colTime, formatTime(row.created_at) || "—"], [L.colState, STATE_FILTERS[stateOf(row)]], [L.filterSeverity, SEVERITY[effective(row).severity] || "—"]];
     if (row.rule_id) fields.push([L.ruleId, row.rule_id]);
@@ -145,14 +135,12 @@ export default function Dashboard({ onReport, onOpen, onQueue }) {
   };
 
   return <div className="dashboard">
-    <header className="page-head dashboard-head"><div><h1>{L.dashboardTitle}</h1></div><div className="page-actions"><ImportButton onDone={load} onReport={setImportReport} /><span className="period-label"><Icon name="calendar" />{period}</span><button className="btn" onClick={load} disabled={refreshing}><Icon name="refresh" />{L.refresh}</button></div></header>
-    <ImportReport report={importReport} onDismiss={() => setImportReport(null)} />
+    <header className="page-head dashboard-head"><div><h1>{L.dashboardTitle}</h1></div><div className="page-actions"><span className="period-label"><Icon name="calendar" />{period}</span><button className="btn" onClick={load} disabled={refreshing}><Icon name="refresh" />{L.refresh}</button></div></header>
     {error && <ErrorBox message={error} onRetry={load} />}
     {!data && !error ? <div className="dashboard-loading"><Skeleton rows={3} cols={4} label={L.loading} /></div> : !data ? null : <>
       <div className="kpi-grid">{kpis.map(kpi => <button key={kpi.label} className={`kpi-card ${kpi.tone || "neutral"}`} onClick={() => onQueue(kpi.action)}><span className="kpi-label">{kpi.label}</span><strong className="kpi-value">{number(kpi.value)}</strong><span className="kpi-note">{kpi.note}</span></button>)}</div>
-      <Flow data={data} onOpen={onOpen} onRefresh={load} connectionError={error} />
       <ChartCard title={L.priorityTitle} detail={L.prioritySubtitle} className="priority-panel" action={<button className="link-btn" onClick={() => onQueue({})}>{L.viewQueue}<Icon name="arrowRight" /></button>}>
-        {priorityRows.length ? <div className="priority-table-wrap"><table className="priority-table"><thead><tr><th>{L.colAlert}</th><th>{L.colRule}</th><th>{L.colProduct}</th><th>{L.filterSeverity}</th><th><span className="visually-hidden">{L.open}</span></th></tr></thead><tbody>{priorityRows.map(row => <tr key={row.alert_id} {...alertBindings(row.alert_id)}><td><button className="id priority-id" onClick={() => onOpen(row.alert_id)}>{row.alert_id}</button></td><td><Clip value={row.rule_name} max={90} /></td><td><span className="source-tag">{row.source_product || "—"}</span></td><td><Severity value={effective(row).severity} /></td><td><button className="btn btn-sm btn-ghost" aria-label={`${L.open} ${row.alert_id}`} onClick={() => onOpen(row.alert_id)}><Icon name="arrowRight" /></button></td></tr>)}</tbody></table></div> : <p className="chart-empty">{L.noPendingAlerts}</p>}
+        {summary.priority.length ? <div className="priority-table-wrap"><table className="priority-table"><thead><tr><th>{L.colAlert}</th><th>{L.colRule}</th><th>{L.colProduct}</th><th>{L.filterSeverity}</th><th><span className="visually-hidden">{L.open}</span></th></tr></thead><tbody>{summary.priority.map(row => <tr key={row.alert_id} {...alertBindings(row.alert_id)}><td><button className="id priority-id" onClick={() => onOpen(row.alert_id)}>{row.alert_id}</button></td><td><Clip value={row.rule_name} max={90} /></td><td><span className="source-tag">{row.source_product || "—"}</span></td><td><Severity value={effective(row).severity} /></td><td><button className="btn btn-sm btn-ghost" aria-label={`${L.open} ${row.alert_id}`} onClick={() => onOpen(row.alert_id)}><Icon name="arrowRight" /></button></td></tr>)}</tbody></table></div> : <p className="chart-empty">{L.noPendingAlerts}</p>}
       </ChartCard>
       <div className="dashboard-main-grid">
         <ChartCard title={L.timelineTitle} detail={L.byAlertDate} className="timeline-panel"><Timeline points={summary.timeline} interaction={interaction} /></ChartCard>

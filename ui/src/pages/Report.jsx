@@ -46,19 +46,17 @@ function EventId({ id, retrieved, onJump }) {
   );
 }
 
-function TimelineStep({ step, previous, retrieved, onJump }) {
+function TimelineStep({ step, retrieved, onJump }) {
   const s = obj(step);
   const utc = datePart(s.timestamp);
   const madrid = datePart(s.timestamp_madrid);
   const linked = arr(s.linked_by_alerts);
   const similar = arr(s.similar_event_ids);
   const found = linked.length === 0;
-  const gap = previous ? Date.parse(s.timestamp) - Date.parse(obj(previous).timestamp) : null;
   return (
     <li className={`tl-step${found ? " is-found" : ""}`}>
       <div className="tl-time num">
-        <span>{utc.time ? `${utc.time} UTC` : "Fecha no disponible"}</span>
-        {Number.isFinite(gap) && gap >= 3600000 && <span className="muted">{(gap / 3600000).toLocaleString("es-ES", { maximumFractionDigits: 1 })} h desde el evento anterior</span>}
+        <span>{utc.time} UTC</span>
         {madrid.time && (
           <span className="muted">
             {madrid.time} {L.timelineMadrid}
@@ -77,7 +75,11 @@ function TimelineStep({ step, previous, retrieved, onJump }) {
           ) : (
             <span className="muted tl-linked">{L.timelineLinked(linked.join(", "))}</span>
           )}
-          <span className="muted">{s.added_by === "code" ? "Seleccionado por código" : s.added_by === "llm" ? "Seleccionado por el modelo" : "Selección sin procedencia registrada"}</span>
+          {s.added_by === "code" && (
+            <Chip kind="code" title={L.timelineByCodeHelp}>
+              {L.timelineByCode}
+            </Chip>
+          )}
         </div>
         <p className="tl-desc prose">{asText(s.description)}</p>
         {similar.length > 0 && (
@@ -94,10 +96,7 @@ function TimelineStep({ step, previous, retrieved, onJump }) {
 // Grouped by day, because incidents last days. Order and times come from the logs.
 function Timeline({ steps, retrieved, onJump }) {
   const days = [];
-  const timeOf = step => { const time = Date.parse(obj(step).timestamp); return Number.isFinite(time) ? time : Infinity; };
-  const ordered = [...arr(steps)].sort((a, b) => timeOf(a) - timeOf(b));
-  const previous = new Map(ordered.map((step, index) => [step, ordered[index - 1]]));
-  for (const step of ordered) {
+  for (const step of arr(steps)) {
     const day = datePart(obj(step).timestamp).day || "—";
     if (!days.length || days[days.length - 1].day !== day) days.push({ day, steps: [] });
     days[days.length - 1].steps.push(step);
@@ -110,7 +109,7 @@ function Timeline({ steps, retrieved, onJump }) {
           <h4 className="tl-date num">{d.day}</h4>
           <ol className="tl-list">
             {d.steps.map((step, i) => (
-              <TimelineStep key={`${obj(step).event_id}-${i}`} step={step} previous={previous.get(step)} retrieved={retrieved} onJump={onJump} />
+              <TimelineStep key={`${obj(step).event_id}-${i}`} step={step} retrieved={retrieved} onJump={onJump} />
             ))}
           </ol>
         </section>
@@ -238,8 +237,6 @@ export default function Report({ reportKey, onBack }) {
 
   useEffect(() => {
     load();
-    const timer = setInterval(load, 2000);
-    return () => clearInterval(timer);
   }, [load]);
 
   const run = data ? data.latest_run : null;
@@ -257,7 +254,7 @@ export default function Report({ reportKey, onBack }) {
     if (data && data.report && !window.confirm(L.reportRerunConfirm)) return;
     setStarting(true);
     try {
-      await api.investigate(reportKey, Boolean(data?.report));
+      await api.investigate(reportKey);
       setTab("activity");
       await load();
     } catch (e) {
@@ -369,7 +366,6 @@ export default function Report({ reportKey, onBack }) {
       </section>
 
       <div className="triage-notices">
-        {data.state?.stale && <p className="compact-notice" role="status"><strong>Informe desactualizado.</strong> La evidencia cambió desde su preparación. Consulta el estado de la nueva investigación antes de decidir.</p>}
         {run && run.status === "failed" && (
           <p className="compact-notice" role="alert">
             <strong>{L.reportFailedTitle}</strong> {asText(run.error)}
@@ -437,8 +433,8 @@ export default function Report({ reportKey, onBack }) {
                 </div>
                 <aside className="analysis-facts" aria-label={L.details}>
                   <dl className="kv reading-metadata">
-                    <Field label={L.reportForIncident}>
-                      <code className="id">{asText(report.incident_id) || L.na}</code>
+                    <Field label={subject?.kind === "ticket" ? L.reportForTicket : L.reportForIncident}>
+                      <code className="id">{subject?.kind === "ticket" ? asText(subject.key) : asText(report.incident_id) || L.na}</code>
                     </Field>
                     <Field label={L.reportAlerts}>
                       <Ids ids={report.alert_ids} />

@@ -21,14 +21,6 @@ sys.path.insert(0, str(ROOT))
 DATA_DIRS = ["01_contexto", "02_inventario", "03_alertas", "04_logs", "05_inteligencia"]
 
 
-@pytest.fixture(autouse=True)
-def manual_defaults_for_existing_tests(monkeypatch):
-    """Legacy tests exercise manual routes. Automation tests opt in with an explicit Config."""
-    monkeypatch.setenv("AUTO_TRIAGE", "0")
-    monkeypatch.setenv("AUTO_INVESTIGATE", "0")
-    monkeypatch.setenv("AUTO_CLOSE_LOW_RISK", "0")
-
-
 def _free_port():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))

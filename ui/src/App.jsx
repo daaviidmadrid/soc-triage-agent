@@ -4,19 +4,21 @@ import Queue from "./pages/Queue.jsx";
 import Report from "./pages/Report.jsx";
 import Ticket from "./pages/Ticket.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import Operations from "./pages/Operations.jsx";
 import Icon from "./icons.jsx";
 import { useMotionInput, useSelectionIndicator, useWorkspaceMotion } from "./motion.js";
 import { api } from "./api.js";
-import { L } from "./labels.js";
-import { filtersFromQuery, nextPendingId, queueHash } from "./queue/model.js";
+import { L, setSlaTargets } from "./labels.js";
+import { EMPTY_FILTERS, filtersFromQuery, nextPendingId, queueHash } from "./queue/model.js";
 
-// Five screens and no router: "#/" with no filters or "#/dashboard" shows the dashboard, "#/alerta/<id>" opens an alert,
+// Six screens and no router: "#/" with no filters or "#/dashboard" shows the dashboard, "#/alerta/<id>" opens an alert,
 // "#/incidentes" shows the incidents (level 2), "#/informe/<key>" the report of an incident or escalated ticket (level 3),
-// and "#/?estado=…" shows the queue with its filters.
+// "#/operacion" the automation and its status, and "#/?estado=…" shows the queue with its filters.
 function readRoute() {
   const hash = window.location.hash;
   if (!hash || hash === "#" || hash === "#/dashboard") return { view: "dashboard", alertId: null, query: "" };
   if (hash === "#/incidentes") return { view: "incidents", alertId: null, query: "" };
+  if (hash === "#/operacion") return { view: "operations", alertId: null, query: "" };
   const r = hash.match(/^#\/informe\/(.+)$/);
   if (r) {
     try {
@@ -54,6 +56,11 @@ export default function App() {
   const [exampleOnScreen, setExampleOnScreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [, setSlaLoaded] = useState(false);
+  // The SLA targets come from the backend, once. Without them the screens still show every alert.
+  useEffect(() => {
+    api.slaTargets().then((data) => { setSlaTargets(data.targets); setSlaLoaded(true); }).catch(() => {});
+  }, []);
   const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 700px)").matches);
   const sidebar = useRef(null), nav = useRef(null), workspace = useRef(null);
   useMotionInput();
@@ -78,7 +85,7 @@ export default function App() {
   const returnTo = useRef({ scrollY: 0, alertId: null });
   const firstRender = useRef(true);
   const alertId = route.alertId;
-  const screenTitle = alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : route.view === "incidents" ? L.incidentsTitle : route.view === "report" ? `${L.reportTitle} ${route.reportKey}` : L.queueTitle;
+  const screenTitle = alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : route.view === "incidents" ? L.incidentsTitle : route.view === "operations" ? L.operationsTitle : route.view === "report" ? `${L.reportTitle} ${route.reportKey}` : L.queueTitle;
 
   useEffect(() => {
     const onHash = () => {
@@ -163,18 +170,19 @@ export default function App() {
   }, []);
 
   const showQueue = useCallback((patch = {}) => {
-    const next = { q: "", product: "", severity: "", state: "", injection: false, ...patch };
+    const next = { ...EMPTY_FILTERS, ...patch };
     setFilters(next);
     window.location.hash = queueHash(next);
     setMenuOpen(false);
     window.scrollTo(0, 0);
   }, []);
-  const current = route.view === "dashboard" || route.view === "incidents" ? route.view : route.view === "report" ? "incidents" : alertId ? "queue" : ["pending", "attention:review"].includes(filters.state) ? "review" : ["decided", "attention:human"].includes(filters.state) ? "resolved" : "queue";
+  const current = route.view === "dashboard" || route.view === "incidents" || route.view === "operations" ? route.view : route.view === "report" ? "incidents" : alertId ? "queue" : filters.state === "pending" ? "review" : filters.state === "decided" ? "resolved" : "queue";
   const navigation = [
     { id: "dashboard", icon: "dashboard", label: L.navDashboard, href: "#/dashboard" },
+    { id: "operations", icon: "trend", label: L.navOperations, href: "#/operacion" },
     { id: "queue", icon: "queue", label: L.navAlerts, filters: {} },
-    { id: "review", icon: "review", label: L.navReview, filters: { state: "attention:review" } },
-    { id: "resolved", icon: "archive", label: L.navResolved, filters: { state: "attention:human" } },
+    { id: "review", icon: "review", label: L.navReview, filters: { state: "pending" } },
+    { id: "resolved", icon: "archive", label: L.navResolved, filters: { state: "decided" } },
     { id: "incidents", icon: "incidents", label: L.navIncidents, href: "#/incidentes" },
   ];
 
@@ -189,7 +197,7 @@ export default function App() {
       <aside className="sidebar" id="main-navigation" ref={sidebar} inert={mobile && !menuOpen} role={mobile && menuOpen ? "dialog" : undefined} aria-modal={mobile && menuOpen ? true : undefined} aria-label={L.navLabel}>
         <button className="btn sidebar-close" aria-label={L.closeMenu} onClick={closeMenu}><Icon name="cross" /></button>
         <a className="console-brand" href="#/dashboard" onClick={() => { if (mobile && menuOpen) restoreMenuFocus.current = "main"; setMenuOpen(false); }} aria-label="Tarvia · Operaciones de seguridad"><span className="console-mark"><Icon name="shield" /></span><span className="brand-name">Tarvia</span></a>
-        <nav aria-label={L.navLabel} ref={nav}>{navigationStyle && <span className="navigation-indicator" aria-hidden="true" style={navigationStyle} />}{navigation.map(item => <a key={item.id} href={item.href || queueHash({ q: "", product: "", severity: "", state: "", injection: false, ...item.filters })} className={`sidebar-link${current === item.id ? " selected" : ""}`} aria-label={item.label} aria-current={current === item.id ? "page" : undefined} onClick={event => { if (mobile && menuOpen) restoreMenuFocus.current = "main"; if (item.filters) { event.preventDefault(); showQueue(item.filters); } else setMenuOpen(false); }}><Icon name={item.icon} /><span className="nav-label">{item.label}</span></a>)}</nav>
+        <nav aria-label={L.navLabel} ref={nav}>{navigationStyle && <span className="navigation-indicator" aria-hidden="true" style={navigationStyle} />}{navigation.map(item => <a key={item.id} href={item.href || queueHash({ ...EMPTY_FILTERS, ...item.filters })} className={`sidebar-link${current === item.id ? " selected" : ""}`} aria-label={item.label} aria-current={current === item.id ? "page" : undefined} onClick={event => { if (mobile && menuOpen) restoreMenuFocus.current = "main"; if (item.filters) { event.preventDefault(); showQueue(item.filters); } else setMenuOpen(false); }}><Icon name={item.icon} /><span className="nav-label">{item.label}</span></a>)}</nav>
       </aside>
       {mobile && menuOpen && <button className="menu-scrim" tabIndex={-1} aria-label={L.closeMenu} onClick={closeMenu} />}
       <div className="console-workspace" ref={workspace} inert={mobile && menuOpen}>
@@ -205,6 +213,8 @@ export default function App() {
           <Report key={route.reportKey} reportKey={route.reportKey} onBack={openIncidents} />
         ) : route.view === "incidents" ? (
           <Incidents onOpen={openAlert} onOpenReport={openReport} />
+        ) : route.view === "operations" ? (
+          <Operations onOpen={openAlert} onQueue={showQueue} onReport={report} />
         ) : (
           <Queue onOpen={openAlert} onReport={report} filters={filters} setFilters={setFilters} returnTo={returnTo.current} />
         )}

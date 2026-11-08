@@ -11,7 +11,7 @@ const STAGES = [
   { key: "proposal", name: L.stageProposal, target: "sec-proposal" },
   { key: "person", name: L.stagePerson, target: "sec-decision" },
 ];
-const STAGE_TEXT = { done: L.stageDone, active: L.stageActive, waiting: L.stageWaiting, todo: L.stageTodo, failed: L.stageFailed, omitted: "No requerida" };
+const STAGE_TEXT = { done: L.stageDone, active: L.stageActive, waiting: L.stageWaiting, todo: L.stageTodo, failed: L.stageFailed };
 
 // done | active | waiting | todo | failed, for each of the four stages.
 export function stageStates({ run, events, ticket, decided, fallback }) {
@@ -72,11 +72,13 @@ export function Fact({ label, children }) {
   );
 }
 
-function Running({ run, now, ruleSeverity }) {
+function Running({ run, now, ruleSeverity, record }) {
   const started = Date.parse(run.started_at);
   const seconds = isFinite(started) ? (now - started) / 1000 : null;
   const sla = SLA[ruleSeverity];
-  const over = sla && sla.seconds !== null && seconds !== null && seconds > sla.seconds;
+  // Against the server's deadline, which runs from when the alert entered the app, not from when this run began.
+  const deadline = record && record.deadline ? Date.parse(record.deadline) : NaN;
+  const over = isFinite(deadline) ? now > deadline : sla && sla.seconds !== null && seconds !== null && seconds > sla.seconds;
   return (
     <div className="bar-running">
       <span className="running">
@@ -129,7 +131,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
   const authorTag = byCode ? L.tagCode : L.tagLlm;
   const authorKind = byCode ? "code" : "llm";
   const changed = decision && decision.decision !== "accept" && proposal && decision.outcome !== proposal;
-  const automatic = ticketRow.disposition?.origin === "automation" && ticketRow.disposition.state === "closed";
+  const autoClosed = ticket.auto_closed === true && !decision;
 
   return (
     <>
@@ -152,12 +154,14 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
             <NA />
           )}
         </Fact>
-        <Fact tag={L.tagPerson} kind="person" label="Disposición final">
-          {automatic ? <strong>Cierre automático · {ticketRow.disposition.rule}</strong> : decision ? (
+        <Fact tag={L.tagPerson} kind="person" label={L.stagePerson}>
+          {decision ? (
             <span className="decided-line">
               <strong className="ok">{L.barDecided(OUTCOME[decision.outcome] || asText(decision.outcome), asText(decision.analyst))}</strong>
               {changed && <span className="sub">{L.barChanged(OUTCOME[proposal], OUTCOME[decision.outcome] || asText(decision.outcome))}</span>}
             </span>
+          ) : autoClosed ? (
+            <strong title={L.autoClosedHelp}>{L.autoClosed}</strong>
           ) : (
             <strong className="waiting with-icon">
               <Icon name="pause" />
@@ -172,7 +176,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
             {next.busy ? L.nextSearching : L.nextPending}
             <Icon name="arrowRight" />
           </button>
-        ) : (
+        ) : autoClosed ? null : (
           <button type="button" className="btn btn-primary" onClick={() => onGo("sec-decision")}>
             {L.barDecide}
           </button>
@@ -199,8 +203,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
 export default function DecisionBar(props) {
   const { run, ticketRow, decision, events, running, fallback, finished, now, ruleSeverity, starting, onStart, onGo, onReviewByHand, onNext, next } = props;
   const ticket = ticketRow && !running ? obj(ticketRow.ticket) : null;
-  const states = stageStates({ run, events, ticket, decided: Boolean(decision && decision.outcome !== "reopen"), fallback });
-  if (ticketRow?.disposition?.origin === "automation" && ticketRow.disposition.state === "closed") states[3] = "omitted";
+  const states = stageStates({ run, events, ticket, decided: Boolean(decision), fallback });
   const available = (id) => (id === "steps-title" ? Boolean(run) : Boolean(ticket));
 
   return (
@@ -209,13 +212,13 @@ export default function DecisionBar(props) {
       <div className="bar-body">
         {!run && (
           <div className="bar-actions">
-            <span>{props.queued ? "En cola: se procesará según su prioridad." : props.waitingForFlow ? "Alerta preparada. Inicia el flujo para procesar la cola." : L.barNoRun}</span>
-            {!props.queued && <button type="button" className="btn btn-primary" onClick={onStart} disabled={starting}>
-              {starting ? L.starting : props.waitingForFlow ? "Iniciar flujo" : L.triage}
-            </button>}
+            <span>{L.barNoRun}</span>
+            <button type="button" className="btn btn-primary" onClick={onStart} disabled={starting}>
+              {starting ? L.starting : L.triage}
+            </button>
           </div>
         )}
-        {running && <Running run={run} now={now} ruleSeverity={ruleSeverity} />}
+        {running && <Running run={run} now={now} ruleSeverity={ruleSeverity} record={props.sla} />}
         {run && run.status === "failed" && <Failed run={run} starting={starting} onStart={onStart} onReviewByHand={onReviewByHand} />}
         {ticket && run && run.status === "done" && (
           <Summary compact={props.compact} ticketRow={ticketRow} decision={decision} fallback={fallback} next={next} onGo={onGo} onNext={onNext} />

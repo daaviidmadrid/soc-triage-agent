@@ -9,7 +9,7 @@ import { DECISION, L, OUTCOME } from "../labels.js";
 
 const ANALYST_KEY = "tarvia.analyst";
 
-function rememberedName() {
+export function rememberedName() {
   try {
     return window.localStorage.getItem(ANALYST_KEY) || "";
   } catch {
@@ -17,7 +17,7 @@ function rememberedName() {
   }
 }
 
-function rememberName(name) {
+export function rememberName(name) {
   try {
     window.localStorage.setItem(ANALYST_KEY, name);
   } catch {
@@ -29,16 +29,13 @@ function DecisionForm({ ticketRow, onSaved, onCancel }) {
   const escalation = obj(obj(ticketRow.ticket).escalation);
   const escalate = escalation.escalate;
   const proposal = escalate === true ? "escalate" : escalate === false ? "close" : null;
-  const draftKey = `tarvia.resolution.v1:${ticketRow.run_id}`;
-  const [draft] = useState(() => { try { return JSON.parse(sessionStorage.getItem(draftKey)) || {}; } catch { return {}; } });
-  const [analyst, setAnalyst] = useState(draft.analyst || rememberedName);
-  const [choice, setChoice] = useState(draft.choice || (proposal ? "accept" : "escalate"));
-  const [reason, setReason] = useState(draft.reason || "");
-  useEffect(() => { try { sessionStorage.setItem(draftKey, JSON.stringify({ analyst, choice, reason })); } catch { /* private browsing */ } }, [draftKey, analyst, choice, reason]);
+  const [analyst, setAnalyst] = useState(rememberedName);
+  const [choice, setChoice] = useState(proposal ? "accept" : "escalate");
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  const options = [...(proposal
+  const options = proposal
     ? [
         ["accept", L.decisionAccept(OUTCOME[proposal], proposal === "escalate" && !isBlank(escalation.to) ? asText(escalation.to) : "")],
         proposal === "escalate" ? ["close", L.decisionClose] : ["escalate", L.decisionEscalate],
@@ -46,7 +43,7 @@ function DecisionForm({ ticketRow, onSaved, onCancel }) {
     : [
         ["close", L.decisionClose],
         ["escalate", L.decisionEscalate],
-      ]), ["reopen", "Reabrir para revisión"]];
+      ];
 
   async function submit(event) {
     event.preventDefault();
@@ -58,7 +55,6 @@ function DecisionForm({ ticketRow, onSaved, onCancel }) {
       rememberName(analyst.trim());
       await api.decide(ticketRow.ticket_id, { analyst: analyst.trim(), decision: choice, reason: reason.trim(), run_id: ticketRow.run_id });
       setReason("");
-      try { sessionStorage.removeItem(draftKey); } catch { /* private browsing */ }
       await onSaved();
     } catch (e) {
       setError(e.message);
