@@ -19,6 +19,35 @@
         "cd /Users/francescotedesco/Projects/uab-the-hack-2026-deloitte/.claude/worktrees/agent-rules/ui && API_PROXY_TARGET=http://localhost:8021 exec npx vite --port 5175 --strictPort"
       ],
       "port": 5175
+    },
+    {
+      "name": "demo-mock",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /private/tmp/claude-501/-Users-francescotedesco--claude-spares-spare-T9T5h5/d17a6417-a094-4a29-9054-e97ad075a9c8/scratchpad/mock/06_herramientas && exec /Users/francescotedesco/Projects/uab-the-hack-2026-deloitte/.venv/bin/uvicorn --app-dir . mock_soc_api:app --port 8041 --log-level warning"
+      ],
+      "port": 8041,
+      "url": "http://localhost:8041"
+    },
+    {
+      "name": "demo-backend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/francescotedesco/Projects/uab-the-hack-2026-deloitte && TRIAGE_MODE=real AUTO_TRIAGE=1 APP_SAMPLE=none APP_DB_PATH=runs/demo10.sqlite3 APP_CALL_LOG_DIR=runs/demo10_calls MOCK_API_URL=http://localhost:8000 exec .venv/bin/uvicorn src.app.main:app --port 8042"
+      ],
+      "port": 8042,
+      "url": "http://localhost:8042"
+    },
+    {
+      "name": "demo-ui",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/francescotedesco/Projects/uab-the-hack-2026-deloitte/ui && API_PROXY_TARGET=http://localhost:8042 exec npx vite --port 5178 --strictPort"
+      ],
+      "port": 5178
     }
   ]
 }
