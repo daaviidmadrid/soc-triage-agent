@@ -1,10 +1,26 @@
-# Deloitte_Challenge_UAB_THE_HACK_2026
-## Authors: 
-- David
-- Alex
-- Francesco
+# Tarvia SOC Triage Agent
 
-AI triage for the SOC of Tarvia, a fictional retailer. Plain code gathers and checks the facts, the LLM judges, and a person decides. The LLM never approves or runs containment.
+By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026.
+
+## The agent
+An AI agent for the security team (SOC) of Tarvia, a fictional retailer. Given an alert, it looks up the facts, works out what happened, and writes a ticket with its evidence. Then it closes the alert or escalates it to a person.
+
+**Plain code gathers and checks the facts, the LLM judges, and a person decides. The LLM never approves or runs containment.**
+
+It covers all four levels of the challenge:
+1. **Triage:** one ticket per alert, with a verdict, a severity, the evidence, and close or escalate.
+2. **Judgement:** groups the alerts of one attack into a single incident.
+3. **Investigation:** an incident report with a timeline of the attack.
+4. **Response:** containment proposals that named people approve and run, on a simulated API.
+
+What makes it different:
+- **It treats the data as untrusted.** Attackers wrote some of it, so nothing in an alert or a log is ever an instruction. Suspicious text on anything but an attack sends the ticket to a person.
+- **Code checks every answer it can.** Cited events must exist in the logs, approvals must match a real change, and code computes the final severity from Tarvia's policy.
+- **When in doubt, it asks a person.** With no data to close on, or if the model is down, the ticket goes to a person and can never close by itself.
+- **It sees a whole phishing campaign.** Code fetches what happened to the other recipients, which caught 2 attacks every earlier version missed.
+- **It closes known noise without the LLM.** Two fixed rules close 43% of all alerts in about a second each, and a rule never escalates.
+
+With v8's settings, it got 77 and 76 of 80 practice alerts fully right in two runs and missed no attack, at about 2.5 minutes per model call. Claude drafted the answer key and we reviewed the 20 answers it was least sure of. Those alerts were also used to tune the agent, so these figures are optimistic ([Agent versions](#agent-versions)).
 
 ## How it works
 
@@ -39,7 +55,7 @@ If triage fails, for example because the model is down, the ticket is `needs_mor
 | Approving and running containment | People |
 
 ### How we build the agent
-The analysis came first. Each trap it found became a rule in code with unit tests. The answer keys were written before any run, without seeing the agent's answers. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
+The analysis came first. Each trap it found became a rule in code with unit tests. Claude drafted the answer keys before any run, without seeing the agent's answers, and we reviewed the 20 answers it was least sure of, changing none. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
 
 ![How we build the agent: groundwork once, then rounds on the 80 practice alerts, then a frozen version scored once.](docs/figures/build_loop.svg)
 
@@ -50,7 +66,7 @@ Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/age
 
 ![Agent versions v2 to v8, what each one changed, and their scores on the 80 practice alerts, with reasoning on and off.](docs/figures/versions.svg)
 
-Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one, and fully right means verdict, severity and escalation all match. They're marked against an answer key that AI drafted and no person has reviewed yet, on the same alerts used to choose the changes, so they're optimistic. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
+Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one, and fully right means verdict, severity and escalation all match. They're marked against an answer key that Claude drafted, on the same alerts used to choose the changes, so they're optimistic. David, Alex and Francesco reviewed the 20 of its 120 answers it was least sure of, before seeing any results, and changed none. The other 100 aren't reviewed, so the scores measure agreement with the key, not the truth. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
 
 What the night showed:
 - **The campaign context fixes the 2 attacks every earlier version missed:** phishing reports that only matter because a colleague gave away a login. No round with it missed an attack, on either set.
