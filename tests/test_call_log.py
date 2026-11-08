@@ -15,7 +15,8 @@ from src.agent.triage import run_triage
 from src.app import runner
 
 ROOT = Path(__file__).resolve().parents[1]
-ALERT = {"alert_id": "ALR-LOG-1", "rule_id": "UC-EDR-002", "severity": "medium", "created_at": "2026-10-05T07:56:30.000Z",
+# A detection rule with no fixed rule in src/agent/rules.py, so these alerts always reach the model.
+ALERT = {"alert_id": "ALR-LOG-1", "rule_id": "UC-EDR-001", "severity": "medium", "created_at": "2026-10-05T07:56:30.000Z",
          "entities": {"hosts": [{"hostname": "WS-1"}]}, "related_events": ["EVT-1"], "runbook": "RB-02"}
 CONTEXT = {"alert": ALERT, "criticality": "Media", "criticality_source": "asset", "users": [], "assets": [], "changes": [],
            "logs": [{"source": "proxy", "event_id": "EVT-1", "text": "fila"}], "truncated_sources": []}

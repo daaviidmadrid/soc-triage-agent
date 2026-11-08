@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Incidents from "./pages/Incidents.jsx";
 import Queue from "./pages/Queue.jsx";
+import Report from "./pages/Report.jsx";
 import Ticket from "./pages/Ticket.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Icon from "./icons.jsx";
@@ -9,12 +10,21 @@ import { api } from "./api.js";
 import { L } from "./labels.js";
 import { filtersFromQuery, nextPendingId, queueHash } from "./queue/model.js";
 
-// Four screens and no router: "#/" with no filters or "#/dashboard" shows the dashboard, "#/alerta/<id>" opens an alert,
-// "#/incidentes" shows the incidents (level 2), and "#/?estado=…" shows the queue with its filters.
+// Five screens and no router: "#/" with no filters or "#/dashboard" shows the dashboard, "#/alerta/<id>" opens an alert,
+// "#/incidentes" shows the incidents (level 2), "#/informe/<key>" the report of an incident or escalated ticket (level 3),
+// and "#/?estado=…" shows the queue with its filters.
 function readRoute() {
   const hash = window.location.hash;
   if (!hash || hash === "#" || hash === "#/dashboard") return { view: "dashboard", alertId: null, query: "" };
   if (hash === "#/incidentes") return { view: "incidents", alertId: null, query: "" };
+  const r = hash.match(/^#\/informe\/(.+)$/);
+  if (r) {
+    try {
+      return { view: "report", alertId: null, query: "", reportKey: decodeURIComponent(r[1]) };
+    } catch {
+      return { view: "incidents", alertId: null, query: "" };
+    }
+  }
   const m = hash.match(/^#\/alerta\/(.+)$/);
   if (m) {
     try {
@@ -68,7 +78,7 @@ export default function App() {
   const returnTo = useRef({ scrollY: 0, alertId: null });
   const firstRender = useRef(true);
   const alertId = route.alertId;
-  const screenTitle = alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : route.view === "incidents" ? L.incidentsTitle : L.queueTitle;
+  const screenTitle = alertId ? L.alertTitle : route.view === "dashboard" ? L.dashboardTitle : route.view === "incidents" ? L.incidentsTitle : route.view === "report" ? `${L.reportTitle} ${route.reportKey}` : L.queueTitle;
 
   useEffect(() => {
     const onHash = () => {
@@ -131,6 +141,9 @@ export default function App() {
   const openIncidents = useCallback(() => {
     window.location.hash = "#/incidentes";
   }, []);
+  const openReport = useCallback((key) => {
+    window.location.hash = `#/informe/${encodeURIComponent(key)}`;
+  }, []);
   // After a decision: the next alert nobody has decided, in the queue's order and with the analyst's filters.
   const openNext = useCallback(
     async (currentId) => {
@@ -156,7 +169,7 @@ export default function App() {
     setMenuOpen(false);
     window.scrollTo(0, 0);
   }, []);
-  const current = route.view === "dashboard" || route.view === "incidents" ? route.view : alertId ? "queue" : filters.state === "pending" ? "review" : filters.state === "decided" ? "resolved" : "queue";
+  const current = route.view === "dashboard" || route.view === "incidents" ? route.view : route.view === "report" ? "incidents" : alertId ? "queue" : filters.state === "pending" ? "review" : filters.state === "decided" ? "resolved" : "queue";
   const navigation = [
     { id: "dashboard", icon: "dashboard", label: L.navDashboard, href: "#/dashboard" },
     { id: "queue", icon: "queue", label: L.navAlerts, filters: {} },
@@ -187,9 +200,11 @@ export default function App() {
         {(mode === "example" || exampleOnScreen) && <ExampleBanner mode={mode} />}
         <main className="content" id="main" ref={main} tabIndex={-1}>
         {route.view === "dashboard" ? <Dashboard onOpen={openAlert} onQueue={showQueue} onReport={report} /> : alertId ? (
-          <Ticket key={alertId} alertId={alertId} onBack={openQueue} onNext={openNext} onReport={report} onIncidents={openIncidents} />
+          <Ticket key={alertId} alertId={alertId} onBack={openQueue} onNext={openNext} onReport={report} onIncidents={openIncidents} onOpenReport={openReport} />
+        ) : route.view === "report" ? (
+          <Report key={route.reportKey} reportKey={route.reportKey} onBack={openIncidents} />
         ) : route.view === "incidents" ? (
-          <Incidents onOpen={openAlert} />
+          <Incidents onOpen={openAlert} onOpenReport={openReport} />
         ) : (
           <Queue onOpen={openAlert} onReport={report} filters={filters} setFilters={setFilters} returnTo={returnTo.current} />
         )}

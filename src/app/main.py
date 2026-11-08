@@ -2,9 +2,10 @@
 
 Alert and ticket text may be written by attackers. It is stored and returned as plain data,
 and nothing here acts on it. The LLM never approves or runs containment. The containment
-routes build proposals with plain code (src/policy/containment.py), record each person's
-approval, and call the mock only when a person clicks run after every required role has
-approved. A person's decision on a ticket is only recorded.
+routes build proposals with plain code (src/policy/containment.py), from a ticket's suggestions
+or an incident report's proposed steps, record each person's approval, and call the mock only
+when a person clicks run after every required role has approved. A person's decision on a ticket
+is only recorded.
 """
 import asyncio
 import json
@@ -23,7 +24,7 @@ from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
 from src.agent.correlate import correlate
 from src.app.store import Store, now_iso
-from src.policy.containment import ApprovalProblem, approve, approver_record, propose, ready_to_run
+from src.policy.containment import ApprovalProblem, approve, approver_record, proposals_from_steps, propose, ready_to_run
 from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
 from contracts.models import ActionProposal
@@ -74,11 +75,12 @@ class DecisionIn(BaseModel):
     run_id: str | None = Field(default=None, max_length=100)
 
 
-def create_app(db_path=None, sample_path=None, run_fn=None):
-    """db_path, sample_path and run_fn are arguments so tests can use a temporary database and fake runs."""
+def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None):
+    """db_path, sample_path, run_fn and report_fn are arguments so tests can use a temporary database and fake runs."""
     store = Store(db_path or os.environ.get("APP_DB_PATH") or DEFAULT_DB)
     store.mark_interrupted_runs()
     run_fn = run_fn or runner.run_triage
+    report_fn = report_fn or runner.run_investigation
     # APP_SAMPLE=none starts with an empty queue, so it holds only the alerts you import.
     sample_setting = sample_path or os.environ.get("APP_SAMPLE") or DEFAULT_SAMPLE
     if str(sample_setting).lower() == "none":
@@ -130,6 +132,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
             "severity": _severity(ticket.get("severity")),
             "proposed": "escalate" if escalate is True else "close" if escalate is False else None,
             "injection_flags": len(ticket.get("injection_flags") or []) if isinstance(ticket.get("injection_flags"), list) else 0,
+            # The fixed rule that closed it without the LLM (src/agent/rules.py), or None.
+            "closed_by_rule": _text(ticket["closed_by_rule"].get("rule_id")) if isinstance(ticket.get("closed_by_rule"), dict) else None,
             "triage_seconds": run.get("duration_seconds") if run else None,
         }
 
@@ -152,6 +156,44 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
     def memberships():
         latest = store.latest_correlation()
         return latest.get("memberships", {}) if latest else {}
+
+    def latest_ticket(alert_id, runs=None):
+        runs = store.latest_runs() if runs is None else runs
+        run = runs.get(alert_id)
+        return store.ticket_for_run(run["run_id"]) if run else None
+
+    def is_escalated(ticket):
+        escalation = ticket.get("escalation") if isinstance(ticket, dict) and isinstance(ticket.get("escalation"), dict) else {}
+        return escalation.get("escalate") is True
+
+    def report_subject(key):
+        """What a report key names: an incident from the latest grouping, or one ticket. None if neither.
+        Only tickets from the real agent go to the investigation as leads; example tickets are made up."""
+        latest = store.latest_correlation() or {}
+        incident = next((i for i in latest.get("incidents", []) if i.get("incident_id") == key), None)
+        if incident:
+            runs = store.latest_runs()
+            alert_ids = [m["alert_id"] for m in incident.get("members", [])]
+            rows = [latest_ticket(alert_id, runs) for alert_id in alert_ids]
+            ticket = incident.get("ticket") or {}
+            return {"key": key, "kind": "incident", "incident_id": key, "title": _text(ticket.get("title")),
+                    "alert_ids": alert_ids, "escalated": is_escalated(ticket),
+                    "tickets": [r["ticket"] for r in rows if r and r["mode"] == "real"]}
+        row = store.get_ticket(key)
+        if not row:
+            return None
+        return {"key": key, "kind": "ticket", "incident_id": None, "title": _text(row["ticket"].get("title")),
+                "alert_ids": [row["alert_id"]], "escalated": is_escalated(row["ticket"]),
+                "tickets": [row["ticket"]] if row["mode"] == "real" else []}
+
+    def report_key_for(alert_id, ticket_row):
+        """Where the report of an alert lives: its incident if level 2 grouped it, otherwise its own escalated ticket."""
+        incident_id = memberships().get(alert_id)
+        if incident_id:
+            return incident_id
+        if ticket_row and is_escalated(ticket_row["ticket"]):
+            return ticket_row["ticket_id"]
+        return None
 
     @app.get("/api/queue")
     def queue():
@@ -204,6 +246,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
             "ticket": ticket_row,
             "decisions": store.decisions_for(ticket_row["ticket_id"]) if ticket_row else [],
             "incident_id": memberships().get(alert_id),
+            "report_key": report_key_for(alert_id, ticket_row),
         }
 
     # Containment (level 4). The LLM's suggestions become proposals by plain code. Only these routes, called by a
@@ -305,9 +348,11 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
     def incidents():
         latest = store.latest_correlation()
         triaged = len(triaged_pairs())
+        reports = store.latest_reports()
         if not latest:
-            return {"built_at": None, "incidents": [], "noise": [], "memberships": {}, "alerts": 0, "triaged_now": triaged, "stale": triaged > 0}
-        return {**latest, "triaged_now": triaged, "stale": triaged != latest.get("alerts")}
+            return {"built_at": None, "incidents": [], "noise": [], "memberships": {}, "alerts": 0, "triaged_now": triaged,
+                    "stale": triaged > 0, "reports": reports}
+        return {**latest, "triaged_now": triaged, "stale": triaged != latest.get("alerts"), "reports": reports}
 
     @app.post("/api/alerts/import")
     async def import_alerts(request: Request):
@@ -379,6 +424,94 @@ def create_app(db_path=None, sample_path=None, run_fn=None):
         store.create_run(run_id, alert_id, mode)
         threading.Thread(target=work, args=(run_id, row["alert"], mode), daemon=True, name=run_id).start()
         return {"run_id": run_id, "mode": mode, "status": "running", "already_running": False}
+
+    def work_report(run_id, subject):
+        started = time.monotonic()
+        saved = False
+        error = None
+        try:
+            alerts = [row["alert"] for row in (store.get_alert(a) for a in subject["alert_ids"]) if row]
+            if not alerts:
+                raise runner.TriageUnavailable("Las alertas de este incidente ya no están en la cola.")
+            others = [row["alert"] for row in store.list_alerts() if row["alert"]["alert_id"] not in subject["alert_ids"]]
+            for raw in report_fn(alerts, tickets=subject["tickets"], incident_id=subject["incident_id"], others=others,
+                                 memberships=memberships()):
+                event = raw if isinstance(raw, dict) else {}
+                report = event.get("report")
+                event = {
+                    **{k: v for k, v in event.items() if k != "report"},
+                    "at": _text(event.get("at")) or now_iso(),
+                    "type": _text(event.get("type")) or "note",
+                    "args": event.get("args") if isinstance(event.get("args"), dict) else {},
+                    "summary": event.get("summary") if isinstance(event.get("summary"), str) else "",
+                    "event_ids": [str(i) for i in event.get("event_ids") or [] if isinstance(i, (str, int))]
+                    if isinstance(event.get("event_ids"), list) else [],
+                    "truncated": bool(event.get("truncated")),
+                }
+                store.add_event(run_id, event)
+                if event["type"] == "report_ready" and isinstance(report, dict):
+                    store.save_report(report, run_id, subject["key"])
+                    saved = True
+            if not saved:
+                error = "La investigación terminó sin informe."
+        except runner.TriageUnavailable as problem:
+            error = str(problem)
+        except Exception as problem:  # the run must always end, whatever the agent does
+            error = f"Error interno durante la investigación ({type(problem).__name__})."
+        if error:
+            store.add_event(run_id, {"at": now_iso(), "type": "error", "tool": "app", "args": {"kind": "runner"},
+                                     "summary": error, "event_ids": [], "truncated": False})
+        store.finish_run(run_id, "failed" if error else "done", round(time.monotonic() - started, 2), subject["key"] if saved else None, error)
+
+    @app.post("/api/reports/{key}", status_code=202)
+    def start_report(key: str):
+        """Level 3: investigates an escalated incident or ticket. The report only proposes containment."""
+        subject = report_subject(key)
+        if not subject:
+            raise HTTPException(404, "No hay ningún incidente ni ticket con ese identificador.")
+        if not subject["escalated"]:
+            raise HTTPException(409, "Solo se investigan incidentes o tickets escalados.")
+        active = store.active_run(key)
+        if active:
+            return {"run_id": active["run_id"], "status": "running", "already_running": True}
+        run_id = f"RUN-{uuid.uuid4().hex[:12]}"
+        store.create_run(run_id, key, "report")
+        threading.Thread(target=work_report, args=(run_id, subject), daemon=True, name=run_id).start()
+        return {"run_id": run_id, "status": "running", "already_running": False}
+
+    @app.get("/api/reports/{key}")
+    def get_report(key: str):
+        subject = report_subject(key)
+        row = store.get_report(key)
+        if not subject and not row:
+            raise HTTPException(404, "No hay ningún incidente ni ticket con ese identificador.")
+        runs = store.runs_for_alert(key)
+        shown = {k: v for k, v in (subject or {}).items() if k != "tickets"}
+        if subject:
+            shown["leads"] = len(subject["tickets"])
+        return {"subject": shown or None, "report": row, "latest_run": run_view(runs[0] if runs else None),
+                "runs": [run_view(r) for r in runs]}
+
+    @app.get("/api/reports/{key}/containment")
+    def report_containment(key: str):
+        """Level 3 to 4: the newest report's proposed steps become ActionProposals, checked again by the same rules as
+        a ticket's. They go through the same approve, reject and execute routes; ticket_id holds the report's key."""
+        row = store.get_report(key)
+        if not row:
+            raise HTTPException(404, "Este incidente aún no tiene informe.")
+        steps = (row["report"] or {}).get("containment_plan") or []
+        try:
+            built, not_proposed = proposals_from_steps(steps, key, row["run_id"], api_client.get_asset, api_client.get_user)
+        except Exception as error:  # the mock API is down or answered oddly
+            raise HTTPException(503, mock_problem(error)) from None
+        with containment_lock:
+            saved = store.proposals_for_run(row["run_id"])
+            proposals = []
+            for proposal in built:
+                if proposal.proposal_id not in saved:
+                    store.save_proposal(proposal.model_dump(mode="json"))
+                proposals.append(saved.get(proposal.proposal_id) or proposal.model_dump(mode="json"))
+        return {"ticket_id": key, "run_id": row["run_id"], "proposals": proposals, "not_proposed": not_proposed}
 
     @app.get("/api/runs/{run_id}/events")
     async def run_events(run_id: str, request: Request, after: int = 0):

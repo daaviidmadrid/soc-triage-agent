@@ -158,7 +158,7 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
       <td data-label={L.queueResult}>
         {t && <div className="queue-verdict">{VERDICT[t.verdict] || t.verdict || L.na}</div>}
         <StateCell item={item} changed={changed} />
-        <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
+        <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.closed_by_rule && <Chip kind="code" title={L.closedByRuleHelp}>{L.closedByRule}</Chip>}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
       </td>
       <td data-label={L.colSla}><SlaCell severity={eff.severity} fromRule={eff.fromRule} seconds={item.run?.status === "done" ? item.run.duration_seconds : null} running={running} /></td>
       <td className="actions"><div className="row-actions">

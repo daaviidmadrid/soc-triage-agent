@@ -8,44 +8,9 @@ import { isFallback, retrievedBy } from "../ticket/runState.js";
 import Icon from "../icons.jsx";
 import DecisionBar from "../ticket/DecisionBar.jsx";
 import TriageWorkspace from "../ticket/TriageWorkspace.jsx";
+import { useRunEvents } from "../useRunEvents.js";
 
-// Live steps. The server replays every stored event first, so a reload shows the whole run again.
-function useRunEvents(runId, onEnd) {
-  const [events, setEvents] = useState([]);
-  const [stream, setStream] = useState("idle");
-
-  useEffect(() => {
-    if (!runId) return undefined;
-    setEvents([]);
-    setStream("connecting");
-    const source = new EventSource(api.eventsUrl(runId));
-    source.onopen = () => setStream("live");
-    source.addEventListener("trace", (message) => {
-      let event;
-      try {
-        event = JSON.parse(message.data);
-      } catch {
-        return;
-      }
-      if (!event || typeof event !== "object") return;
-      setStream("live");
-      setEvents((prev) => (prev.some((p) => p.seq === event.seq) ? prev : [...prev, event].sort((a, b) => a.seq - b.seq)));
-    });
-    source.addEventListener("end", () => {
-      source.close();
-      setStream("ended");
-      onEnd();
-    });
-    source.onerror = () => {
-      if (source.readyState !== EventSource.CLOSED) setStream("lost");
-    };
-    return () => source.close();
-  }, [runId, onEnd]);
-
-  return { events, stream };
-}
-
-export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents }) {
+export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents, onOpenReport }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
@@ -187,7 +152,7 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents 
       />
       <TriageWorkspace alert={{ ...alert, ...obj(detail.shown) }} detail={detail} run={run} running={running} stream={stream} events={events} live={live.current}
         tab={tab} onTab={setTab} targetSeq={targetSeq} onSelectStep={jumpToStep} ticketRow={ticketRow} decision={decision} decisions={decisions}
-        fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} onIncidents={onIncidents} />
+        fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} onIncidents={onIncidents} onOpenReport={onOpenReport} />
 
     </div>
   );

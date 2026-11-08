@@ -418,6 +418,18 @@ def command_explain(args):
                 print("Reasoning:\n" + _shorten(entry["reasoning"], limit))
             if entry.get("answer"):
                 print("Answer:\n" + _shorten(entry["answer"], limit))
+        elif entry.get("kind") == "rule":
+            print(f"\n--- fixed rule {entry.get('rule', '-')} ({entry.get('name', '-')}): {entry.get('outcome')}")
+            for condition in entry.get("conditions") or entry.get("conditions_met") or []:
+                print(f"  ok  {condition}")
+            if entry.get("failed"):
+                print(f"  NO  {entry['failed']}")
+            if entry.get("error"):
+                print(f"The rule check failed: {entry['error']}")
+            if entry.get("event_ids"):
+                print("Event IDs relied on: " + ", ".join(entry["event_ids"]))
+            if entry.get("verdict"):
+                print(f"Ticket: {entry['verdict']}, severity {entry.get('severity')}, closed. No model call was made.")
         else:
             print(f"\n--- result: {entry.get('outcome')}")
             print(json.dumps({key: value for key, value in entry.items() if key not in ("kind", "outcome", "at")}, ensure_ascii=False, indent=1))
