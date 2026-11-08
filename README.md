@@ -1,7 +1,8 @@
 # Tarvia SOC Triage Agent
 
-By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026. Francesco built the core agent (triage, grouping, containment, prompt injection defences and the practice exam) and integrated the team's work. Alex built the data tools (log search, alert context, API client, severity), the level 3 incident reports and the first UI. David did the data analysis, redesigned the UI and built the automated version on the `automated-soc-triage` branch.
+By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026. The brief, alerts, logs and mock API are Deloitte's, from [their challenge repo](https://github.com/dttdfr/DTT-UAB-The-Hack), and aren't copied here.
 
+Francesco built the core agent (triage, grouping, containment, prompt injection defences and the practice exam) and integrated the team's work. Alex built the data tools (log search, alert context, API client, severity), the level 3 incident reports and the first UI. David did the data analysis, redesigned the UI and built the automated version on the `automated-soc-triage` branch.
 
 An AI agent that triages security alerts for the SOC of Tarvia, a fictional retailer. Given an alert, it looks up the facts, works out what happened and writes a ticket with its evidence. Then it proposes closing the alert or escalating it, and a person decides.
 
@@ -12,7 +13,7 @@ An AI agent that triages security alerts for the SOC of Tarvia, a fictional reta
 <sub>The console after a real run on Deloitte's 10 alerts. Every ticket waits for a person. The app is in Spanish, like the SOC it's built for.</sub>
 
 ## Does it actually work?
-**Yes, from end to end, on the alerts Deloitte chose.** At 09:02 on the final morning, three hours before the deadline, Deloitte published the 10 alerts every team had to run (`ea61e70` in their repo). By then our prompts, fixed rules, log search and severity code were already finished: their last changes were at 07:18 or earlier. The only agent changes after that, at 10:00, added optional automation, which was off for these runs, and SLA tracking. Neither changes how a ticket is decided. We ran the agent on all 10 with the real model, three times.
+**Yes, from end to end, on the alerts Deloitte chose.** At 09:02 on the final morning, three hours before the deadline, Deloitte published the 10 alerts every team had to run ([`ea61e70`](https://github.com/dttdfr/DTT-UAB-The-Hack/commit/ea61e70a3c066ff7663c613475f180597d56bd06) in their repo). By then our prompts, fixed rules, log search and severity code were already finished: their last changes were at 07:18 or earlier. The only agent changes after that, at 10:00, added optional automation, which was off for these runs, and SLA tracking. Neither changes how a ticket is decided. We ran the agent on all 10 with the real model, three times.
 
 What we can't give yet is a score, because we have no official answers for these 10. See [what this doesn't prove](#what-this-doesnt-prove).
 
@@ -140,6 +141,7 @@ TRIAGE_MODE=real uvicorn src.app.main:app --port 8001
 ```
 
 ## More
+- [Deloitte's challenge repo](https://github.com/dttdfr/DTT-UAB-The-Hack): the brief, dataset and mock API, which go in `data/`
 - [Guide](docs/guide.md): how it works in depth, how to repeat the 10-alert run, setup, automatic triage, the practice exam and the code layout
 - [Agent versions](docs/agent_versions.md): each version of the agent and its results
 - [Overview](docs/overview.md): the challenge
