@@ -5,7 +5,8 @@ alertas en una herramienta de trabajo habitual.
 
 La aplicación muestra la cola, el estado del triaje, las consultas y evidencias,
 la severidad, el escalado recomendado y la resolución registrada, los incidentes
-que agrupa el código (nivel 2) y la contención que aprueban personas (nivel 4). El dashboard
+que agrupa el código (nivel 2), el informe de investigación con su cronología
+(nivel 3) y la contención que aprueban personas (nivel 4). El dashboard
 resume los datos que devuelve la misma cola; no introduce endpoints ni métricas
 de reputación externas. Los resultados de ejemplo se identifican como simulados.
 

@@ -339,3 +339,108 @@ def ready_to_run(proposal):
 def approver_record(proposal):
     """What the mock's /approvals receives: every role with the person who approved it."""
     return "; ".join(f"{a.role}: {a.approver}" for a in proposal.approvals)
+
+
+# --- structured steps (level 3 reports) --------------------------------------------------------
+
+MESSAGE_ID = re.compile(r"^<[^<>\s]+@[^<>\s]+>$")
+DOMAIN = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
+
+
+class StepRefused(ValueError):
+    """A step can't become an action. The message is safe to show."""
+
+
+def check_step(action, target, lookup_asset, lookup_user):
+    """One explicit (action, target), as an incident report proposes it. Applies the same rules as propose():
+    the target must exist where it is looked up, OT, internal or shared IPs and our own domains are refused,
+    and approvers come from section 4 of the policy. Returns {"target", "approvers", "business_impact", "warnings"}
+    with the canonical target, or raises StepRefused."""
+    action, target = str(action or "").strip(), str(target or "").strip()
+    if action not in ACTION_NAMES:
+        raise StepRefused("No es una de las 7 acciones de la API simulada.")
+    if not target:
+        raise StepRefused("No tiene objetivo.")
+    if action in ("revoke_sessions", "reset_password", "disable_user"):
+        user = lookup_user(target)
+        if not user or not user.get("upn"):
+            raise StepRefused("No nombra una cuenta que exista en el directorio.")
+        warnings = []
+        if action == "disable_user" and (user.get("account_type") == "service" or str(user["upn"]).startswith(("svc_", "svc."))):
+            warnings.append("Es una cuenta de servicio: deshabilitarla puede parar un proceso de negocio.")
+        return {"target": user["upn"], "approvers": [N2], "business_impact": IMPACT[action], "warnings": warnings}
+    if action == "isolate_host":
+        asset = lookup_asset(target)
+        if not asset or not asset.get("hostname"):
+            raise StepRefused("No nombra un equipo que exista en la CMDB.")
+        if asset.get("zone") in OT_ZONES:
+            raise StepRefused(f"{asset['hostname']} está en la red OT: el SOC nunca actúa ahí, solo escala a Operaciones.")
+        approvers, impact, warnings = isolation_approvers(asset)
+        return {"target": asset["hostname"], "approvers": approvers, "business_impact": impact, "warnings": warnings}
+    if action == "block_ioc":
+        value = target.lower()
+        if "://" in value:
+            value = value.split("://", 1)[1].split("/", 1)[0]
+        if IP.fullmatch(value):
+            if _internal(value) or value in SHARED_IPS:
+                raise StepRefused(f"{value} es una IP interna o compartida por muchas personas: no se bloquea.")
+        elif not (SHA256.fullmatch(value) or DOMAIN.fullmatch(value)):
+            raise StepRefused("Solo se bloquean IPs, dominios o hashes completos.")
+        elif _own_domain(value):
+            raise StepRefused(f"{value} es un dominio propio: no se bloquea.")
+        if any(value == d or value.endswith("." + d) for d in DUAL_USE) or "anydesk" in value:
+            return {"target": value, "approvers": [N2], "business_impact": IMPACT[action],
+                    "warnings": ["Servicio legítimo de uso dual: bloquearlo para toda la empresa necesita N2 (política, apartado 4)."]}
+        return {"target": value, "approvers": [ANALYST], "business_impact": IMPACT[action], "warnings": []}
+    if action == "purge_email":
+        if not MESSAGE_ID.fullmatch(target):
+            raise StepRefused("No es un identificador de mensaje exacto (<...@...>).")
+        return {"target": target, "approvers": [ANALYST], "business_impact": IMPACT[action], "warnings": []}
+    if not ACCESS_KEY.fullmatch(target):
+        raise StepRefused("No es una clave de acceso exacta.")
+    return {"target": target, "approvers": [N2], "business_impact": IMPACT[action], "warnings": []}
+
+
+def proposals_from_steps(steps, key, run_id, lookup_asset, lookup_user):
+    """ActionProposals for a report's containment steps, checked again with check_step. key is the incident or
+    ticket the report covers; it goes in ticket_id, so the containment log ties actions to that report.
+    Returns (proposals, not_proposed)."""
+    proposals, not_proposed = {}, []
+    for step in steps or []:
+        step = step if isinstance(step, dict) else {}
+        suggestion = f"{step.get('action') or ''} → {step.get('target') or ''}".strip(" →")
+        try:
+            checked = check_step(step.get("action"), step.get("target"), lookup_asset, lookup_user)
+        except StepRefused as refusal:
+            not_proposed.append({"suggestion": suggestion[:300], "reason": str(refusal)})
+            continue
+        pid = proposal_id(run_id, step["action"], checked["target"])
+        if pid in proposals:
+            continue
+        written = str(step.get("business_impact") or "").strip()
+        # The report's text already starts with the same rule's impact when investigate checked it; don't say it twice.
+        impact = written if written.startswith(checked["business_impact"]) else " ".join(p for p in (checked["business_impact"], written) if p)
+        proposals[pid] = ActionProposal(
+            proposal_id=pid, ticket_id=key, run_id=run_id, action=step["action"], target=checked["target"],
+            suggestion=suggestion[:300], justification=str(step.get("justification") or "")[:500],
+            business_impact=impact[:1000], approvers=checked["approvers"], warnings=checked["warnings"],
+        )
+    return list(proposals.values()), not_proposed
+
+
+def step_checker(lookup_asset, lookup_user):
+    """check_step bound to CMDB and directory lookups, for src/agent/investigate.py, which never imports this module.
+    A lookup the mock can't answer counts as not found."""
+    def safe(fetch):
+        def lookup(key):
+            key = str(key or "").strip()
+            if not key or "/" in key or len(key) > 200:
+                return None
+            try:
+                return fetch(key)
+            except Exception:
+                return None
+        return lookup
+
+    asset, user = safe(lookup_asset), safe(lookup_user)
+    return lambda action, target: check_step(action, target, asset, user)

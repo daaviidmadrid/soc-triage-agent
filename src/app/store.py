@@ -1,4 +1,4 @@
-"""Saves alerts, triage runs, trace events, tickets and decisions in SQLite.
+"""Saves alerts, triage and investigation runs, trace events, tickets, reports and decisions in SQLite.
 
 One connection guarded by a lock, so background runs and requests can share it,
 and so tests can use ":memory:".
@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS proposals (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS proposals_by_run ON proposals(run_id);
+CREATE TABLE IF NOT EXISTS reports (
+    run_id TEXT PRIMARY KEY,
+    report_key TEXT NOT NULL,
+    data TEXT NOT NULL,
+    saved_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS reports_by_key ON reports(report_key);
 CREATE TABLE IF NOT EXISTS correlations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     data TEXT NOT NULL,
@@ -256,6 +263,33 @@ class Store:
     def proposals_for_run(self, run_id):
         rows = self._all("SELECT data FROM proposals WHERE run_id = ? ORDER BY rowid", (run_id,))
         return {item["proposal_id"]: item for item in (json.loads(row[0]) for row in rows)}
+    # Incident reports (level 3). The key is the incident or ticket investigated; each run keeps its own version.
+
+    def save_report(self, report, run_id, key):
+        self._write(
+            "INSERT OR REPLACE INTO reports (run_id, report_key, data, saved_at) VALUES (?, ?, ?, ?)",
+            (run_id, key, _dumps(report), now_iso()),
+        )
+
+    def _report_row(self, row):
+        if not row:
+            return None
+        run_id, key, data, saved_at = row
+        return {"run_id": run_id, "key": key, "report": json.loads(data), "saved_at": saved_at}
+
+    def get_report(self, key):
+        """The newest report for an incident or ticket."""
+        return self._report_row(self._one(
+            "SELECT run_id, report_key, data, saved_at FROM reports WHERE report_key = ? ORDER BY rowid DESC LIMIT 1", (key,)
+        ))
+
+    def latest_reports(self):
+        """{key: {"run_id", "saved_at", "fallback"}} for the newest report of each key, without the reports themselves."""
+        rows = self._all(
+            "SELECT run_id, report_key, data, saved_at FROM reports WHERE rowid IN (SELECT MAX(rowid) FROM reports GROUP BY report_key)"
+        )
+        return {key: {"run_id": run_id, "saved_at": saved_at, "fallback": bool(json.loads(data).get("fallback"))}
+                for run_id, key, data, saved_at in rows}
 
     # Decisions
 
