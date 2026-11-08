@@ -7,7 +7,6 @@ import { L } from "../labels.js";
 import { isFallback, retrievedBy } from "../ticket/runState.js";
 import Icon from "../icons.jsx";
 import DecisionBar from "../ticket/DecisionBar.jsx";
-import SlaPanel from "../ticket/SlaPanel.jsx";
 import TriageWorkspace from "../ticket/TriageWorkspace.jsx";
 import { useRunEvents } from "../useRunEvents.js";
 
@@ -36,6 +35,8 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
 
   useEffect(() => {
     load();
+    const timer = setInterval(load, 2000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const run = detail ? detail.latest_run : null;
@@ -76,10 +77,11 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
   }, [alertId, onNext]);
 
   async function start() {
-    if (detail && detail.ticket && !window.confirm(L.retriageConfirm)) return;
+    if (detail && detail.ticket && detail.job?.status !== "staged" && !window.confirm(L.retriageConfirm)) return;
     setStarting(true);
     try {
-      await api.triage(alertId);
+      if (detail?.job?.status === "staged") await api.startFlow();
+      else await api.triage(alertId);
       await load();
     } catch (e) {
       setError(e.message);
@@ -108,10 +110,10 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
   if (!detail) return <Skeleton rows={5} cols={4} label={L.loading} />;
 
   const alert = obj(detail.alert);
-  const ticketRow = detail.ticket;
+  const ticketRow = detail.ticket ? { ...detail.ticket, disposition: detail.disposition } : null;
   const decisions = detail.decisions || [];
   // Decisions come newest first; the one that counts is the newest on this version of the ticket.
-  const decision = ticketRow ? decisions.find((d) => d.run_id === ticketRow.run_id) || null : null;
+  const decision = ticketRow && detail.disposition?.state !== "review" ? decisions.find((d) => d.run_id === ticketRow.run_id) || null : null;
   const fallback = Boolean(ticketRow && !running && isFallback(obj(ticketRow.ticket), events));
 
   return (
@@ -135,6 +137,8 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
 
       {error && <ErrorBox message={error} onRetry={load} />}
       <DecisionBar compact
+        waitingForFlow={detail.job?.status === "staged"}
+        queued={detail.job?.status === "pending"}
         run={run}
         ticketRow={ticketRow}
         decision={decision}
@@ -150,9 +154,7 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
         onReviewByHand={reviewByHand}
         onNext={goNext}
         next={next}
-        sla={detail.sla}
       />
-      <SlaPanel alertId={alertId} record={detail.sla} ticketRow={running ? null : ticketRow} decision={decision} serverNow={detail.now} onSaved={load} />
       <TriageWorkspace alert={{ ...alert, ...obj(detail.shown) }} detail={detail} run={run} running={running} stream={stream} events={events} live={live.current}
         tab={tab} onTab={setTab} targetSeq={targetSeq} onSelectStep={jumpToStep} ticketRow={ticketRow} decision={decision} decisions={decisions}
         fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} onIncidents={onIncidents} onOpenReport={onOpenReport} />

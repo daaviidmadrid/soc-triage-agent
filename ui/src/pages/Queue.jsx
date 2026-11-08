@@ -1,26 +1,26 @@
 // The alert queue: what is waiting, what has been triaged, and what a person still has to decide.
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { Chip, Clip, ErrorBox, ModeTag, NA, Notice, Severity, Skeleton, SlaCell, formatTime } from "../components.jsx";
 import { Pager } from "../ticket/Paging.jsx";
 import Icon from "../icons.jsx";
 import { useListMotion } from "../motion.js";
 import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
-import { EMPTY_FILTERS, GROUP_ORDER, countsOf, effective, filterAndSort, groupOf, groupQueue, isFiltered, productsOf, stateOf } from "../queue/model.js";
-import { L, OUTCOME, PIPELINE_LANE, QUEUE_GROUP, SEVERITY, SEVERITY_ORDER, SLA_FILTERS, STATE_FILTERS, VERDICT } from "../labels.js";
+import Flow from "../queue/Flow.jsx";
+import { EMPTY_FILTERS, countsOf, effective, filterAndSort, isFiltered, productsOf, stateOf } from "../queue/model.js";
+import { L, OUTCOME, SEVERITY, SEVERITY_ORDER, STATE_FILTERS, VERDICT } from "../labels.js";
 
 const POLL_MS = 2000;
-const WORKER_POLL_MS = 5000;
 const PAGE_SIZE = 8;
 // The last queue the screen showed, so coming back from a ticket draws it at once (then refreshes).
 let cachedData = null;
 
-const STATE_ICONS = { none: "queue", running: "refresh", pending: "review", decided: "check", failed: "alert", auto_closed: "archive" };
+const STATE_ICONS = { none: "queue", queued: "queue", auto_closed: "check", running: "refresh", pending: "review", decided: "check", failed: "alert" };
 const PRODUCT_ICONS = { EDR: "device", IDP: "identity", AD: "identity", EMAIL_GW: "mail", WAF: "shield", PROXY: "network", DNS: "network", NGFW: "network", VPN: "network", CLOUD: "cloud", CICD: "code", AI_GATEWAY: "code" };
 
 function StateCell({ item, changed }) {
   const state = stateOf(item);
-  const text = { none: L.stateNone, running: `${L.stateRunning}…`, failed: L.stateFailed, pending: L.statePending, decided: L.stateDecided, auto_closed: L.stateAutoClosed }[state];
+  const text = { none: L.stateNone, queued: item.job?.status === "staged" ? "Lista para iniciar" : "Encolada", auto_closed: "Cierre automático", running: "Procesando", failed: "Requiere reintento", pending: L.statePending, decided: L.stateDecided }[state];
   return <span className={`state state-${state} operational-state${changed ? " state-changed" : ""}`}>
     <span className={`state-symbol${state === "running" ? " is-running" : ""}`}><Icon name={STATE_ICONS[state]} /></span>
     <span>{text}{state === "decided" && <>: {OUTCOME[item.decision.outcome] || item.decision.outcome}<span className="sub">{item.decision.analyst}</span></>}</span>
@@ -29,9 +29,9 @@ function StateCell({ item, changed }) {
 
 // The overview and the filters use the same counts and existing filter state.
 function Counts({ counts, filters, setFilters }) {
-  const states = ["none", "running", "pending", "decided", "auto_closed", "failed"];
+  const states = ["pending", "queued", "running", "auto_closed", "decided", "failed", "none"];
   const total = states.reduce((sum, key) => sum + counts[key], 0);
-  const labels = { pending: L.statePending, running: L.stateRunning, failed: L.stateFailed, decided: L.stateDecided, none: L.stateNone, auto_closed: L.stateAutoClosed };
+  const labels = { pending: L.statePending, queued: "Encoladas", auto_closed: "Cierre automático", running: L.stateRunning, failed: L.stateFailed, decided: L.stateDecided, none: L.stateNone };
   const filter = key => setFilters(previous => ({ ...previous, state: previous.state === key ? "" : key }));
   return <section className="queue-overview" aria-label={L.countsLabel}>
     <div className="queue-state-track" role="img" aria-label={states.map(key => `${labels[key]}: ${counts[key]}`).join("; ")}>
@@ -44,9 +44,6 @@ function Counts({ counts, filters, setFilters }) {
       <button type="button" className={`count count-injection${counts.injection === 0 ? " is-zero" : ""}`} aria-pressed={filters.injection} onClick={() => setFilters(previous => ({ ...previous, injection: !previous.injection }))}>
         <span className="count-symbol"><Icon name="shield" /></span><span className="count-label">{L.countInjection}</span><span className="count-n num">{counts.injection}</span>
       </button>
-      {Object.entries(SLA_FILTERS).map(([key, label]) => <button key={key} type="button" className={`count count-sla-${key}${counts[key] === 0 ? " is-zero" : ""}`} aria-pressed={filters.sla === key} onClick={() => setFilters(previous => ({ ...previous, sla: previous.sla === key ? "" : key }))}>
-        <span className="count-symbol"><Icon name={key === "breached" ? "cross" : "clock"} /></span><span className="count-label">{label}</span><span className="count-n num">{counts[key]}</span>
-      </button>)}
       {isFiltered(filters) && <button type="button" className="link-btn count-clear" onClick={() => { setFilters(EMPTY_FILTERS); if (document.documentElement.dataset.motionInput === "keyboard") requestAnimationFrame(() => document.querySelector(".filters input")?.focus({ preventScroll: true })); }}><Icon name="cross" />{L.countClear}</button>}
     </div>
   </section>;
@@ -97,31 +94,8 @@ function Filters({ filters, setFilters, products }) {
           ))}
         </select>
       </label>
-      <label className="control">
-        <span className="control-label">{L.slaFilter}</span>
-        <select value={filters.sla} onChange={set("sla")}>
-          <option value="">{L.filterAll}</option>
-          {Object.entries(SLA_FILTERS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </label>
     </form>
   );
-}
-
-// One row of the table for the start of a group, so the groups stay in one list with one set of keyboard moves.
-function GroupRow({ name, count }) {
-  return <tr className={`queue-group-row group-${name}`}><th colSpan={6} scope="colgroup"><span>{name === "waiting_manual" ? L.groupWaitingManual : QUEUE_GROUP[name]}</span><span className="num">{count}</span></th></tr>;
-}
-
-function GroupBar({ groups, manual, showAuto, onShowAuto, onJump }) {
-  const autoTotal = groups.auto_sample.length + groups.auto_rest.length;
-  return <nav className="queue-groups" aria-label={L.groupsLabel}>
-    {GROUP_ORDER.filter(key => key !== "auto_rest").map(key => <button type="button" key={key} className={`queue-group group-${key}`} onClick={() => onJump(key)}>
-      <span>{key === "waiting" && manual ? L.groupWaitingManual : QUEUE_GROUP[key]}</span>
-      <strong className="num">{key === "auto_sample" ? L.groupSampleCount(groups.auto_sample.length, autoTotal) : groups[key].length}</strong>
-    </button>)}
-    {groups.auto_rest.length > 0 && <button type="button" className="link-btn" aria-expanded={showAuto} onClick={onShowAuto}>{showAuto ? L.hideAllAuto : L.showAllAuto(groups.auto_rest.length)}</button>}
-  </nav>;
 }
 
 function Shortcuts({ onClose }) {
@@ -149,7 +123,7 @@ function Shortcuts({ onClose }) {
 }
 
 // The whole row opens the alert. Clicks on the row's own buttons, or while selecting text, don't.
-function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFocusRow, rowRef, nowMs }) {
+function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFocusRow, rowRef }) {
   const eff = effective(item);
   const t = item.ticket;
   const example = Boolean(t && item.run && item.run.mode === "example");
@@ -176,24 +150,29 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
       <td className="rule" data-label={L.colAlert}>
         <div className="alert-identity"><span className="alert-source-symbol"><Icon name={PRODUCT_ICONS[item.source_product] || "shield"} /></span><div className="alert-identity-text">
         <strong className="queue-rule">{item.rule_name || L.na}</strong>
-        <div className="queue-meta"><code className="id">{id}</code>{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}{item.incident_id && <Chip kind="warn" title={item.incident_id}>{L.inIncident}</Chip>}</div>
+        <div className="queue-meta"><code className="id">{id}</code>{item.queue_position != null && <span className="muted num">Orden {item.queue_position}</span>}{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}{item.incident_id && <Chip kind="warn" title={item.incident_id}>{L.inIncident}</Chip>}</div>
         <div className="sub">{item.source_product || L.na}{item.rule_id && <> · <span className="id-plain">{item.rule_id}</span></>}</div>
         </div></div>
       </td>
-      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span></td>
+      <td className="num" data-label={L.colTime}><span className="queue-date">{formatTime(item.created_at) || L.na}</span>{item.job?.queued_at && <span className="sub">Encolada: {formatTime(item.job.queued_at)} UTC</span>}</td>
       <td data-label={L.filterSeverity}><Severity value={eff.severity} />{t && <div className="sub">{L.fromRule}: {SEVERITY[item.rule_severity] || L.na}</div>}</td>
       <td data-label={L.queueResult}>
         {t && <div className="queue-verdict">{VERDICT[t.verdict] || t.verdict || L.na}</div>}
         <StateCell item={item} changed={changed} />
-        <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.closed_by_rule && <Chip kind="code" title={L.closedByRuleHelp}>{L.closedByRule}</Chip>}{t?.auto_close?.reopened_by && <Chip kind="warn">{L.reopened}</Chip>}{t?.fallback && <Chip kind="warn" title={L.fallbackSla}>{L.fallbackChip}</Chip>}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
+        <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.closed_by_rule && <Chip kind="code" title={L.closedByRuleHelp}>{L.closedByRule}</Chip>}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
+        {t?.attention_reason && <p className="sub queue-attention">{t.attention_reason}</p>}
+        {t?.affected && <p className="sub">{[...(t.affected.hosts || []), ...(t.affected.users || [])].map(v => typeof v === "string" ? v : v.upn || v.hostname).filter(Boolean).join(", ")}</p>}
+        {item.report_state && <div className="sub">Informe: {({ pending: "pendiente", running: "en preparación", ready: "preparado", stale: "desactualizado", needed: "sin preparar", not_required: "no requerido", blocked: "primero debe completarse el triaje" })[item.report_state.status]}</div>}
+        {t?.evidence_incomplete && <div className="sub">Evidencia incompleta o sin validar</div>}
+        {item.disposition?.sampled_for_review && <Chip kind="warn">Muestra de auditoría</Chip>}
       </td>
-      <td data-label={L.colSla}><SlaCell severity={eff.severity} fromRule={eff.fromRule} seconds={item.run?.status === "done" ? item.run.duration_seconds : null} running={running} record={item.sla} nowMs={nowMs} /></td>
+      <td data-label={L.colSla}><SlaCell severity={eff.severity} fromRule={eff.fromRule} seconds={item.run?.status === "done" ? item.run.duration_seconds : null} running={running} /></td>
       <td className="actions"><div className="row-actions">
         <button
           type="button"
-          className={`btn btn-sm btn-primary${running || starting ? " is-running" : ""}`}
+          className={`btn btn-sm${running || starting ? " is-running" : ""}`}
           onClick={() => onStart(item)}
-          disabled={running || starting}
+          disabled={running || starting || ["pending", "staged"].includes(item.job?.status)}
           aria-label={`${running ? L.stateRunning : startLabel} ${id}`}
         >
           <Icon name={running || starting || item.run ? "refresh" : "play"} />{running ? L.stateRunning : starting ? L.starting : item.run ? L.retriageShort : L.triage}
@@ -214,11 +193,10 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   const [importReport, setImportReport] = useState(null);
   const [activeId, setActiveId] = useState(returnTo && returnTo.alertId);
   const [page, setPage] = useState(0);
+  const [rowOrder, setRowOrder] = useState([]), [orderFilter, setOrderFilter] = useState(null);
   const pendingFocus = useRef(null);
   const [help, setHelp] = useState(false);
   const [changed, setChanged] = useState(() => new Set());
-  const [showAuto, setShowAuto] = useState(false);
-  const [tick, setTick] = useState(() => Date.now());
   const rowEls = useRef(new Map());
   const tableBody = useRef(null);
   const prevStates = useRef(new Map());
@@ -253,27 +231,16 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
   }, [data]);
 
   const anyRunning = Boolean(data && data.alerts.some((a) => a.run && a.run.status === "running"));
-  const workerOn = Boolean(data && data.worker && data.worker.enabled);
   useEffect(() => {
-    if (!anyRunning && !workerOn) return undefined;
-    const timer = setInterval(load, anyRunning ? POLL_MS : WORKER_POLL_MS);
-    return () => clearInterval(timer);
-  }, [anyRunning, workerOn, load]);
-
-  // The countdown. The offset keeps it on the server's clock, because the deadlines are the server's.
-  useEffect(() => {
-    const timer = setInterval(() => setTick(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const offset = useRef(0);
-  useEffect(() => {
-    const server = data && Date.parse(data.now);
-    if (Number.isFinite(server)) offset.current = server - Date.now();
-  }, [data]);
-  const nowMs = tick + offset.current;
+    const timer = setInterval(load, POLL_MS);
+    const reconcile = () => load();
+    window.addEventListener("online", reconcile);
+    return () => { clearInterval(timer); window.removeEventListener("online", reconcile); };
+  }, [anyRunning, load]);
 
   const start = useCallback(
     async (item) => {
+      if (["staged", "pending"].includes(item.job?.status)) return;
       const alertId = item.alert_id;
       if (item.ticket && !window.confirm(L.retriageConfirm)) return;
       setActiveId(alertId);
@@ -293,17 +260,21 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
 
   const products = useMemo(() => (data ? productsOf(data.alerts) : []), [data]);
   const counts = useMemo(() => (data ? countsOf(data.alerts) : null), [data]);
-  const matching = useMemo(() => (data ? filterAndSort(data.alerts, filters) : []), [data, filters]);
-  const groups = useMemo(() => groupQueue(matching), [matching]);
-  // Everything auto-closed is one click away, and shown at once if the person filtered for it.
-  const openAuto = showAuto || filters.state === "auto_closed" || Boolean(filters.lane);
-  const rows = useMemo(() => GROUP_ORDER.flatMap((key) => (key === "auto_rest" && !openAuto ? [] : groups[key])), [groups, openAuto]);
-  const manual = !workerOn;
+  const filterKey = JSON.stringify(filters);
+  const rows = useMemo(() => {
+    const sorted = data ? filterAndSort(data.alerts, filters) : [];
+    if (orderFilter !== filterKey || !rowOrder.length) return sorted;
+    const index = new Map(rowOrder.map((id, i) => [id, i]));
+    return sorted.sort((a, b) => (index.get(a.alert_id) ?? Infinity) - (index.get(b.alert_id) ?? Infinity));
+  }, [data, filters, filterKey, rowOrder, orderFilter]);
+  const orderKey = rows.map(r => r.alert_id).join("|");
+  useEffect(() => {
+    if (orderFilter !== filterKey || rowOrder.join("|") !== orderKey) { setRowOrder(rows.map(r => r.alert_id)); setOrderFilter(filterKey); }
+  }, [orderKey, filterKey, orderFilter]);
 
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages - 1);
   const visibleRows = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  const filterKey = JSON.stringify(filters);
   useListMotion(tableBody, visibleRows.map(row => row.alert_id).join("|"));
   const previousFilters = useRef(filterKey);
   useEffect(() => { if (previousFilters.current !== filterKey) { previousFilters.current = filterKey; setPage(0); } }, [filterKey]);
@@ -383,7 +354,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         </div>
         <div className="page-actions">
           <ImportButton onDone={load} onReport={setImportReport} />
-          <button type="button" className="btn" onClick={load}>
+          <button type="button" className="btn" onClick={() => { setOrderFilter(null); load(); }}>
             <Icon name="refresh" />{L.refresh}
           </button>
           <button type="button" className="btn btn-ghost shortcuts-toggle" aria-expanded={help} aria-controls="shortcuts" onClick={() => setHelp((h) => !h)}>
@@ -403,16 +374,18 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
       {startError && <ErrorBox message={startError} />}
       <ImportReport report={importReport} onDismiss={() => setImportReport(null)} />
 
+      <Flow data={data} onOpen={onOpen} onRefresh={load} connectionError={error} />
+      <div className="attention-filters" role="group" aria-label="Atención humana">{[["review", "Requieren revisión"], ["processing", "Pendientes o en procesamiento"], ["automatic", "Cerradas automáticamente"], ["human", "Resueltas por una persona"]].map(([key, label]) => <button key={key} type="button" className="btn btn-sm" aria-pressed={filters.state === `attention:${key}`} onClick={() => setFilters(f => ({ ...f, state: f.state === `attention:${key}` ? "" : `attention:${key}` }))}>{label}</button>)}
+        <button type="button" className="btn btn-sm" disabled={!rows.length || !data.automation?.auto_triage} onClick={async () => { try { await api.enqueue(rows.slice(0, 2000).map(a => a.alert_id)); await load(); } catch (e) { setStartError(e.message); } }}>Encolar lote filtrado ({Math.min(rows.length, 2000)})</button></div>
+
       <Counts counts={counts} filters={filters} setFilters={setFilters} />
       <Filters filters={filters} setFilters={setFilters} products={products} />
-      {filters.lane && <p className="compact-notice" role="status"><strong>{PIPELINE_LANE[filters.lane]}</strong><button type="button" className="link-btn" onClick={() => setFilters(previous => ({ ...previous, lane: "" }))}><Icon name="cross" />{L.countClear}</button></p>}
-      {matching.length > 0 && <GroupBar groups={groups} manual={manual} showAuto={openAuto} onShowAuto={() => setShowAuto(value => !value)} onJump={key => { const index = rows.findIndex(row => groupOf(row) === key); if (index >= 0) setPage(Math.floor(index / PAGE_SIZE)); }} />}
 
       {data.alerts.length === 0 ? (
         <Notice>
           {L.queueEmpty} {L.queueEmptyAction}
         </Notice>
-      ) : matching.length === 0 ? (
+      ) : rows.length === 0 ? (
         <Notice>
           {L.queueNoMatch}{" "}
           <button type="button" className="btn btn-sm notice-action" onClick={() => setFilters(EMPTY_FILTERS)}>
@@ -421,7 +394,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
         </Notice>
       ) : (
         <div className="table-wrap">
-          <div className="queue-table-toolbar"><p className="table-caption" id="queue-sort">{L.sortCaption}. {L.slaClockNote}</p><span className="queue-range num">{rows.length ? currentPage * PAGE_SIZE + 1 : 0}–{Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} / {rows.length}</span></div>
+          <div className="queue-table-toolbar"><p className="table-caption" id="queue-sort">Atención humana y severidad. El orden se conserva durante la lectura; Actualizar vuelve a priorizar.</p><span className="queue-range num">{currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} / {rows.length}</span></div>
           <table className="grid" aria-describedby="queue-sort">
             <thead>
               <tr>
@@ -429,14 +402,10 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
               </tr>
             </thead>
             <tbody ref={tableBody}>
-              {visibleRows.map((item, index) => {
-                const group = groupOf(item);
-                const startsGroup = index === 0 || groupOf(visibleRows[index - 1]) !== group;
-                return (<Fragment key={item.alert_id}>
-                {startsGroup && <GroupRow name={group === "waiting" && manual ? "waiting_manual" : group} count={groups[group].length} />}
+              {visibleRows.map((item) => (
                 <Row
+                  key={item.alert_id}
                   item={item}
-                  nowMs={nowMs}
                   active={item.alert_id === activeId}
                   tabbable={item.alert_id === tabRow}
                   changed={changed.has(item.alert_id)}
@@ -449,8 +418,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
                     else rowEls.current.delete(item.alert_id);
                   }}
                 />
-                </Fragment>);
-              })}
+              ))}
             </tbody>
           </table>
           <Pager page={currentPage} pages={pages} onPage={setPage} label={L.queueTitle} />

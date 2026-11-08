@@ -22,7 +22,6 @@ function splitActions(ticket) {
 // If no step returned it (once the whole trace has loaded), it carries a visible warning.
 function EventRef({ id, trace }) {
   const text = asText(id);
-  if (trace.own?.has(text)) return <code className="id">{text}</code>;
   const seq = trace.retrieved.get(text);
   if (seq !== undefined) {
     return (
@@ -137,7 +136,7 @@ function EvidenceList({ evidence, trace, continuous = false }) {
         <li key={i}>
           <div className="rows-head">
             <span className="muted">
-              {L.evidenceSource}: {trace.own?.has(asText(ev.event_id)) ? L.alertTitle : isBlank(ev.source) ? <NA /> : asText(ev.source)}
+              {L.evidenceSource}: {isBlank(ev.source) ? <NA /> : asText(ev.source)}
             </span>
             {isBlank(ev.event_id) ? <span className="muted">—</span> : <EventRef id={ev.event_id} trace={trace} />}
           </div>

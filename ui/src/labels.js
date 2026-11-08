@@ -91,7 +91,7 @@ export const L = {
   incidentAlerts: (n) => `${n} alertas`,
   incidentEscalate: "Escalar a",
   incidentClose: "Cerrar",
-  chainChip: "Cadena de ataque",
+  chainChip: "Posible cadena · revisión obligatoria",
   membersTitle: "Alertas del incidente",
   linksTitle: "Por qué se agrupan",
   linkWith: "con",
@@ -156,126 +156,6 @@ export const L = {
   slaBatch: "revisión diaria en lote",
   slaHelp:
     "Objetivo de tiempo hasta triaje según la política (apartado 3). No se cuenta desde la hora de la alerta, porque las alertas tienen semanas.",
-  slaClockNote: "El reloj del SLA empieza cuando la alerta entra en esta aplicación, no en la fecha de la alerta, y se detiene al crearse el ticket.",
-  slaLeft: (time) => `Quedan ${time}`,
-  slaOver: (time) => `Superado hace ${time}`,
-  slaOverAt: (time) => `Superado a las ${time} UTC`,
-  slaStoppedIn: (time) => `Triaje en ${time}`,
-  slaWorkerRisk: "El trabajador no está en marcha: nadie la va a triar a tiempo sin una persona.",
-  slaFilter: "SLA",
-  slaTitle: "SLA de esta alerta",
-  slaDetails: "Detalles del SLA",
-  requiredAfterTriage: "Se podrá confirmar cuando termine el triaje.",
-  slaStarted: "Entró en la aplicación (UTC)",
-  slaStopped: "Reloj detenido (UTC)",
-  slaDeadline: "Plazo (UTC)",
-  slaRunning: "Sigue en marcha",
-  slaNoDeadline: "Sin hora fija: revisión en lote diaria",
-  slaState: "Estado",
-  slaBy: "Severidad que fija el plazo",
-  slaChanges: "Cambios de severidad",
-  slaChange: (from, to) => `${from} → ${to}`,
-  slaByPerson: "lo detuvo la decisión de una persona",
-  slaAssumed: "La alerta no traía una severidad reconocible: se supone media.",
-  requiredAction: "Acción que exige la política",
-  requiredHint: "El sistema no llama a nadie. Una persona hace la llamada o el traspaso y lo confirma aquí.",
-  confirmCall: "Confirmar llamada a N2",
-  confirmHandover: "Confirmar traspaso a N2",
-  confirmNote: "Nota (opcional)",
-  confirmedBy: (kind, name, time) => `${kind === "call" ? "Llamada confirmada" : "Traspaso confirmado"} por ${name}, ${time} UTC.`,
-  yourName: "Tu nombre",
-  autoClosed: "Cerrada automáticamente",
-  autoClosedHelp: "Sin revisión humana: cumple todas las condiciones de cierre automático. Una persona puede reabrirla.",
-  autoClosedBy: (who) => `Cerró: ${who}`,
-  autoClosedByModel: (model) => `LLM (${model}) con la política de código`,
-  decidedByPerson: "Decidida por persona",
-  reopened: "Reabierta",
-  reopenedBy: (name, time) => `Reabierta por ${name}, ${time} UTC.`,
-  reopen: "Reabrir",
-  reopenReason: "Motivo para reabrir",
-  reopenNeeds: "Para reabrir hay que indicar el nombre y el motivo.",
-  sampleChip: "En la muestra",
-  sampleReview: "Marcar como revisada",
-  sampleReviewed: (name) => `Revisada por ${name}`,
-  fallbackChip: "Triaje incompleto",
-  fallbackSla: "El triaje no terminó, así que su reloj sigue en marcha hasta que decida una persona.",
-  auditTitle: "Registro de auditoría",
-  auditEmpty: "Sin entradas.",
-  groupsLabel: "Grupos de la cola",
-  groupWaitingManual: "Sin triar (triaje manual)",
-  showAllAuto: (n) => (n === 1 ? "Ver la restante" : `Ver las ${n} restantes`),
-  hideAllAuto: "Ver solo la muestra",
-  groupSampleCount: (shown, total) => `${shown} de ${total}`,
-
-  // Operations
-  navOperations: "Operación",
-  operationsTitle: "Operación automática",
-  operationsIntro: "Los niveles 1 a 3 pueden avanzar sin un clic. Lo que decide y lo que aprueba sigue donde dice cada carril. La contención nunca es automática.",
-  workerTitle: "Trabajador automático",
-  workerStart: "Arrancar",
-  workerResume: "Reanudar",
-  workerPause: "Pausar",
-  workerStop: "Detener",
-  workerDisabled: "Desactivado: el servidor arrancó sin AUTO_TRIAGE=1, así que la cola funciona a mano, como siempre.",
-  workerStopConfirm: "La alerta en curso terminará y no empezará ninguna más. ¿Detener?",
-  workerStoppedBecause: (why) => `Motivo: ${why}.`,
-  workerCurrent: "Ahora con",
-  workerInvestigate: "Investigación automática",
-  workerInvestigateOn: "activada",
-  workerInvestigateOff: "desactivada",
-  llmCalls: "Llamadas al LLM",
-  llmCallsOf: (used, limit) => `${used} de ${limit}`,
-  llmPerMinute: (n, pace) => `Máximo ${n} por minuto, con ${pace} s entre alertas`,
-  failures: "Fallos",
-  failuresValue: (row, max, total) => `${row} seguidos de ${max} · ${total} en total`,
-  workerTriaged: "Triadas en esta ejecución",
-  workerReports: "Informes en esta ejecución",
-  pendingPriority: "Sin triar, por prioridad",
-  slaByStatus: "SLA por severidad",
-  colSeverity: "Severidad",
-  notificationsTitle: "Notificaciones",
-  notificationsUnack: (n) => `${n} sin leer`,
-  notificationsHelp: "Se quedan en esta consola. No se envía ningún correo, llamada ni mensaje: si nadie abre la consola, nadie se entera.",
-  notificationsNone: "No hay notificaciones.",
-  colRole: "Para",
-  colTicket: "Alerta y ticket",
-  colReason: "Motivo",
-  colCreated: "Hora (UTC)",
-  acknowledge: "Enterado",
-  acknowledgedBy: (name, time) => `${name}, ${time} UTC`,
-  needNameFirst: "Escribe tu nombre arriba.",
-  pipelineTitle: "Por dónde va cada alerta",
-  pipelineHelp: "Cada alerta está en un solo carril. Pulsa un carril para ver sus alertas en la cola.",
-  pipelineNeedsPerson: (n) => (n === 1 ? "1 necesita a una persona" : `${n} necesitan a una persona`),
-  autoCountsTitle: "Cierres automáticos por regla",
-  autoCountsHelp: "Si una regla cierra demasiado, se ve aquí. Los reabiertos siguen contando.",
-  autoCountsNone: "Aún no hay cierres automáticos.",
-  colClosedBy: "Quién cerró",
-  colDetection: "Regla de detección",
-  colReopened: "Reabiertas",
-  samplesTitle: (percent) => `Muestra para revisar (${percent} %)`,
-  samplesHelp: "Una selección al azar de los cierres automáticos, para comprobar que siguen estando bien.",
-  samplesNone: "Aún no hay tickets en la muestra.",
-
-  // Trace
-  traceAuthorCode: "Código",
-  traceAuthorLlm: "LLM",
-  traceAuthorPerson: "Persona",
-  traceNoData: "Sin datos guardados para este paso.",
-  traceRows: "Filas",
-  traceArgs: "Argumentos",
-  traceEventsMore: (n) => `Ver ${n} más`,
-  traceRowLoading: "Leyendo el log…",
-  traceRowClose: "Ocultar la fila",
-  traceRowTitle: (source) => `Fila del log ${source}`,
-  traceSeverityStep: "Cálculo de la severidad",
-  tracePolicyStep: "Regla de política aplicada",
-  traceVerdictStep: "Veredicto",
-  traceDecisionStep: "Decisión final",
-  traceProposalClose: "Propuesta: cerrar",
-  traceProposalEscalate: (to) => `Propuesta: escalar a ${to}`,
-  traceWaitingPerson: "Esperando la decisión de una persona.",
-  tracePersonDecision: (outcome, name) => `${name} decidió: ${outcome}.`,
 
   // Import
   importTitle: "Importar alertas",
@@ -290,10 +170,11 @@ export const L = {
   // Run states
   stateNone: "Sin triaje",
   stateRunning: "En curso",
+  stateQueued: "Encoladas",
+  stateAutoClosed: "Cerradas automáticamente",
   stateFailed: "Fallido",
   statePending: "En revisión",
-  stateDecided: "Decidida por persona",
-  stateAutoClosed: "Cerrada automáticamente",
+  stateDecided: "Resuelto",
   quotaWaiting: "Esperando disponibilidad",
   quotaWaitingText: "Límite de cuota alcanzado. Reintento pendiente.",
   quotaExhausted: "Cuota agotada",
@@ -359,12 +240,12 @@ export const L = {
   byCodeHelp: "",
   byPerson: "Resolución",
   byPersonDone: "Resolución registrada",
-  closedByRule: "Cerrada por regla",
-  closedByRuleId: (id) => `Cerrada por regla ${id}`,
-  closedByRuleHelp: "Una regla fija de código cerró esta alerta sin llamar al LLM.",
-  ruleTitle: "Cerrada por una regla fija, sin LLM",
+  closedByRule: "Analizada por regla",
+  closedByRuleId: (id) => `Analizada por regla ${id}`,
+  closedByRuleHelp: "Una regla fija preparó la recomendación sin llamar al LLM. La disposición final se registra por separado.",
+  ruleTitle: "Recomendación de cierre por regla, sin LLM",
   ruleHelp:
-    "Código determinista: cada condición se cumplió exactamente con campos de los logs, la CMDB y el calendario de cambios. El texto de la alerta no cuenta. No se consultó al modelo.",
+    "Código determinista: cada condición se cumplió exactamente con campos de los logs, la CMDB y el calendario de cambios. El texto de la alerta no cuenta. No se consultó al modelo. La disposición final se registra por separado.",
   ruleName: "Regla",
   ruleConditions: "Condiciones que se cumplieron",
   ruleEvents: "Eventos en los que se basa",
@@ -597,7 +478,7 @@ export const VERDICT = {
   needs_more_info: "Necesita más información",
 };
 
-export const OUTCOME = { close: "cerrar", escalate: "escalar" };
+export const OUTCOME = { close: "cerrar", escalate: "escalar", reopen: "reabrir" };
 
 export const ACTION_NAME = {
   isolate_host: "Aislar el equipo",
@@ -617,7 +498,7 @@ export const CONTAINMENT_STATUS = {
   rejected: "Rechazada por una persona",
 };
 
-export const DECISION = { accept: "aceptó la propuesta", close: "cambió a cerrar", escalate: "cambió a escalar" };
+export const DECISION = { accept: "aceptó la propuesta", close: "cambió a cerrar", escalate: "cambió a escalar", reopen: "reabrió para revisión" };
 
 export const RUN_STATUS = { running: "En curso", done: "Terminada", failed: "Fallida" };
 
@@ -645,62 +526,25 @@ export const TOOL = {
   app: "Aplicación",
 };
 
-// Section 3 of the policy. Filled in from the API, so src/policy/sla.py is the one source of these numbers.
-export const SLA = {};
-
-export function setSlaTargets(targets) {
-  if (targets && typeof targets === "object") Object.assign(SLA, targets);
-}
+// Section 3 of data/01_contexto/politica_soc.md
+export const SLA = {
+  critical: { label: "15 min", seconds: 15 * 60 },
+  high: { label: "30 min", seconds: 30 * 60 },
+  medium: { label: "4 h", seconds: 4 * 3600 },
+  low: { label: "24 h", seconds: 24 * 3600 },
+  informational: { label: "lote diario", seconds: null },
+};
 
 export const STATE_FILTERS = {
+  "attention:review": "Requieren revisión",
+  "attention:processing": "Pendientes o en procesamiento",
+  "attention:automatic": "Cerradas automáticamente",
+  "attention:human": "Resueltas por una persona",
   none: "Sin triaje",
+  queued: "Encolada",
   running: "En curso",
   failed: "Fallido",
   pending: "En revisión",
-  decided: "Decidida por persona",
-  auto_closed: "Cerrada automáticamente",
-};
-
-export const SLA_STATE = {
-  on_track: "En plazo",
-  at_risk: "En riesgo",
-  breached: "Incumplido",
-  met: "Cumplido",
-  batch: "Lote diario",
-};
-
-export const SLA_FILTERS = { at_risk: "En riesgo", breached: "Incumplido" };
-
-export const QUEUE_GROUP = {
-  person: "Necesita persona ahora",
-  waiting: "Esperando LLM",
-  auto_sample: "Cerradas automáticamente (muestra)",
-  auto_rest: "Cerradas automáticamente (resto)",
-  decided: "Decididas por persona",
-};
-
-export const PIPELINE_LANE = {
-  entry: "Entrada",
-  rules: "Reglas fijas",
-  llm: "LLM",
-  policy: "Política (código)",
-  person: "Persona",
-  containment: "Contención",
-};
-
-export const WORKER_STATE = {
-  disabled: "Desactivado",
-  running: "En marcha",
-  paused: "En pausa",
-  stopping: "Deteniéndose",
-  stopped: "Detenido",
-};
-
-export const WORKER_STOP = {
-  person: "lo detuvo una persona",
-  server: "se apagó el servidor",
-  budget: "se alcanzó el límite de llamadas al LLM",
-  quota: "el LLM agotó su cuota",
-  failures: "demasiados fallos seguidos",
-  error: "error interno del trabajador",
+  decided: "Resuelto",
+  auto_closed: "Cierre automático",
 };

@@ -63,8 +63,9 @@ vuelven al flujo de lectura. Las pestañas permanecen accesibles al desplazarse 
 Los avisos importantes se mantienen encima del bloque de trabajo, incluido el que
 indica que la alerta forma parte de un incidente, con enlace a Incidentes.
 
-Una alerta que cerró una regla fija (`src/agent/rules.py`, sin LLM) lleva la etiqueta
-«Cerrada por regla» en la cola y en la barra de decisión. Análisis y evidencias empieza
+Una alerta analizada por una regla fija (`src/agent/rules.py`, sin LLM) lleva la etiqueta
+«Analizada por regla» en la cola y en la barra de decisión. Su recomendación de cierre
+no equivale a una disposición final. Análisis y evidencias empieza
 entonces por la regla, cada condición que se cumplió y los eventos en que se basa.
 
 Política y acciones incluye la contención del nivel 4: cada acción que el código
@@ -171,3 +172,41 @@ ancla el tooltip al control enfocado; Escape lo cierra. Las flechas recorren la 
 temporal. Se respeta el modo de movimiento reducido.
 
 Configuración: `docs/deloitte-charts.md` (nombre histórico).
+
+## Flujo automático y atención
+
+La subida prepara las alertas y muestra «Listas para iniciar». Dashboard y cola
+ofrecen el mismo botón primario «Iniciar flujo», con el número de alertas preparadas.
+El dashboard también permite importar. Antes de empezar se comprueba la API simulada;
+si falla, el mensaje explica cómo arrancarla y no se reclaman trabajos. Los errores
+de contexto se distinguen de cuota y presupuesto. La cola muestra su orden operativo,
+compartido con el worker. Los siguientes niveles avanzan tras ese único inicio.
+
+Dashboard y cola empiezan por un flujo de etapas persistidas: entrada, triaje,
+correlación, investigación condicional, revisión humana y finalizados. Cada etapa
+muestra su recuento y hasta ocho puntos con ID, severidad y acceso al ticket;
+por encima de ese volumen se declara la muestra. El detalle en directo muestra
+la última consulta registrada; no inventa una subfase ni anima tiempos ausentes.
+Hay como máximo una suscripción SSE activa en el flujo, complementada por
+reconciliación de la cola cada dos segundos. No se abren streams históricos.
+
+La revisión usa un fondo azul tenue dentro del mismo sistema. La contención
+aparece como rama separada con cantidades reales de propuestas, aprobaciones y
+ejecuciones. Preparar un informe o cerrar automáticamente no marca revisión
+humana ni aprobación. El flujo se adapta de seis a tres columnas y luego a una,
+con un scroll principal. No incorpora movimiento perpetuo nuevo.
+
+Las vistas de atención separan revisión, pendientes/procesamiento, cierres
+automáticos y resoluciones humanas. El orden de filas se conserva mientras se
+leen actualizaciones; Actualizar o filtrar vuelve a priorizar. Los borradores
+de resolución se conservan por ejecución en sessionStorage al navegar.
+Disposición e historial muestran origen, motivo, regla y evidencia sin inventar
+analistas. Los cierres seleccionados al azar para auditoría también aparecen en
+atención, conservando su disposición de cierre automático.
+
+Incidentes muestra escalados por defecto, filtro y relaciones entre alertas en
+HTML/SVG, hasta doce conexiones etiquetadas con sus motivos guardados. La lista
+completa sigue accesible. No se añaden nodos de entidad sin relaciones tipadas.
+La cronología del informe sigue siendo una lectura vertical por día, con horas
+entre eventos verificadas y procedencia de selección (`added_by`). No representa
+esa selección como autoría de la acción observada.

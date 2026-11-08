@@ -1,4 +1,4 @@
-import { countsOf, effective, filterAndSort, EMPTY_FILTERS } from "../queue/model.js";
+import { attentionOf, countsOf, effective, filterAndSort, EMPTY_FILTERS } from "../queue/model.js";
 import { SEVERITY_ORDER } from "../labels.js";
 
 // Aggregate only the queue already returned by the API. Dates refer to alert time,
@@ -37,10 +37,11 @@ export function dashboardData(rows) {
     .map(row => row.run.duration_seconds).filter(value => typeof value === "number" && Number.isFinite(value) && value >= 0);
   return {
     total: alerts.length, states, severity, timeline,
+    attention: Object.fromEntries(["review", "processing", "automatic", "human"].map(key => [key, alerts.filter(a => attentionOf(a) === key).length])),
     high: severity.filter(row => ["critical", "high"].includes(row.key)).reduce((sum, row) => sum + row.count, 0),
     triaged: alerts.filter(row => Boolean(row.ticket)).length,
     products: [...products].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key)),
-    priority: filterAndSort(alerts.filter(row => !row.decision && !row.ticket?.auto_closed), EMPTY_FILTERS).slice(0, 5),
+    priority: filterAndSort(alerts.filter(row => ["review", "processing"].includes(attentionOf(row))), EMPTY_FILTERS).slice(0, 5),
     averageSeconds: duration.length ? duration.reduce((sum, seconds) => sum + seconds, 0) / duration.length : null,
   };
 }

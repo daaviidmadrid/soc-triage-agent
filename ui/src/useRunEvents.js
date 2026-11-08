@@ -11,28 +11,49 @@ export function useRunEvents(runId, onEnd) {
     if (!runId) return undefined;
     setEvents([]);
     setStream("connecting");
-    const source = new EventSource(api.eventsUrl(runId));
-    source.onopen = () => setStream("live");
-    source.addEventListener("trace", (message) => {
-      let event;
-      try {
-        event = JSON.parse(message.data);
-      } catch {
-        return;
-      }
-      if (!event || typeof event !== "object") return;
-      setStream("live");
-      setEvents((prev) => (prev.some((p) => p.seq === event.seq) ? prev : [...prev, event].sort((a, b) => a.seq - b.seq)));
-    });
-    source.addEventListener("end", () => {
-      source.close();
-      setStream("ended");
-      onEnd();
-    });
-    source.onerror = () => {
-      if (source.readyState !== EventSource.CLOSED) setStream("lost");
-    };
-    return () => source.close();
+    let source, retry = null, lastSeq = 0, stopped = false, ended = false;
+    function connect() {
+      retry = null;
+      if (stopped || ended) return;
+      const opened = new EventSource(api.eventsUrl(runId, lastSeq));
+      source = opened;
+      opened.onopen = () => { if (!stopped && source === opened) setStream("live"); };
+      opened.addEventListener("trace", (message) => {
+        if (stopped || source !== opened) return;
+        let event;
+        try { event = JSON.parse(message.data); } catch { return; }
+        if (!event || typeof event !== "object" || !Number.isInteger(event.seq)) return;
+        lastSeq = Math.max(lastSeq, event.seq);
+        setStream("live");
+        setEvents(prev => prev.some(p => p.seq === event.seq) ? prev : [...prev, event].sort((a, b) => a.seq - b.seq));
+      });
+      opened.addEventListener("end", () => {
+        if (stopped || source !== opened) return;
+        ended = true;
+        opened.close();
+        setStream("ended");
+        onEnd();
+      });
+      opened.onerror = () => {
+        if (stopped || ended || source !== opened) return;
+        setStream("lost");
+        // Native EventSource retries CONNECTING. A proxy's 5xx can close it permanently.
+        if (opened.readyState === EventSource.CLOSED && retry === null) {
+          opened.close();
+          retry = setTimeout(connect, 2000);
+        }
+      };
+    }
+    function reconnect() {
+      if (stopped || ended) return;
+      if (retry !== null) clearTimeout(retry);
+      source?.close();
+      connect();
+    }
+    window.addEventListener("online", reconnect);
+    window.addEventListener("tarvia:api-restored", reconnect);
+    connect();
+    return () => { stopped = true; if (retry !== null) clearTimeout(retry); source?.close(); window.removeEventListener("online", reconnect); window.removeEventListener("tarvia:api-restored", reconnect); };
   }, [runId, onEnd]);
 
   return { events, stream };

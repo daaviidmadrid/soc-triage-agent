@@ -2,8 +2,7 @@
 // Never use dangerouslySetInnerHTML, and never turn data into links or images.
 import { useState } from "react";
 import Icon from "./icons.jsx";
-import { L, SEVERITY, SLA, SLA_STATE } from "./labels.js";
-import { formatDuration, liveSla } from "./queue/model.js";
+import { L, SEVERITY, SLA } from "./labels.js";
 
 // Data helpers: the formats may change, so every read tolerates missing or odd values.
 export function obj(value) {
@@ -135,32 +134,9 @@ export function Field({ label, children, id }) {
   );
 }
 
-// The SLA's state as text plus a mark, never colour alone.
-export function SlaState({ state }) {
-  if (!SLA_STATE[state]) return null;
-  return <span className={`sla-state sla-state-${state}`}>{state === "met" ? <Icon name="check" /> : state === "breached" ? <Icon name="cross" /> : state === "at_risk" ? <Icon name="alert" /> : <Icon name="clock" />}{SLA_STATE[state]}</span>;
-}
-
-// Policy target for a severity and where the alert stands against it. The countdown uses the server's deadline,
-// which runs from when the alert entered the app: never from the alert's own time.
-export function SlaCell({ severity, fromRule, seconds, running, record, nowMs }) {
+// Policy target for a severity, and how long triage took against it. Never a countdown from the alert's time.
+export function SlaCell({ severity, fromRule, seconds, running }) {
   const sla = SLA[severity];
-  const live = liveSla(record, nowMs);
-  if (live) {
-    // The target of the severity that set the deadline: a lower final severity doesn't relax it.
-    const set = SLA[live.deadline_severity] || sla;
-    const target = set ? L.slaTarget(set.label) : null;
-    const stoppedIn = live.stopped_at ? (Date.parse(live.stopped_at) - Date.parse(live.started_at)) / 1000 : null;
-    return (
-      <span className="sla" title={L.slaClockNote}>
-        <SlaState state={live.state} />
-        {live.secondsLeft !== null && <span className="num">{live.secondsLeft >= 0 ? L.slaLeft(formatDuration(live.secondsLeft)) : L.slaOver(formatDuration(live.secondsLeft))}</span>}
-        {live.state === "breached" && live.secondsLeft === null && !live.stopped_at && <span className="num">{L.slaOverAt(formatTime(live.breached_at) || L.na)}</span>}
-        {Number.isFinite(stoppedIn) && <span className="num">{L.slaStoppedIn(formatDuration(stoppedIn))}</span>}
-        {target && <span className="muted">{target}{fromRule && ` (${L.fromRule})`}</span>}
-      </span>
-    );
-  }
   if (!sla) return <NA />;
   const took = formatSeconds(seconds);
   return (
