@@ -4,7 +4,7 @@ Change "proposed" to "agreed" once the team confirms it.
 
 | Topic | Decision | Status |
 |---|---|---|
-| Repo | Private team repo, no fork | Done |
+| Repo | Public team repo, no fork | Done |
 | Dataset | Deloitte's repo cloned into `data/`, not committed | Done |
 | Live test | 10 alerts | From the deck |
 | Main LLM | `ornith` on the UAB's servers, which the guide says has no token or request limits. Gemini's free tier allows `gemini-3.6-flash` 20 requests a day (Google's 429, 7 Nov), so it is only an emergency fallback, by changing `.env` and adding `LLM_STREAM=false` | Proposed |
