@@ -30,6 +30,7 @@ If triage fails, for example because the model is down, the ticket is `needs_mor
 |---|---|
 | What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
 | Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
+| Whether a closed ticket skips human review, with `AUTO_TRIAGE=1` | Code, only when every condition holds (`src/policy/auto_close.py`) |
 | Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
 | Final severity | Code, from the policy matrix |
 | Close or escalate, and to whom | Code, from the policy and the checked draft |
@@ -103,6 +104,34 @@ TRIAGE_MODE=real APP_SAMPLE=none APP_DB_PATH=runs/final.sqlite3 uvicorn src.app.
 ```
 The import button takes JSON, JSONL or CSV, with other field names too. Save an Excel file as CSV first.
 
+## Automatic triage (levels 1 to 3)
+Off by default, so the queue works by clicking. To turn it on (needs the mock API and the LLM key in `.env`):
+```bash
+TRIAGE_MODE=real AUTO_TRIAGE=1 uvicorn src.app.main:app --port 8001
+```
+The worker starts with the server and takes the alerts with no ticket, including the ones you import: fixed rules first, then the LLM by rule severity, asset criticality and earliest deadline. To start, pause and stop it, use the buttons on the Operación page in the side menu. Stopping finishes the alert in progress and starts no more. With `AUTO_TRIAGE=0` the buttons are off and the routes refuse, so restart the server to turn it on.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AUTO_TRIAGE` | `0` | `1` turns on the worker, automatic grouping and auto-close. Example tickets never auto-close. |
+| `AUTO_INVESTIGATE` | `0` | `1` also writes a report for each escalation, critical first. Needs `AUTO_TRIAGE=1`. |
+| `AUTO_TRIAGE_MAX_CALLS_PER_RUN` | `100` | LLM calls from one start of the worker, reports included. It stops there. |
+| `AUTO_TRIAGE_MAX_CALLS_PER_MINUTE` | `30` | LLM calls per minute. It waits rather than stops. |
+| `AUTO_TRIAGE_PACE_SECONDS` | `LLM_PACE_SECONDS`, or `2` | Pause between alerts that may call the LLM. |
+| `AUTO_TRIAGE_MAX_FAILURES` | `3` | Failures in a row before it stops. It also stops when the LLM runs out of quota. |
+| `AUTO_GROUP_SECONDS` | `30` | Grouping runs at most this often, and only with new tickets. |
+| `AUTO_CLOSE_SAMPLE_PERCENT` | `5` | Share of auto-closed tickets shown at random for review. |
+
+A ticket the code already closed skips human review only if its final severity is informational or low, its verdict isn't `needs_more_info`, it has no policy or injection flags, the evidence and authorisation checks passed, and nothing about it touches the OT network (`src/policy/auto_close.py`). Everything else waits for a person, and a person can reopen any auto-closed ticket. The LLM never decides close or escalate on its own, never approves and never runs anything, and level 4 stays human: every containment action needs a person's approval and a person's click.
+
+SLA targets are in `src/policy/sla.py`. The clock starts when an alert enters the app and stops when its ticket is created.
+
+What this doesn't solve:
+- An auto-close can hide a rule mistake, or a model misled by text in the data. Only the sample and the per-rule counts make that visible.
+- The LLM budget caps coverage. Alerts that don't fit stay for a person and show as at risk or breached, and they're never closed because of the delay.
+- The SLA is measured in the app, not from the real SIEM arrival time.
+- Notifications stay inside the app. Nothing reaches the SOC lead, the CISO or on-call N2 outside the console, so a breach at night goes unseen until someone opens it. The system calls nobody: a person confirms the N2 call or handover.
+
 Test the LLM:
 ```bash
 python scripts/test_llm.py
@@ -110,6 +139,10 @@ python scripts/test_llm.py
 Tests:
 ```bash
 pytest
+```
+UI logic tests, from `ui/`:
+```bash
+node --test "src/**/*.test.js"
 ```
 
 ## Practice exam
@@ -176,7 +209,7 @@ On an escalated ticket, the alert page's "Política y acciones" tab lists the co
 analysis/     data analysis notebook
 contracts/    data formats
 src/tools/    api client, log search
-src/policy/   severity, approvals
+src/policy/   severity, approvals, sla, auto-close
 src/agent/    llm, triage
 src/app/      backend
 ui/           frontend (react, css)
