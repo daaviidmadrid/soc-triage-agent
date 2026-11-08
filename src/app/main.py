@@ -24,11 +24,12 @@ from pydantic import BaseModel, Field
 
 from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
-from src.app.sla_tracker import is_fallback
+from src.app.sla_tracker import SlaTracker, is_fallback
 from src.app.store import Store, now_iso
 from src.app.worker import Settings, Worker
 from src.agent.correlate import correlate
 from src.policy import auto_close as auto_close_policy
+from src.policy import sla as sla_policy
 from src.policy.containment import ApprovalProblem, approve, approver_record, proposals_from_steps, propose, ready_to_run
 from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
@@ -86,6 +87,12 @@ class PersonIn(BaseModel):
     reason: str = Field(default="", max_length=2000)
 
 
+class EscalationIn(BaseModel):
+    analyst: str = Field(min_length=1, max_length=100)
+    kind: Literal["call", "handover"]
+    note: str = Field(default="", max_length=1000)
+
+
 def sample_rate():
     """The share of auto-closed tickets shown for review, from AUTO_CLOSE_SAMPLE_PERCENT."""
     try:
@@ -104,6 +111,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
     rules_fn = rules_fn or runner.run_rules
     lookup_asset = lookup_asset or api_client.get_asset
     settings = settings or Settings()
+    tracker = SlaTracker(store, now_iso)
     # APP_SAMPLE=none starts with an empty queue, so it holds only the alerts you import.
     sample_setting = sample_path or os.environ.get("APP_SAMPLE") or DEFAULT_SAMPLE
     if str(sample_setting).lower() == "none":
@@ -121,6 +129,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             sample["error"] = "No se encontró la muestra de alertas en data/03_alertas/."
         except (OSError, ImportProblem) as error:
             sample["error"] = f"No se pudo leer la muestra de alertas ({type(error).__name__})."
+
+    tracker.open_new()
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -168,6 +178,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             "triage_seconds": run.get("duration_seconds") if run else None,
             "auto_closed": ticket.get("auto_closed") is True,
             "auto_close": ticket.get("auto_close") if isinstance(ticket.get("auto_close"), dict) else None,
+            # The triage couldn't finish, so a person must look at it and its SLA clock is still running.
+            "fallback": is_fallback(ticket, store.events_after(row["run_id"])) if ticket.get("verdict") == "needs_more_info" else False,
         }
 
     def run_view(run):
@@ -228,11 +240,19 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             return ticket_row["ticket_id"]
         return None
 
+    def worker_blocked():
+        """The worker should be triaging but isn't, so open alerts can't count on it. Never true with AUTO_TRIAGE=0."""
+        return settings.enabled and worker.state != "running"
+
     @app.get("/api/queue")
     def queue():
+        tracker.refresh()
         runs = store.latest_runs()
         decisions = store.latest_decisions_by_run()
         incident_of = memberships()
+        records = store.all_sla()
+        blocked = worker_blocked()
+        now = now_iso()
         items = []
         for row in store.list_alerts():
             alert = row["alert"]
@@ -251,12 +271,14 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                 "ticket": ticket,
                 "decision": decisions.get(run["run_id"]) if run else None,
                 "incident_id": incident_of.get(alert["alert_id"]),
+                "sla": tracker.view(records.get(alert["alert_id"]), blocked, now),
             })
         return {
             "mode": runner.current_mode(),
             "sample": sample,
             "alerts": items,
             "example_results": sum(1 for item in items if item["run"] and item["run"]["mode"] == "example"),
+            "now": now,
         }
 
     @app.get("/api/alerts/{alert_id}")
@@ -280,6 +302,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             "decisions": store.decisions_for(ticket_row["ticket_id"]) if ticket_row else [],
             "incident_id": memberships().get(alert_id),
             "report_key": report_key_for(alert_id, ticket_row),
+            "sla": tracker.view(store.get_sla(alert_id), worker_blocked()),
+            "now": now_iso(),
         }
 
     # Containment (level 4). The LLM's suggestions become proposals by plain code. Only these routes, called by a
@@ -406,6 +430,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         except ImportProblem as error:
             raise HTTPException(400, str(error)) from None
         added, skipped = store.add_alerts(result["alerts"], "imported")
+        tracker.open_new()
         return {
             "format": result["format"],
             "rows": result["rows"],
@@ -455,6 +480,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                     if by_worker:
                         ticket = apply_auto_close(ticket, alert, mode, run_id)
                     store.save_ticket(ticket, run_id, alert["alert_id"], mode)
+                    tracker.on_ticket(alert["alert_id"], ticket, run_id, mode, store.events_after(run_id))
                     ticket_id = ticket["ticket_id"]
             if not ticket_id:
                 error = "El triaje terminó sin ticket."
@@ -637,7 +663,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             outcome = "escalate" if escalation["escalate"] else "close"
         else:
             outcome = body.decision
-        return store.add_decision(ticket_id, row["run_id"], analyst, body.decision, outcome, reason)
+        saved = store.add_decision(ticket_id, row["run_id"], analyst, body.decision, outcome, reason)
+        tracker.on_decision(row["alert_id"])
+        return saved
 
     # Automation: everything below only runs because a person called it, or because the worker chose what comes next.
 
@@ -724,8 +752,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         return run_id
 
     worker = Worker(store, settings, triage_one=worker_triage, try_rules=worker_rules, group=worker_group,
-                    report_candidates=report_candidates, report_one=worker_report)
+                    report_candidates=report_candidates, report_one=worker_report, tick=tracker.refresh)
     app.state.worker = worker
+    app.state.tracker = tracker
 
     def require_enabled():
         if not settings.enabled:
@@ -770,8 +799,60 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
 
     @app.get("/api/status")
     def status():
+        tracker.refresh()
+        worker_view = worker.view()
+        blocked = worker_blocked()
+        now = now_iso()
+        records = store.all_sla()
+        runs = store.latest_runs()
+        pending = {severity: 0 for severity in SEVERITIES}
+        sla_counts = {severity: {"on_track": 0, "at_risk": 0, "breached": 0, "met": 0, "batch": 0} for severity in SEVERITIES}
+        for alert_id, record in records.items():
+            view = tracker.view(record, blocked, now)
+            sla_counts[view["severity"]][view["state"]] += 1
+            run = runs.get(alert_id)
+            if not run or run["status"] == "failed":
+                pending[view["rule_severity"]] += 1
         per_rule, samples = auto_close_counts()
-        return {"now": now_iso(), "worker": worker.view(), "auto_closed": per_rule, "samples": samples, "sample_percent": round(sample_rate() * 100, 2)}
+        return {
+            "now": now, "worker": worker_view, "pending_by_priority": pending, "sla": sla_counts, "sla_targets": sla_policy.TARGETS,
+            "notifications_unacknowledged": store.count_unacknowledged(), "auto_closed": per_rule, "samples": samples,
+            "sample_percent": round(sample_rate() * 100, 2), "at_risk_fraction": sla_policy.AT_RISK_FRACTION,
+        }
+
+    @app.get("/api/sla/targets")
+    def sla_targets():
+        return {"targets": sla_policy.TARGETS, "at_risk_fraction": sla_policy.AT_RISK_FRACTION}
+
+    @app.get("/api/notifications")
+    def notifications():
+        tracker.refresh()
+        return {"notifications": store.list_notifications(), "unacknowledged": store.count_unacknowledged()}
+
+    @app.post("/api/notifications/{notification_id}/acknowledge")
+    def acknowledge(notification_id: int, body: PersonIn):
+        analyst = body.analyst.strip()
+        if not analyst:
+            raise HTTPException(422, "Indica el nombre de la persona.")
+        found = store.get_notification(notification_id)
+        if not found:
+            raise HTTPException(404, "Notificación no encontrada.")
+        if store.acknowledge_notification(notification_id, analyst):
+            store.add_audit("person", analyst, "notification_acknowledged", found["alert_id"], body.reason.strip() or "Enterado.", {"notification_id": notification_id, "role": found["role"]})
+        return store.get_notification(notification_id)
+
+    @app.post("/api/alerts/{alert_id}/escalation")
+    def confirm_escalation(alert_id: str, body: EscalationIn):
+        """A person says the N2 call or handover happened. Nothing here calls anyone."""
+        analyst = body.analyst.strip()
+        if not analyst:
+            raise HTTPException(422, "Indica el nombre de la persona.")
+        record = store.get_sla(alert_id)
+        if not record:
+            raise HTTPException(404, "Alerta no encontrada.")
+        if not sla_policy.required_action(record["severity"]):
+            raise HTTPException(409, "La política solo exige confirmar el escalado en severidad alta o crítica.")
+        return tracker.view(tracker.confirm_escalation(alert_id, analyst, body.kind, body.note.strip()), worker_blocked())
 
     def auto_closed_row(ticket_id):
         row = store.get_ticket(ticket_id)
