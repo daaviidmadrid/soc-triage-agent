@@ -22,12 +22,8 @@ These practice scores are optimistic: see [What it doesn't solve](#what-it-doesn
 | Decision | Who makes it |
 |---|---|
 | What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
-<<<<<<< HEAD
-| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
-| Whether a closed ticket skips human review, with `AUTO_TRIAGE=1` | Code, only when every condition holds (`src/policy/auto_close.py`) |
-=======
 | Proposing to close well-known noise, without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
->>>>>>> 589125e (Update README.md)
+| Whether a closed ticket skips human review, with `AUTO_TRIAGE=1` | Code, only when every condition holds (`src/policy/auto_close.py`) |
 | Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
 | Final severity | Code, from the policy matrix |
 | Proposing close or escalate, and to whom | Code, from the policy and the checked draft |
