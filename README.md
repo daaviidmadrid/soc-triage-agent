@@ -2,25 +2,66 @@
 
 By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026.
 
-## The agent
-An AI agent for the security team (SOC) of Tarvia, a fictional retailer. Given an alert, it looks up the facts, works out what happened, and writes a ticket with its evidence. Then it closes the alert or escalates it to a person.
+An AI agent that triages security alerts for the SOC of Tarvia, a fictional retailer. Given an alert, it looks up the facts, works out what happened, and writes a ticket with its evidence. Then it closes the alert or escalates it to a person.
 
 **Plain code gathers and checks the facts, the LLM judges, and a person decides. The LLM never approves or runs containment.**
 
-It covers all four levels of the challenge:
-1. **Triage:** one ticket per alert, with a verdict, a severity, the evidence, and close or escalate.
-2. **Judgement:** groups the alerts of one attack into a single incident.
-3. **Investigation:** an incident report with a timeline of the attack.
-4. **Response:** containment proposals that named people approve and run, on a simulated API.
+## At a glance
+| | |
+|---|---|
+| Levels built | All 4: triage, judgement (grouping into incidents), investigation (incident reports), response (containment) |
+| Fully right on 80 practice alerts (v8) | 77 and 76 in two runs: verdict, severity and escalation all match the key |
+| Attacks missed on those 80 (v8) | 0 in both runs |
+| Closed with no LLM | 43% of all alerts, by 2 fixed rules, in about a second each |
+| Speed | About 2.5 minutes per model call, with reasoning on |
+| Code tests | 746 unit tests |
 
-What makes it different:
+These practice scores are optimistic: see [What it doesn't solve](#what-it-doesnt-solve).
+
+## What the AI decides, what a person decides
+| Decision | Who makes it |
+|---|---|
+| What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
+| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
+| Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
+| Final severity | Code, from the policy matrix |
+| Close or escalate, and to whom | Code, from the policy and the checked draft |
+| Which alerts belong to one incident | Code, by exact shared identifiers |
+| The incident report: story, scope, root cause | LLM writes it; code checks every timeline event and takes its time from the log |
+| Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
+| Approving and running containment | People |
+
+## What makes it different
 - **It treats the data as untrusted.** Attackers wrote some of it, so nothing in an alert or a log is ever an instruction. Suspicious text on anything but an attack sends the ticket to a person.
-- **Code checks every answer it can.** Cited events must exist in the logs, approvals must match a real change, and code computes the final severity from Tarvia's policy.
+- **Code checks every answer it can.** Cited events must exist in the logs, approvals must match a real change or trip, and code computes the final severity from Tarvia's policy.
 - **When in doubt, it asks a person.** With no data to close on, or if the model is down, the ticket goes to a person and can never close by itself.
 - **It sees a whole phishing campaign.** Code fetches what happened to the other recipients, which caught 2 attacks every earlier version missed.
-- **It closes known noise without the LLM.** Two fixed rules close 43% of all alerts in about a second each, and a rule never escalates.
 
-With v8's settings, it got 77 and 76 of 80 practice alerts fully right in two runs and missed no attack, at about 2.5 minutes per model call. Claude drafted the answer key and we reviewed the 20 answers it was least sure of. Those alerts were also used to tune the agent, so these figures are optimistic ([Agent versions](#agent-versions)).
+## What it doesn't solve
+- **The scores measure agreement, not accuracy.** Claude drafted the answer key, and we reviewed only the 20 of its 120 answers it was least sure of, before seeing any results. We changed none. The 80 practice alerts were also used to tune the agent.
+- **The model varies.** The same version run twice differs by a few alerts in 80.
+- **It still makes mistakes.** For example, a vendor VPN session inside its approved change goes to a person as `needs_more_info`. In v8's two runs, its mistakes never closed an attack.
+- **It's slow.** Reasoning on takes minutes per alert. Reasoning off takes seconds but scores clearly worse.
+- **The fixed rules cover only two kinds of noise,** and a ticket closed by a rule has no injection flags, because no model reads it.
+- **Containment runs only on the simulated API.** Approvers are typed names, not signed-in users, and the console only answers the local machine.
+- **It has only seen Deloitte's fictional data,** never a real SOC.
+
+## Try it
+The interface runs with no LLM key, using fictional example results, but it needs Deloitte's dataset for its alerts (Python, and Node 22 or newer):
+```bash
+git clone https://github.com/dttdfr/DTT-UAB-The-Hack.git data
+```
+```bash
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+```
+```bash
+uvicorn src.app.main:app --port 8001
+```
+In a second terminal, then open http://localhost:5173:
+```bash
+cd ui && npm install && npm run dev
+```
+The real agent also needs the mock API and an LLM key: see [Setup](#setup).
 
 ## How it works
 
@@ -40,19 +81,6 @@ The LLM only proposes. Wherever an answer can be checked, `build_ticket` and `_a
 ![How code checks the LLM draft: real evidence, data to close on, severity by code, escalation rules, then close or escalate.](docs/figures/checks.svg)
 
 If triage fails, for example because the model is down, the ticket is `needs_more_info` and escalated, and it can never close.
-
-### Who decides what
-| Decision | Who makes it |
-|---|---|
-| What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
-| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
-| Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
-| Final severity | Code, from the policy matrix |
-| Close or escalate, and to whom | Code, from the policy and the checked draft |
-| Which alerts belong to one incident | Code, by exact shared identifiers |
-| The incident report: story, scope, root cause | LLM writes it; code checks every timeline event and takes its time from the log |
-| Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
-| Approving and running containment | People |
 
 ### How we build the agent
 The analysis came first. Each trap it found became a rule in code with unit tests. Claude drafted the answer keys before any run, without seeing the agent's answers, and we reviewed the 20 answers it was least sure of, changing none. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
@@ -87,10 +115,10 @@ Create a `.env` file with your own key:
 LLM_API_KEY=uth-your_team_key
 LLM_BASE_URL=https://dcc-llm-gw.uab.cat/uabthehack/v1
 LLM_MODEL=ornith
-LLM_ENABLE_THINKING=false
 MOCK_API_URL=http://localhost:8000
 ```
-With `LLM_ENABLE_THINKING=false`, `ornith` answers in seconds. Without it, the model reasons first and an alert takes minutes.
+The model reasons first by default, as in all of v8's results, so an alert takes minutes. Adding `LLM_ENABLE_THINKING=false` makes it answer in seconds, with worse results.
+
 The UI also needs Node 22 or newer (on a Mac, `brew install node`):
 ```bash
 cd ui && npm install
@@ -193,12 +221,12 @@ analysis/     data analysis notebook
 contracts/    data formats
 src/tools/    api client, log search
 src/policy/   severity, approvals
-src/agent/    llm, triage
+src/agent/    llm, triage, fixed rules, grouping, incident reports
 src/app/      backend
 ui/           frontend (react, css)
 eval/         labels, scoring
-docs/         notes, one-pager, demo script
-scripts/      quick tests
+docs/         notes, figures, results of each version
+scripts/      practice exam, night rounds, quick tests
 data/         deloitte dataset (not in git)
 ```
 
