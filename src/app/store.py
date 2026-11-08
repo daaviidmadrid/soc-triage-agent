@@ -85,6 +85,18 @@ CREATE TABLE IF NOT EXISTS audit (
     data TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS audit_by_subject ON audit(subject);
+CREATE TABLE IF NOT EXISTS sla (
+    alert_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dedupe TEXT NOT NULL UNIQUE,
+    alert_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    acknowledged_by TEXT,
+    acknowledged_at TEXT
+);
 """
 
 RUN_FIELDS = ("run_id", "alert_id", "mode", "status", "started_at", "finished_at", "duration_seconds", "ticket_id", "error")
@@ -142,6 +154,10 @@ class Store:
     def list_alerts(self):
         rows = self._all("SELECT data, origin FROM alerts ORDER BY rowid")
         return [{"alert": json.loads(data), "origin": origin} for data, origin in rows]
+
+    def alert_entry_times(self):
+        """{alert_id: when it entered the store}, oldest first."""
+        return dict(self._all("SELECT alert_id, added_at FROM alerts ORDER BY rowid"))
 
     def get_alert(self, alert_id):
         row = self._one("SELECT data, origin FROM alerts WHERE alert_id = ?", (alert_id,))
@@ -351,3 +367,49 @@ class Store:
         where, args = ("WHERE subject = ?", (subject,)) if subject else ("", ())
         rows = self._all(f"SELECT {', '.join(fields)} FROM audit {where} ORDER BY id DESC LIMIT ?", (*args, limit))
         return [{**dict(zip(fields, row)), "data": json.loads(row[-1])} for row in rows]
+
+    # SLA: one row per alert, with its start, stop, deadline and outcome.
+
+    def save_sla(self, alert_id, record):
+        self._write("INSERT OR REPLACE INTO sla (alert_id, data) VALUES (?, ?)", (alert_id, _dumps(record)))
+
+    def get_sla(self, alert_id):
+        row = self._one("SELECT data FROM sla WHERE alert_id = ?", (alert_id,))
+        return json.loads(row[0]) if row else None
+
+    def all_sla(self):
+        return {alert_id: json.loads(data) for alert_id, data in self._all("SELECT alert_id, data FROM sla")}
+
+    # Notifications stay inside the app. Nothing here or anywhere else sends one outside it.
+
+    def add_notification(self, dedupe, alert_id, data):
+        """Adds it unless the same one exists. Returns its ID, or None if it already existed."""
+        with self._lock:
+            cursor = self._db.execute(
+                "INSERT OR IGNORE INTO notifications (dedupe, alert_id, data) VALUES (?, ?, ?)", (dedupe, alert_id, _dumps(data)))
+            self._db.commit()
+            return cursor.lastrowid if cursor.rowcount else None
+
+    def _notification(self, row):
+        id_, alert_id, data, by, at = row
+        return {**json.loads(data), "id": id_, "alert_id": alert_id, "acknowledged_by": by, "acknowledged_at": at}
+
+    def list_notifications(self, limit=500):
+        rows = self._all(
+            "SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications "
+            "ORDER BY acknowledged_at IS NOT NULL, id DESC LIMIT ?", (limit,))
+        return [self._notification(row) for row in rows]
+
+    def get_notification(self, notification_id):
+        row = self._one("SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications WHERE id = ?", (notification_id,))
+        return self._notification(row) if row else None
+
+    def acknowledge_notification(self, notification_id, analyst):
+        """Only the first acknowledgement counts. Returns True if this one did."""
+        cursor = self._write(
+            "UPDATE notifications SET acknowledged_by = ?, acknowledged_at = ? WHERE id = ? AND acknowledged_at IS NULL",
+            (analyst, now_iso(), notification_id))
+        return cursor.rowcount > 0
+
+    def count_unacknowledged(self):
+        return self._one("SELECT COUNT(*) FROM notifications WHERE acknowledged_at IS NULL")[0]

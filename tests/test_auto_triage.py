@@ -244,12 +244,12 @@ def test_samples_follow_the_rate_and_counts_are_per_rule(tmp_path, monkeypatch):
 
 # The worker
 
-def test_priority_order_is_rule_severity_then_criticality():
-    first = order_key({"severity": "high"}, "Media", 1)
-    second = order_key({"severity": "high"}, "Media", 5)
-    high_critical = order_key({"severity": "high"}, "Crítica", 9)
-    medium_first = order_key({"severity": "medium"}, "Crítica", 0)
-    assert sorted([medium_first, second, first, high_critical]) == [high_critical, first, second, medium_first]
+def test_priority_order_is_rule_severity_then_criticality_then_deadline():
+    high_old = order_key({"severity": "high"}, "Media", "2026-01-01T00:00:00.000Z", 5)
+    high_new = order_key({"severity": "high"}, "Media", "2026-01-02T00:00:00.000Z", 1)
+    high_critical = order_key({"severity": "high"}, "Crítica", "2026-01-03T00:00:00.000Z", 9)
+    medium_oldest = order_key({"severity": "medium"}, "Crítica", "2020-01-01T00:00:00.000Z", 0)
+    assert sorted([medium_oldest, high_new, high_old, high_critical]) == [high_critical, high_old, high_new, medium_oldest]
 
 
 def test_the_id_number_doesnt_change_the_order(tmp_path, monkeypatch):
@@ -392,7 +392,7 @@ def test_alert_text_asking_to_be_skipped_or_closed_is_handled_like_any_other(tmp
         folder.mkdir()
         app = make(folder, monkeypatch, run, rows=rows)
         drive(app)
-        order[name] = (seen, [ticket_of(app, row["alert_id"]).get("auto_closed", False) for row in rows])
+        order[name] = (seen, [ticket_of(app, row["alert_id"]).get("auto_closed", False) for row in rows], app.state.store.get_sla("ALR-LOW")["deadline_severity"])
     assert order["plain"] == order["hostile"] and order["hostile"][1] == [False, False, False]
 
 
@@ -632,7 +632,7 @@ def _functions_calling(path, names):
 
 def test_no_automatic_code_can_approve_or_run_containment():
     forbidden = {"approve", "request_approval", "run_containment", "ready_to_run", "approver_record", "execute_proposal", "approve_proposal"}
-    for name in ("src/app/worker.py", "src/policy/auto_close.py"):
+    for name in ("src/app/worker.py", "src/app/sla_tracker.py", "src/policy/auto_close.py", "src/policy/sla.py"):
         assert _functions_calling(ROOT / name, forbidden) == set(), name
 
 

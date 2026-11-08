@@ -2,8 +2,8 @@
 
 It only chooses what to do next and when. Triage, grouping and reports go through the same functions as the routes a
 person clicks, passed in by src/app/main.py. Nothing here calls the LLM, reads alert text or decides anything about a
-ticket, and no text from the data reaches the order: it uses the rule's severity field, the CMDB's criticality and
-the order alerts arrived, never an ID number.
+ticket, and no text from the data reaches the order: it uses the rule's severity field, the CMDB's criticality, the
+deadline and the order alerts arrived, never an ID number.
 
 step() does one unit of work and says what it did, so tests can drive it with no thread. Stopping or pausing takes
 effect between units, so no alert is ever left half-processed.
@@ -16,7 +16,8 @@ from types import SimpleNamespace
 
 from src.agent.batch import MAX_CALLS_PER_RUN, MAX_FAILURES_IN_A_ROW, PACE_SECONDS, _calls_used, _out_of_quota, _should_save
 from src.agent.rules import RULES
-from src.agent.triage import MAX_LLM_CALLS, _rule_severity
+from src.agent.triage import MAX_LLM_CALLS
+from src.policy import sla as sla_policy
 from src.policy.severity import CRITICALITIES, DEFAULT_CRITICALITY, LEVELS, resolve_criticality
 from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
@@ -84,15 +85,16 @@ def alert_criticality(alert, lookup_asset=None, lookup_user=None, memo=None):
         return DEFAULT_CRITICALITY
 
 
-def order_key(alert, criticality, position):
-    """Rule severity, then criticality, then the order alerts arrived. A lower severity never overtakes a higher one."""
-    return (-LEVELS.index(_rule_severity(alert)), -CRITICALITIES.index(criticality), position)
+def order_key(alert, criticality, deadline, position):
+    """Rule severity, then criticality, then the earliest deadline. A lower severity never overtakes a higher one."""
+    severity = sla_policy.rule_severity(alert)[0]
+    return (-LEVELS.index(severity), -CRITICALITIES.index(criticality), deadline or "9999", position)
 
 
 class Worker:
     """triage_one, try_rules, group, report_candidates and report_one are the app's own functions. See main.py."""
 
-    def __init__(self, store, settings, *, triage_one, try_rules, group, report_candidates, report_one, criticality=None,
+    def __init__(self, store, settings, *, triage_one, try_rules, group, report_candidates, report_one, tick=None, criticality=None,
                  clock=time.monotonic, wait=None):
         self.store = store
         self.settings = settings
@@ -101,6 +103,7 @@ class Worker:
         self.group = group
         self.report_candidates = report_candidates
         self.report_one = report_one
+        self.tick = tick or (lambda: None)
         self.criticality = criticality or alert_criticality
         self.clock = clock
         self._wait = wait
@@ -190,6 +193,7 @@ class Worker:
         """Alerts with no ticket and no run in progress, best first, as (alert, needs_rules). A failed alert gets one
         more try per start of the worker. A person-started run is left alone, whatever it is."""
         runs = self.store.latest_runs()
+        records = self.store.all_sla()
         items = []
         for position, row in enumerate(self.store.list_alerts()):
             alert = row["alert"]
@@ -197,7 +201,8 @@ class Worker:
             run = runs.get(alert_id)
             if alert_id in self._tried or (run and run["status"] != "failed"):
                 continue
-            items.append((order_key(alert, self._crit(alert), position), alert))
+            deadline = (records.get(alert_id) or {}).get("deadline")
+            items.append((order_key(alert, self._crit(alert), deadline, position), alert))
         return [alert for _, alert in sorted(items, key=lambda item: item[0])]
 
     def _can_call(self, now):
@@ -259,6 +264,7 @@ class Worker:
                 return "stopped"
             if self.state in ("stopped", "paused"):
                 return self.state
+        self.tick()
         now = self.clock()
         pending = self.pending()
 
@@ -284,7 +290,7 @@ class Worker:
         next_alert = pending[0] if pending else None
         report = candidates[0] if candidates else None
         # A report goes first only if it is of a higher severity than the next alert, whose triage has a deadline.
-        report_first = report and (next_alert is None or LEVELS.index(report["severity"]) > LEVELS.index(_rule_severity(next_alert)))
+        report_first = report and (next_alert is None or LEVELS.index(report["severity"]) > LEVELS.index(sla_policy.rule_severity(next_alert)[0]))
         if not next_alert and not report:
             return "idle"
 
