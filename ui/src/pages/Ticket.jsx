@@ -7,6 +7,7 @@ import { L } from "../labels.js";
 import { isFallback, retrievedBy } from "../ticket/runState.js";
 import Icon from "../icons.jsx";
 import DecisionBar from "../ticket/DecisionBar.jsx";
+import SlaPanel from "../ticket/SlaPanel.jsx";
 import TriageWorkspace from "../ticket/TriageWorkspace.jsx";
 import { useRunEvents } from "../useRunEvents.js";
 
@@ -149,7 +150,9 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
         onReviewByHand={reviewByHand}
         onNext={goNext}
         next={next}
+        sla={detail.sla}
       />
+      <SlaPanel alertId={alertId} record={detail.sla} ticketRow={running ? null : ticketRow} decision={decision} serverNow={detail.now} onSaved={load} />
       <TriageWorkspace alert={{ ...alert, ...obj(detail.shown) }} detail={detail} run={run} running={running} stream={stream} events={events} live={live.current}
         tab={tab} onTab={setTab} targetSeq={targetSeq} onSelectStep={jumpToStep} ticketRow={ticketRow} decision={decision} decisions={decisions}
         fallback={fallback} retrieved={retrieved} onSaved={load} onNext={goNext} next={next} onIncidents={onIncidents} onOpenReport={onOpenReport} />

@@ -303,6 +303,15 @@ class Store:
     def proposals_for_run(self, run_id):
         rows = self._all("SELECT data FROM proposals WHERE run_id = ? ORDER BY rowid", (run_id,))
         return {item["proposal_id"]: item for item in (json.loads(row[0]) for row in rows)}
+
+    def runs_with_containment_activity(self):
+        """Run IDs with a proposal a person has approved or run. Only proposals show that: opening the tab saves them too."""
+        found = set()
+        for run_id, data in self._all("SELECT run_id, data FROM proposals"):
+            if json.loads(data).get("status") in ("approved", "executed"):
+                found.add(run_id)
+        return found
+
     # Incident reports (level 3). The key is the incident or ticket investigated; each run keeps its own version.
 
     def save_report(self, report, run_id, key):
