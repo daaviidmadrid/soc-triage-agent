@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 386" width="980" height="386" role="img" aria-label="How we build the agent: groundwork once, then rounds of change, run, score and read every miss on 80 practice alerts, then a frozen version scored once on the final 40, the held-out case and Sunday&#x27;s alerts.">
+<title>How we build the agent: groundwork once, then rounds of change, run, score and read every miss on 80 practice alerts, then a frozen version scored once on the final 40, the held-out case and Sunday&#x27;s alerts.</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6B6860"/></marker></defs>
+<rect x="1" y="1" width="978" height="384" rx="16" fill="#FFFFFF" stroke="#E2DFD7" stroke-width="1.5"/>
+<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+<rect x="16" y="16" width="270" height="354" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="32" y="38" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Once, before tuning</text>
+<rect x="36" y="46" width="230" height="48" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="151.0" y="67.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">12 questions about the data</text>
+<text x="151.0" y="84.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">analysis notebook</text>
+<rect x="36" y="110" width="230" height="48" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="151.0" y="131.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Traps found</text>
+<text x="151.0" y="148.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">docs/data_traps.md</text>
+<path d="M151,94 L151,108" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="36" y="174" width="230" height="48" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="151.0" y="195.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">A defence for each trap</text>
+<text x="151.0" y="212.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">docs/decisions.md</text>
+<path d="M151,158 L151,172" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="36" y="238" width="230" height="48" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="151.0" y="259.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Code with unit tests</text>
+<text x="151.0" y="276.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">src/ and tests/</text>
+<path d="M151,222 L151,236" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="36" y="302" width="230" height="48" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="151.0" y="323.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Answer keys, written blind</text>
+<text x="151.0" y="340.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">hard 40, normal 40, final 40</text>
+<path d="M151,286 L151,300" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="306" y="16" width="400" height="354" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="322" y="38" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Each round, on the 80 practice alerts</text>
+<rect x="431" y="50" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="506.0" y="66.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Change one thing</text>
+<text x="506.0" y="83.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">context, prompt,</text>
+<text x="506.0" y="98.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">check or setting</text>
+<rect x="544" y="148" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="619.0" y="172.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Run the 80 alerts</text>
+<text x="619.0" y="189.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">exam.py run</text>
+<rect x="431" y="246" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="506.0" y="270.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Score them</text>
+<text x="506.0" y="287.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">exam.py score</text>
+<rect x="318" y="148" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="393.0" y="164.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Read every miss</text>
+<text x="393.0" y="181.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">the agent wrong,</text>
+<text x="393.0" y="196.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">or the key?</text>
+<path d="M581,77 L619,77 L619,146" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M619,202 L619,273 L583,273" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M431,273 L393,273 L393,204" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M393,148 L393,77 L429,77" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="506" y="334" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">Keep a change only if it fixes more than it breaks</text>
+<text x="506" y="351" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">and misses no new attack.</text>
+<rect x="726" y="16" width="238" height="354" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="742" y="38" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Once, at the end</text>
+<rect x="746" y="50" width="198" height="54" rx="9" fill="#E3ECF8" stroke="#3B6DB3" stroke-width="1.3"/>
+<text x="845.0" y="81.5" font-size="13.5" font-weight="600" fill="#14325C" text-anchor="middle">Freeze a version</text>
+<rect x="746" y="126" width="198" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="845.0" y="150.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Score the final 40, once</text>
+<text x="845.0" y="167.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">never used to choose</text>
+<path d="M845,104 L845,124" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="746" y="202" width="198" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="845.0" y="226.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Run the held-out case</text>
+<text x="845.0" y="243.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">4 alerts nobody tuned on</text>
+<path d="M845,180 L845,200" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="746" y="278" width="198" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="845.0" y="309.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Run Sunday&#x27;s 10 alerts</text>
+<path d="M845,256 L845,276" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M286,193 L304,193" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M706,193 L724,193" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+</g>
+</svg>
