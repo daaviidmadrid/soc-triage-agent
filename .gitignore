@@ -13,7 +13,7 @@ dist/
 runs/
 Codex.md
 
-# Local agent / editor tooling (installed per developer, not project code)
+# Local agent / editor tooling 
 .claude/
 .vscode/
 skills-lock.json
