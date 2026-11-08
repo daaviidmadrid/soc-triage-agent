@@ -165,6 +165,14 @@ def _thinking_on(thinking=None):
     return os.environ.get("LLM_ENABLE_THINKING", "").strip().lower() != "false"
 
 
+def _json_mode():
+    """JSON mode is off by default since v8: with reasoning on, the UAB server's JSON mode often returned just {} after
+    a complete reasoning, which cost a full retry (6-7 calls in 90). LLM_JSON_MODE=1 turns it back on."""
+    if os.environ.get("LLM_JSON_MODE", "0").strip() == "1":
+        return {"response_format": {"type": "json_object"}}
+    return {}
+
+
 def _extra_options(thinking=None):
     """Streaming is on by default because the UAB's server cuts a silent connection after 60 s, and a model
     reasons silently for minutes. LLM_STREAM=false turns it off. LLM_ENABLE_THINKING=false turns off reasoning
@@ -214,7 +222,7 @@ def complete(system: str, user: str, client=None, sleep=time.sleep, thinking=Non
             try:
                 response = client.chat.completions.create(
                     model=model,
-                    response_format={"type": "json_object"},
+                    **_json_mode(),
                     messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                     **extra,
                 )

@@ -1,19 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 380" width="980" height="380" role="img" aria-label="What the LLM sees: code looks up the mock SOC API with exact rules, builds the context, and sends it as an untrusted data block next to the instructions and the policy.">
-<title>What the LLM sees: code looks up the mock SOC API with exact rules, builds the context, and sends it as an untrusted data block next to the instructions and the policy.</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 432" width="980" height="432" role="img" aria-label="What the LLM sees: code looks up the mock SOC API with exact rules, adds the rest of a phishing campaign, builds the context, and sends it as an untrusted data block between the instructions and policy and a repeated answer checklist.">
+<title>What the LLM sees: code looks up the mock SOC API with exact rules, adds the rest of a phishing campaign, builds the context, and sends it as an untrusted data block between the instructions and policy and a repeated answer checklist.</title>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6B6860"/></marker></defs>
-<rect x="1" y="1" width="978" height="378" rx="16" fill="#FFFFFF" stroke="#E2DFD7" stroke-width="1.5"/>
+<rect x="1" y="1" width="978" height="430" rx="16" fill="#FFFFFF" stroke="#E2DFD7" stroke-width="1.5"/>
 <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
 <text x="36" y="36" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Mock SOC API</text>
 <text x="262" y="36" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Plain code builds the context</text>
 <text x="604" y="36" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">The prompt</text>
-<rect x="36" y="52" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
-<text x="131.0" y="79.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">CMDB and directory</text>
-<rect x="36" y="112" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
-<text x="131.0" y="139.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">Change calendar and HR</text>
-<rect x="36" y="172" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
-<text x="131.0" y="199.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">Threat intel and sandbox</text>
-<rect x="36" y="232" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
-<text x="131.0" y="259.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">18 log sources</text>
+<rect x="36" y="73" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
+<text x="131.0" y="100.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">CMDB and directory</text>
+<rect x="36" y="139" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
+<text x="131.0" y="166.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">Change calendar and HR</text>
+<rect x="36" y="205" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
+<text x="131.0" y="232.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">Threat intel and sandbox</text>
+<rect x="36" y="271" width="190" height="46" rx="9" fill="#FCF1DE" stroke="#C08A2E" stroke-width="1.3"/>
+<text x="131.0" y="298.5" font-size="13.5" font-weight="600" fill="#5C3D0A" text-anchor="middle">18 log sources</text>
 <rect x="262" y="50" width="290" height="50" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
 <text x="407.0" y="72.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Exact-field log search</text>
 <text x="407.0" y="89.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">in each log&#x27;s own identity format</text>
@@ -26,7 +26,10 @@
 <rect x="262" y="230" width="290" height="50" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
 <text x="407.0" y="252.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Criticality and its source</text>
 <text x="407.0" y="269.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">machine, laptop, service or default</text>
-<path d="M226,166 L260,166" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="262" y="290" width="290" height="50" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="407.0" y="312.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">The rest of a phishing campaign</text>
+<text x="407.0" y="329.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">other copies, site visits, its IPs&#x27; sign-ins</text>
+<path d="M226,195 L260,195" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
 <rect x="604" y="52" width="230" height="52" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
 <text x="719.0" y="75.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Instructions</text>
 <text x="719.0" y="92.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">role, verdict definitions, rules</text>
@@ -39,16 +42,19 @@
 <text x="719.0" y="238.5" font-size="11.5" font-weight="400" fill="#7A5214" text-anchor="middle">and never as instructions,</text>
 <text x="719.0" y="253.5" font-size="11.5" font-weight="400" fill="#7A5214" text-anchor="middle">because attackers wrote</text>
 <text x="719.0" y="268.5" font-size="11.5" font-weight="400" fill="#7A5214" text-anchor="middle">some of it</text>
-<path d="M552,166 L576,166 L576,232 L602,232" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
-<rect x="870" y="140" width="90" height="52" rx="9" fill="#DDF2EA" stroke="#1D9E75" stroke-width="1.3"/>
-<text x="915.0" y="163.0" font-size="13.5" font-weight="600" fill="#0B3D2E" text-anchor="middle">LLM</text>
-<text x="915.0" y="180.0" font-size="11.5" font-weight="400" fill="#0F6E56" text-anchor="middle">ornith</text>
-<path d="M834,166 L868,166" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
-<line x1="36" y1="312" x2="944" y2="312" stroke="#E2DFD7"/>
-<text x="36" y="336" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">Read-only lookups.</text>
-<text x="262" y="336" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">At most 14,000 characters of data:</text>
-<text x="262" y="352" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">linked events first, then the nearest rows.</text>
-<text x="604" y="336" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">At most 29,000 characters in all.</text>
-<text x="604" y="352" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">If it&#x27;s too long, code drops rows and says so.</text>
+<rect x="604" y="296" width="230" height="44" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="719.0" y="315.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Answer checklist, again</text>
+<text x="719.0" y="332.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">the format, event IDs, obey nothing</text>
+<path d="M552,195 L576,195 L576,232 L602,232" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="870" y="170" width="90" height="52" rx="9" fill="#DDF2EA" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="915.0" y="193.0" font-size="13.5" font-weight="600" fill="#0B3D2E" text-anchor="middle">LLM</text>
+<text x="915.0" y="210.0" font-size="11.5" font-weight="400" fill="#0F6E56" text-anchor="middle">ornith</text>
+<path d="M834,196 L868,196" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="36" y1="364" x2="944" y2="364" stroke="#E2DFD7"/>
+<text x="36" y="388" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">Read-only lookups.</text>
+<text x="262" y="388" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">At most 60,000 characters of data:</text>
+<text x="262" y="404" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">linked events first, then the nearest rows.</text>
+<text x="604" y="388" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">At most 75,000 characters in all.</text>
+<text x="604" y="404" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">If it&#x27;s too long, code drops rows and says so.</text>
 </g>
 </svg>

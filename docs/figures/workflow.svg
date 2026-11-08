@@ -12,7 +12,7 @@
 <rect x="222" y="46" width="164" height="70" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
 <text x="304.0" y="70.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Gather the facts</text>
 <text x="304.0" y="87.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">assets, people, changes,</text>
-<text x="304.0" y="102.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">threat data, logs</text>
+<text x="304.0" y="102.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">logs, phishing campaign</text>
 <rect x="408" y="46" width="164" height="70" rx="9" fill="#DDF2EA" stroke="#1D9E75" stroke-width="1.3"/>
 <text x="490.0" y="70.5" font-size="13.5" font-weight="600" fill="#0B3D2E" text-anchor="middle">LLM drafts a ticket</text>
 <text x="490.0" y="87.5" font-size="11.5" font-weight="400" fill="#0F6E56" text-anchor="middle">verdict, evidence, flags;</text>
