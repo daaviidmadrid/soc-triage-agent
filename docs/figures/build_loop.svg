@@ -31,21 +31,24 @@
 <text x="506.0" y="83.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">context, prompt,</text>
 <text x="506.0" y="98.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">check or setting</text>
 <rect x="544" y="148" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
-<text x="619.0" y="172.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Run the 80 alerts</text>
-<text x="619.0" y="189.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">exam.py run</text>
+<text x="619.0" y="164.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Run the 80 alerts</text>
+<text x="619.0" y="181.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">exam.py or</text>
+<text x="619.0" y="196.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">night_loop.py</text>
 <rect x="431" y="246" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
-<text x="506.0" y="270.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Score them</text>
-<text x="506.0" y="287.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">exam.py score</text>
+<text x="506.0" y="262.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Score them</text>
+<text x="506.0" y="279.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">hard, normal and</text>
+<text x="506.0" y="294.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">31 look-alike alerts</text>
 <rect x="318" y="148" width="150" height="54" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
-<text x="393.0" y="164.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Read every miss</text>
-<text x="393.0" y="181.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">the agent wrong,</text>
-<text x="393.0" y="196.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">or the key?</text>
+<text x="393.0" y="164.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Read the misses</text>
+<text x="393.0" y="181.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">hard 40 only:</text>
+<text x="393.0" y="196.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">agent or key wrong?</text>
 <path d="M581,77 L619,77 L619,146" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M619,202 L619,273 L583,273" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M431,273 L393,273 L393,204" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M393,148 L393,77 L429,77" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
-<text x="506" y="334" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">Keep a change only if it fixes more than it breaks</text>
-<text x="506" y="351" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">and misses no new attack.</text>
+<text x="506" y="324" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">Keep a change only if it fixes more than it breaks,</text>
+<text x="506" y="340" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">misses no new attack and the normal 40 doesn&#x27;t get worse.</text>
+<text x="506" y="356" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">Run a round twice to see the noise.</text>
 <rect x="726" y="16" width="238" height="354" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
 <text x="742" y="38" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Once, at the end</text>
 <rect x="746" y="50" width="198" height="54" rx="9" fill="#E3ECF8" stroke="#3B6DB3" stroke-width="1.3"/>
