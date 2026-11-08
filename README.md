@@ -4,6 +4,54 @@
 - Alex
 - Francesco
 
+AI triage for the SOC of Tarvia, a fictional retailer. Plain code gathers and checks the facts, the LLM judges, and a person decides. The LLM never approves or runs containment.
+
+## How it works
+
+### One alert, end to end
+Two fixed rules can close well-known noise without the LLM, and a rule never escalates. Escalated tickets and incidents get an incident report (level 3).
+
+![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and decides close or escalate. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](docs/figures/workflow.svg)
+
+### What the LLM sees
+Code builds the same context for the same alert every time. Everything taken from the data goes in one block marked as untrusted, because attackers wrote some of it.
+
+![What the LLM sees: code looks up the mock SOC API with exact rules and sends the result as an untrusted data block next to the instructions and the policy.](docs/figures/context.svg)
+
+### How code checks the LLM's draft
+The LLM only proposes. Wherever an answer can be checked, `build_ticket` and `_ask_llm` in `src/agent/triage.py` check it.
+
+![How code checks the LLM draft: real evidence, data to close on, severity by code, escalation rules, then close or escalate.](docs/figures/checks.svg)
+
+If triage fails, for example because the model is down, the ticket is `needs_more_info` and escalated, and it can never close.
+
+### Who decides what
+| Decision | Who makes it |
+|---|---|
+| What the alert is about, and which logs, assets and changes to fetch | Code |
+| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
+| Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
+| Final severity | Code, from the policy matrix |
+| Close or escalate, and to whom | Code, from the policy and the checked draft |
+| Which alerts belong to one incident | Code, by exact shared identifiers |
+| The incident report: story, scope, root cause | LLM writes it; code checks every timeline event and takes its time from the log |
+| Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
+| Approving and running containment | People |
+
+### How we build the agent
+The analysis came first. Each trap it found became a rule in code with unit tests. The answer keys were written before any run, without seeing the agent's answers. Then each round changes one thing and is scored on the same 80 practice alerts.
+
+![How we build the agent: groundwork once, then rounds on the 80 practice alerts, then a frozen version scored once.](docs/figures/build_loop.svg)
+
+A change stays only if it fixes more than it breaks and misses no new attack. The final 40 are never used to choose a version.
+
+## Agent versions
+Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/agent_versions.md](docs/agent_versions.md) has the full results by set. v6, in the code now, adds the two fixed rules and hasn't been scored yet.
+
+![Agent versions v2 to v5 and their scores on the 80 practice alerts, with reasoning on and off.](docs/figures/versions.svg)
+
+Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one. They're marked against an answer key that AI drafted and no person has reviewed yet, on the same alerts used to choose the changes, so they're optimistic. One or two alerts either way can be chance. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
+
 ## Setup
 ```bash
 git clone https://github.com/dttdfr/DTT-UAB-The-Hack.git data
