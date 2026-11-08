@@ -68,6 +68,25 @@ def real_events(alert):
         _write_call_log(alert, calls)
 
 
+def run_rules(alert, mode=None):
+    """Only the fixed rules of src/agent/rules.py, with no LLM. Yields the events of the run if a rule closed the
+    alert, and nothing otherwise, so an alert a rule refuses goes on to the LLM with no trace of this pass.
+    Example mode has no real rules, so it yields nothing."""
+    if (mode or current_mode()) != "real":
+        return
+    from src.agent.rules import RULES
+    from src.agent.triage import triage
+    from src.tools.alert_fields import normalise_alert
+
+    if normalise_alert(alert if isinstance(alert, dict) else {})[0].get("rule_id") not in RULES:
+        return
+    calls = []
+    events = [_to_dict(event) for event in triage(alert, call_log=calls, rules_only=True)]
+    if events and events[-1].get("type") == "ticket_ready":
+        _write_call_log(alert, calls)
+        yield from events
+
+
 def run_investigation(alerts, tickets=(), incident_id=None, others=(), memberships=None):
     """Level 3: yields the trace events of one investigation as dicts. It always uses the real data and LLM,
     because there is no example report: if the LLM fails, the agent still returns a report for a person."""

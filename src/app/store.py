@@ -74,6 +74,29 @@ CREATE TABLE IF NOT EXISTS correlations (
     data TEXT NOT NULL,
     built_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    actor_kind TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS audit_by_subject ON audit(subject);
+CREATE TABLE IF NOT EXISTS sla (
+    alert_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dedupe TEXT NOT NULL UNIQUE,
+    alert_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    acknowledged_by TEXT,
+    acknowledged_at TEXT
+);
 """
 
 RUN_FIELDS = ("run_id", "alert_id", "mode", "status", "started_at", "finished_at", "duration_seconds", "ticket_id", "error")
@@ -131,6 +154,10 @@ class Store:
     def list_alerts(self):
         rows = self._all("SELECT data, origin FROM alerts ORDER BY rowid")
         return [{"alert": json.loads(data), "origin": origin} for data, origin in rows]
+
+    def alert_entry_times(self):
+        """{alert_id: when it entered the store}, oldest first."""
+        return dict(self._all("SELECT alert_id, added_at FROM alerts ORDER BY rowid"))
 
     def get_alert(self, alert_id):
         row = self._one("SELECT data, origin FROM alerts WHERE alert_id = ?", (alert_id,))
@@ -230,6 +257,19 @@ class Store:
             (ticket_id, run_id),
         ))
 
+    def update_ticket(self, run_id, ticket):
+        """Changes one saved version in place, so the newest version stays the newest."""
+        self._write("UPDATE tickets SET data = ? WHERE run_id = ?", (_dumps(ticket), run_id))
+
+    def latest_ticket_for_alert(self, alert_id):
+        return self._ticket_row(self._one(
+            "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE alert_id = ? ORDER BY rowid DESC LIMIT 1",
+            (alert_id,),
+        ))
+
+    def count_tickets(self):
+        return self._one("SELECT COUNT(*) FROM tickets")[0]
+
     def list_tickets(self):
         rows = self._all(
             "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets "
@@ -263,6 +303,15 @@ class Store:
     def proposals_for_run(self, run_id):
         rows = self._all("SELECT data FROM proposals WHERE run_id = ? ORDER BY rowid", (run_id,))
         return {item["proposal_id"]: item for item in (json.loads(row[0]) for row in rows)}
+
+    def runs_with_containment_activity(self):
+        """Run IDs with a proposal a person has approved or run. Only proposals show that: opening the tab saves them too."""
+        found = set()
+        for run_id, data in self._all("SELECT run_id, data FROM proposals"):
+            if json.loads(data).get("status") in ("approved", "executed"):
+                found.add(run_id)
+        return found
+
     # Incident reports (level 3). The key is the incident or ticket investigated; each run keeps its own version.
 
     def save_report(self, report, run_id, key):
@@ -311,3 +360,65 @@ class Store:
             f"SELECT {', '.join(DECISION_FIELDS)} FROM decisions WHERE id IN (SELECT MAX(id) FROM decisions GROUP BY run_id)"
         )
         return {row[2]: dict(zip(DECISION_FIELDS, row)) for row in rows}
+
+    # Audit: every automatic action and every person's action on it, with time, who or what, and why.
+
+    def add_audit(self, actor_kind, actor, action, subject, reason, data=None):
+        """actor_kind is code, model or person. actor is the rule, the model or the person's name."""
+        cursor = self._write(
+            "INSERT INTO audit (at, actor_kind, actor, action, subject, reason, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (now_iso(), actor_kind, actor, action, subject, reason, _dumps(data or {})),
+        )
+        return cursor.lastrowid
+
+    def audit_entries(self, subject=None, limit=200):
+        fields = ("id", "at", "actor_kind", "actor", "action", "subject", "reason", "data")
+        where, args = ("WHERE subject = ?", (subject,)) if subject else ("", ())
+        rows = self._all(f"SELECT {', '.join(fields)} FROM audit {where} ORDER BY id DESC LIMIT ?", (*args, limit))
+        return [{**dict(zip(fields, row)), "data": json.loads(row[-1])} for row in rows]
+
+    # SLA: one row per alert, with its start, stop, deadline and outcome.
+
+    def save_sla(self, alert_id, record):
+        self._write("INSERT OR REPLACE INTO sla (alert_id, data) VALUES (?, ?)", (alert_id, _dumps(record)))
+
+    def get_sla(self, alert_id):
+        row = self._one("SELECT data FROM sla WHERE alert_id = ?", (alert_id,))
+        return json.loads(row[0]) if row else None
+
+    def all_sla(self):
+        return {alert_id: json.loads(data) for alert_id, data in self._all("SELECT alert_id, data FROM sla")}
+
+    # Notifications stay inside the app. Nothing here or anywhere else sends one outside it.
+
+    def add_notification(self, dedupe, alert_id, data):
+        """Adds it unless the same one exists. Returns its ID, or None if it already existed."""
+        with self._lock:
+            cursor = self._db.execute(
+                "INSERT OR IGNORE INTO notifications (dedupe, alert_id, data) VALUES (?, ?, ?)", (dedupe, alert_id, _dumps(data)))
+            self._db.commit()
+            return cursor.lastrowid if cursor.rowcount else None
+
+    def _notification(self, row):
+        id_, alert_id, data, by, at = row
+        return {**json.loads(data), "id": id_, "alert_id": alert_id, "acknowledged_by": by, "acknowledged_at": at}
+
+    def list_notifications(self, limit=500):
+        rows = self._all(
+            "SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications "
+            "ORDER BY acknowledged_at IS NOT NULL, id DESC LIMIT ?", (limit,))
+        return [self._notification(row) for row in rows]
+
+    def get_notification(self, notification_id):
+        row = self._one("SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications WHERE id = ?", (notification_id,))
+        return self._notification(row) if row else None
+
+    def acknowledge_notification(self, notification_id, analyst):
+        """Only the first acknowledgement counts. Returns True if this one did."""
+        cursor = self._write(
+            "UPDATE notifications SET acknowledged_by = ?, acknowledged_at = ? WHERE id = ? AND acknowledged_at IS NULL",
+            (analyst, now_iso(), notification_id))
+        return cursor.rowcount > 0
+
+    def count_unacknowledged(self):
+        return self._one("SELECT COUNT(*) FROM notifications WHERE acknowledged_at IS NULL")[0]

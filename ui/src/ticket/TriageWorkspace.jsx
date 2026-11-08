@@ -10,7 +10,7 @@ import { Affected, EvidenceList, EnrichmentList, InjectionFlags, RuleClosure } f
 
 export default function TriageWorkspace({ alert, detail, run, running, stream, events, live, tab, onTab, targetSeq, onSelectStep, ticketRow, decision, decisions, retrieved, onSaved, onNext, next, onIncidents, onOpenReport }) {
   const ticket = obj(ticketRow?.ticket), ready = Boolean(ticketRow && !running);
-  const trace = { retrieved, complete: stream === "ended", onJump: onSelectStep };
+  const trace = { retrieved, complete: stream === "ended", onJump: onSelectStep, own: new Set(arr(ticket.alert_ids).map(asText)) };
   const flags = arr(ticket.injection_flags).map(obj), messages = events.filter(e => e.type === "note" || e.type === "error");
   const truncated = events.filter(e => e.truncated), escalation = obj(ticket.escalation);
   const quota = quotaState(events, running);
@@ -56,12 +56,12 @@ export default function TriageWorkspace({ alert, detail, run, running, stream, e
       </> : pending)}
       {panel("policy", ready ? <>
         <Section title={L.severityBreakdown}><dl className="kv policy-fields"><SeverityBreakdown ticket={ticket} continuous /></dl></Section>
-        <Section title={L.escalation}><dl className="kv"><Field label={L.barProposal}>{escalation.escalate === true ? <strong>{L.escalateYes(asText(escalation.to) || L.na)}</strong> : escalation.escalate === false ? <strong>{L.escalateNo}</strong> : <NA />}</Field><Field label={L.escalationReason}><p className="prose">{asText(escalation.reason) || L.na}</p></Field><Field label={L.runDuration}><SlaCell severity={ticket.severity} seconds={run?.duration_seconds} running={false} /></Field></dl></Section>
+        <Section title={L.escalation}><dl className="kv"><Field label={L.barProposal}>{escalation.escalate === true ? <strong>{L.escalateYes(asText(escalation.to) || L.na)}</strong> : escalation.escalate === false ? <strong>{L.escalateNo}</strong> : <NA />}</Field><Field label={L.escalationReason}><p className="prose">{asText(escalation.reason) || L.na}</p></Field><Field label={L.runDuration}><SlaCell severity={ticket.severity} seconds={run?.duration_seconds} running={false} record={detail.sla} /></Field></dl></Section>
         {/* Level 4: code turns the LLM's suggestions into actions, and only people approve and run them */}
         <Containment key={ticketRow.run_id} ticketRow={ticketRow} />
       </> : pending)}
       {panel("decision", ready ? <><Section title={L.proposedDecision}><strong>{escalation.escalate === true ? `${OUTCOME.escalate} · ${asText(escalation.to) || L.na}` : escalation.escalate === false ? OUTCOME.close : L.na}</strong><p className="prose">{asText(escalation.reason)}</p></Section><DecisionPanel key={ticketRow.run_id} compact ticketRow={ticketRow} current={decision} onNext={onNext} next={next} decisions={decisions} waiting={[]} others={[]} executed={ticket.executed_actions} onSaved={onSaved} /></> : pending)}
-      {panel("activity", <Steps events={events} running={running} stream={stream} live={live} targetSeq={targetSeq} active={current === "activity"} />)}
+      {panel("activity", <Steps events={events} running={running} stream={stream} live={live} targetSeq={targetSeq} active={current === "activity"} ticket={ready ? ticket : null} decision={decision} />)}
       {panel("original", <><details className="technical-details original-details" open><summary>{L.alertTitle}</summary><pre className="raw-data">{asText(obj(detail.alert))}</pre></details>{ready && <details className="technical-details original-details"><summary>{L.completeTicket}</summary><pre className="raw-data">{asText(ticket)}</pre></details>}</>)}
       {panel("history", <>
         <Section title={L.notes} id="run-notices"><InjectionFlags continuous flags={flags} trace={trace} />{messages.length ? <ol className="run-message-list">{messages.map(e => <li key={e.seq}><span className="state">{e.type === "error" ? L.stageFailed : L.notes}</span><time className="muted num">{formatTime(e.at)} UTC</time><p className="prose">{asText(e.summary)}</p><button type="button" className="link-btn" onClick={() => onSelectStep(e.seq)}>{L.seeStep(e.seq)}</button></li>)}</ol> : !flags.length && <None />}</Section>
