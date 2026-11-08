@@ -72,6 +72,13 @@ def test_returns_text_model_and_tokens():
     assert (result.text, result.model, result.prompt_tokens, result.completion_tokens) == ('{"ok": true}', "main-model", 10, 5)
     assert result.attempts == 1
     assert client.last_request["messages"][0] == {"role": "system", "content": "system"}
+    assert "response_format" not in client.last_request  # JSON mode is off by default since v8
+
+
+def test_json_mode_can_be_turned_back_on(monkeypatch):
+    monkeypatch.setenv("LLM_JSON_MODE", "1")
+    client = FakeClient(reply())
+    complete("system", "user", client=client, sleep=no_sleep)
     assert client.last_request["response_format"] == {"type": "json_object"}
 
 

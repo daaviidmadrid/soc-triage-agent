@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rules-backend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/francescotedesco/Projects/uab-the-hack-2026-deloitte/.claude/worktrees/agent-rules && APP_DB_PATH=/private/tmp/claude-501/-Users-francescotedesco--claude-spares-spare-M2tmny/f6c54dea-692b-4660-a4d7-c5b771bcbf21/scratchpad/rules-ui.sqlite3 APP_CALL_LOG_DIR=/private/tmp/claude-501/-Users-francescotedesco--claude-spares-spare-M2tmny/f6c54dea-692b-4660-a4d7-c5b771bcbf21/scratchpad/app_calls TRIAGE_MODE=real exec .venv/bin/uvicorn src.app.main:app --port 8021"
+      ],
+      "port": 8021,
+      "url": "http://localhost:8021"
+    },
+    {
+      "name": "rules-ui",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/francescotedesco/Projects/uab-the-hack-2026-deloitte/.claude/worktrees/agent-rules/ui && API_PROXY_TARGET=http://localhost:8021 exec npx vite --port 5175 --strictPort"
+      ],
+      "port": 5175
+    }
+  ]
+}

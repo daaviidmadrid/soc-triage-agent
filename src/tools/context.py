@@ -4,6 +4,7 @@ Plain code, no LLM. Text from the data (subjects, prompts, descriptions) is copi
 it is evidence, never instructions, and it is never removed or cleaned for what it says.
 """
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -16,9 +17,10 @@ from src.tools.logs import LOG_FIELDS, search_logs
 # Policy section 1.4: correlate with logs of the same entities within ±24 h.
 CONTEXT_WINDOW = timedelta(hours=24)
 
-# Maximum size of the whole context, as characters of JSON. Analysis section 5: the prompt
-# budget is 28,000 characters, about 14,000 of them for data.
-MAX_CONTEXT_CHARS = 14_000
+# Maximum size of the whole context, as characters of JSON. v7 (docs/decisions.md, Prompt budget): about 60,000
+# characters for data, because the UAB's ornith takes 262,144 tokens. It was 14,000 for Gemini's free tier
+# (analysis section 5), which cut rows from 54 of the 80 practice alerts, and then the -1 can't apply.
+MAX_CONTEXT_CHARS = 60_000
 
 # IPs shared by many identities: searching them floods the context with other people's rows
 # (one identity alert: 5 rows for the user, 2,031 for the IP). We count their rows instead.
@@ -328,6 +330,66 @@ def _entities_by_type(entities):
     return out
 
 
+# Since v8 (AGENT_CAMPAIGN=0 turns it off): for a phishing alert, the reporter's own logs can hide the campaign. Another
+# recipient may have posted their login to the same site, followed by a sign-in from that site's IP. This adds those rows.
+CAMPAIGN_RULES = {"UC-EML-001", "UC-EML-002", "UC-EML-003"}
+CAMPAIGN_MAX_ROWS = 60  # per search; more than this means a shared or busy IP, which says nothing about this campaign
+
+
+def campaign_on():
+    """On by default since v8. AGENT_CAMPAIGN=0 turns it off."""
+    return os.environ.get("AGENT_CAMPAIGN", "1").strip() != "0"
+
+
+def _campaign_rows(alert, entities, rows, lo, hi):
+    """Rows about the same phishing campaign, beyond the reporter: visits to the same phishing hosts, sign-ins from the
+    IPs that served them, other recipients of the same sender, and clicks on the same URLs. Exact-match searches only."""
+    from urllib.parse import urlsplit
+
+    domains = {str(e["value"]).lower() for e in entities if e.get("type") in ("domain", "url") and e.get("value")}
+    if alert.get("rule_id") not in CAMPAIGN_RULES or not domains:
+        return
+
+    def host(url):
+        try:
+            return (urlsplit(url if "//" in url else "//" + url).hostname or "").lower()
+        except ValueError:
+            return ""
+
+    def phishing(h):
+        return any(h == d or h.endswith("." + d) or d.endswith("." + h) for d in domains if h)
+
+    # The reported email: linked to the alert, sent from a domain the alert names, or linking to one.
+    mails = [r for (s, _), r in rows.items() if s == "email" and (
+        r.get("event_id") in (alert.get("related_events") or [])
+        or phishing(str(r.get("sender") or "").rsplit("@", 1)[-1].lower())
+        or any(phishing(host(str(u))) for u in (r.get("urls") or [])))]
+    urls = sorted({u for r in mails for u in (r.get("urls") or []) if isinstance(u, str)})
+    hosts = sorted({host(u) for u in urls} | domains)
+    senders = sorted({r.get("sender") for r in mails if r.get("sender")})
+
+    def add(source, found):
+        if len(found) > CAMPAIGN_MAX_ROWS:
+            return []
+        for r in found:
+            if source == "email" and (source, r.get("event_id")) not in rows:
+                # Other copies of the same email: who got it and what happened to it is enough; the body is already there once.
+                r = {k: r.get(k) for k in ("event_id", "timestamp", "sender", "recipients", "action", "verdict")}
+            rows.setdefault((source, r.get("event_id")), {**r, "log_source": source, "campaign": True})
+        return found
+
+    visits = []
+    for h in hosts[:5]:
+        visits += add("proxy", search_logs("proxy", value=h, desde=lo, hasta=hi)["items"])
+    site_ips = sorted({r.get("dst_ip") for r in visits if r.get("dst_ip") and r.get("dst_ip") not in SHARED_IPS})
+    for ip in site_ips[:5]:
+        add("idp_signins", search_logs("idp_signins", ip=ip, desde=lo, hasta=hi)["items"])
+    for sender in senders[:3]:
+        add("email", search_logs("email", value=sender, desde=lo, hasta=hi)["items"])
+    for url in urls[:10]:
+        add("email_clicks", search_logs("email_clicks", value=url, desde=lo, hasta=hi)["items"])
+
+
 def build_context(alert: dict) -> Context:
     """Everything known about one alert, from the mock API, in the shape of contracts.Context.
     Takes the full alert dict (live alerts may not exist in the API). Never fails on an entity
@@ -362,6 +424,8 @@ def build_context(alert: dict) -> Context:
     ctx.trips, ctx.hr_events = split_hr_events(users, event_times)
     lo, hi = (min(event_times) - CONTEXT_WINDOW, max(event_times) + CONTEXT_WINDOW) if event_times else (None, None)
     api_truncated, shared = _gather_logs(alert, rows, searches, lo, hi)
+    if campaign_on():
+        _campaign_rows(alert, entities, rows, lo, hi)
     for e in entities:  # shared IPs: their rows are counted on the entity, not sent
         if e["type"] == "ip" and e["value"] in SHARED_IPS:
             e["shared_by_many_identities"] = True
