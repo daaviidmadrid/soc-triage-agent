@@ -309,8 +309,8 @@ def test_the_per_minute_limit_makes_it_wait(tmp_path, monkeypatch):
     worker = app.state.worker
     worker.clock = lambda: now[0]
     worker.start(background=False)
-    results = [worker.step() for _ in range(2)]
-    assert results == ["triage", "wait"] and worker.calls_used == 1 and worker.triaged == 1
+    results = [worker.step() for _ in range(3)]
+    assert results == ["triage", "group", "wait"] and worker.calls_used == 1 and worker.triaged == 1
     now[0] += 61
     assert worker.step() == "triage" and worker.triaged == 2
 
@@ -321,7 +321,7 @@ def test_the_pace_makes_it_wait_between_llm_alerts(tmp_path, monkeypatch):
     worker = app.state.worker
     worker.clock = lambda: now[0]
     worker.start(background=False)
-    assert worker.step() == "triage" and worker.step() == "wait"
+    assert worker.step() == "triage" and worker.step() == "group" and worker.step() == "wait"
     now[0] += 2
     assert worker.step() == "triage"
 
@@ -463,9 +463,10 @@ def test_auto_triage_1_starts_with_the_server_and_stops_with_it(tmp_path, monkey
 # AUTO_TRIAGE=0
 
 def test_default_settings_are_off(monkeypatch):
-    monkeypatch.delenv("AUTO_TRIAGE", raising=False)
+    for name in ("AUTO_TRIAGE", "AUTO_INVESTIGATE"):
+        monkeypatch.delenv(name, raising=False)
     conf = Settings()
-    assert conf.enabled is False
+    assert conf.enabled is False and conf.investigate is False
     assert conf.max_calls_per_run == MAX_CALLS_PER_RUN and conf.max_failures == MAX_FAILURES_IN_A_ROW
 
 
@@ -505,6 +506,117 @@ def test_worker_routes_need_the_ui_header(tmp_path, monkeypatch):
         assert c.get("/api/status", headers={"Host": "evil.example"}).status_code == 403
 
 
+# Grouping and investigation
+
+GROUPABLE = [
+    {"alert_id": "ALR-G1", "created_at": "2026-10-07T07:44:52.000Z", "rule_id": "UC-IDP-004", "severity": "high",
+     "entities": {"users": [{"upn": "zz-grp@tarvia.example"}], "ips": ["203.0.113.77"]}},
+    {"alert_id": "ALR-G2", "created_at": "2026-10-07T08:03:49.000Z", "rule_id": "UC-IDP-005", "severity": "high",
+     "entities": {"users": [{"upn": "zz-grp@tarvia.example"}], "ips": ["203.0.113.77"]}},
+]
+
+
+def escalating(alert, mode=None):
+    yield from llm_events(closed_ticket(alert["alert_id"], verdict="true_positive", severity="high", escalation={"escalate": True, "to": "N2", "reason": "r"}))
+
+
+def reports(calls, severity_log=None):
+    def report_fn(alerts, tickets=(), incident_id=None, others=(), memberships=None):
+        calls.append(incident_id or alerts[0]["alert_id"])
+        yield {"type": "tool_result", "tool": "llm", "args": {"model": "fake-model", "attempts": 1}, "summary": "Respuesta"}
+        yield {"type": "report_ready", "summary": "Informe", "report": {
+            "incident_id": incident_id or "INC-X", "title": "t", "alert_ids": [a["alert_id"] for a in alerts], "patient_zero": "p", "initial_access": "i",
+            "root_cause": "r", "confidence": 0.8, "timeline": [],
+            "containment_plan": [{"action": "revoke_sessions", "target": "laura.ferrer2@tarvia.example", "approver": "N2"}]}}
+    return report_fn
+
+
+def test_grouping_runs_by_itself_with_the_same_result_as_the_route(tmp_path, monkeypatch):
+    app = make(tmp_path, monkeypatch, escalating, rows=GROUPABLE)
+    drive(app)
+    with client(app) as c:
+        data = c.get("/api/incidents").json()
+        assert len(data["incidents"]) == 1 and data["stale"] is False
+        auto = data["incidents"][0]
+        c.post("/api/incidents/build")
+        assert c.get("/api/incidents").json()["incidents"][0]["incident_id"] == auto["incident_id"]
+    assert any(e["action"] == "auto_grouped" and e["actor_kind"] == "code" for e in app.state.store.audit_entries("worker"))
+
+
+def test_grouping_is_debounced(tmp_path, monkeypatch):
+    now = [100.0]
+    app = make(tmp_path, monkeypatch, escalating, rows=GROUPABLE, conf=settings(group_every_seconds=30))
+    worker = app.state.worker
+    worker.clock = lambda: now[0]
+    worker.start(background=False)
+    assert [worker.step(), worker.step(), worker.step(), worker.step()] == ["triage", "group", "triage", "idle"]
+    builds = [e for e in app.state.store.audit_entries("worker") if e["action"] == "auto_grouped"]
+    assert len(builds) == 1
+    now[0] += 31
+    assert worker.step() == "group"
+    assert worker.step() == "idle"  # nothing new since
+
+
+def test_an_auto_closed_alert_in_an_escalated_incident_goes_back_to_a_person(tmp_path, monkeypatch):
+    def mixed(alert, mode=None):
+        if alert["alert_id"] == "ALR-G1":
+            yield from escalating(alert)
+        else:
+            yield from llm_events(closed_ticket(alert["alert_id"], verdict="true_positive"))
+
+    rows = [GROUPABLE[0], {**GROUPABLE[1], "severity": "low"}]
+    app = make(tmp_path, monkeypatch, mixed, rows=rows)
+    drive(app)
+    ticket = ticket_of(app, "ALR-G2")
+    assert ticket["auto_closed"] is False and ticket["auto_close"]["reopened_by"] == "src/agent/correlate.py"
+    assert any(e["action"] == "auto_close_reopened" and e["actor_kind"] == "code" for e in app.state.store.audit_entries("ALR-G2"))
+
+
+def test_investigation_is_off_unless_asked(tmp_path, monkeypatch):
+    calls = []
+    app = make(tmp_path, monkeypatch, escalating, rows=GROUPABLE, report_fn=reports(calls))
+    drive(app)
+    assert calls == []
+
+
+def test_escalations_get_a_report_critical_first_and_it_only_proposes(tmp_path, monkeypatch):
+    calls = []
+
+    def run(alert, mode=None):
+        severity = "critical" if alert["alert_id"] == "ALR-C" else "high"
+        yield from llm_events(closed_ticket(alert["alert_id"], verdict="true_positive", severity=severity, escalation={"escalate": True, "to": "N2", "reason": "r"}))
+
+    rows = [{"alert_id": "ALR-H", "severity": "high"}, {"alert_id": "ALR-C", "severity": "high"}]
+    app = make(tmp_path, monkeypatch, run, rows=rows, conf=settings(investigate=True), report_fn=reports(calls))
+    drive(app)
+    assert calls == ["ALR-C", "ALR-H"]
+    with client(app) as c:
+        plan = c.get("/api/reports/TKT-ALR-C").json()["report"]["report"]["containment_plan"]
+        assert plan[0]["action"] == "revoke_sessions"
+        proposals = c.get("/api/reports/TKT-ALR-C/containment").json()["proposals"]
+        assert [p["status"] for p in proposals] == ["proposed"] and proposals[0]["approvals"] == []
+
+
+def test_reports_use_the_same_llm_budget(tmp_path, monkeypatch):
+    calls = []
+    conf = settings(investigate=True, max_calls_per_run=MAX_LLM_CALLS + 1)  # the alerts use 2 calls, leaving none for a report
+    app = make(tmp_path, monkeypatch, escalating, rows=GROUPABLE, conf=conf, report_fn=reports(calls))
+    done = drive(app)
+    assert calls == [] and app.state.worker.stop_reason == "budget" and done[-1] == "stopped"
+
+
+def test_a_fallback_ticket_gets_no_automatic_report(tmp_path, monkeypatch):
+    calls = []
+
+    def llm_down(alert, mode=None):
+        yield {"type": "error", "tool": "llm", "args": {"kind": "blocked"}, "summary": "bloqueada"}
+        yield {"type": "ticket_ready", "summary": "x", "ticket": closed_ticket(alert["alert_id"], verdict="needs_more_info", evidence=[], escalation={"escalate": True, "to": "N2", "reason": "r"})}
+
+    app = make(tmp_path, monkeypatch, llm_down, rows=ALERTS[:1], conf=settings(investigate=True), report_fn=reports(calls))
+    drive(app)
+    assert calls == []
+
+
 # Level 4 stays human
 
 def _functions_calling(path, names):
@@ -533,6 +645,20 @@ def test_the_mock_is_only_called_from_the_human_routes():
                 if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Attribute) and inner.func.attr in ("request_approval", "run_containment"):
                     callers.add(node.name)
     assert callers == {"create_app", "execute_proposal"}  # create_app only because it holds the route
+
+
+def test_the_worker_leaves_every_proposal_unapproved(tmp_path, monkeypatch):
+    calls = []
+    app = make(tmp_path, monkeypatch, escalating, rows=GROUPABLE, conf=settings(investigate=True), report_fn=reports(calls))
+    drive(app)
+    with client(app) as c:
+        key = app.state.store.latest_correlation()["incidents"][0]["incident_id"]
+        before = c.get("/api/containment/log").json()["entries"]
+        proposal = c.get(f"/api/reports/{key}/containment").json()["proposals"][0]
+        assert proposal["status"] == "proposed" and proposal["approvals"] == []
+        drive(app)
+        assert c.post(f"/api/containment/{proposal['proposal_id']}/execute").status_code == 409
+        assert c.get("/api/containment/log").json()["entries"] == before
 
 
 def test_block_ioc_and_purge_email_still_need_a_person():
