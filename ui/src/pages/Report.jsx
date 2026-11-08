@@ -433,8 +433,8 @@ export default function Report({ reportKey, onBack }) {
                 </div>
                 <aside className="analysis-facts" aria-label={L.details}>
                   <dl className="kv reading-metadata">
-                    <Field label={L.reportForIncident}>
-                      <code className="id">{asText(report.incident_id) || L.na}</code>
+                    <Field label={subject?.kind === "ticket" ? L.reportForTicket : L.reportForIncident}>
+                      <code className="id">{subject?.kind === "ticket" ? asText(subject.key) : asText(report.incident_id) || L.na}</code>
                     </Field>
                     <Field label={L.reportAlerts}>
                       <Ids ids={report.alert_ids} />

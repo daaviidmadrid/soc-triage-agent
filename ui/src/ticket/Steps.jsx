@@ -91,6 +91,9 @@ export default function Steps({ events, running, stream, live, targetSeq, active
     step?.focus({ preventScroll: true });
   }, [targetSeq, active]);
   const last = events.at(-1);
+  // A ticket can cite its own alert. That isn't a log event, so it has no row to open.
+  const own = new Set(arr(ticket?.alert_ids).map(asText));
+  const logIds = e => arr(e.event_ids).map(asText).filter(id => !own.has(id));
   return <section className="activity-timeline" aria-labelledby="steps-title" ref={panel}>
     <div className="section-heading"><h2 id="steps-title">{L.activity}</h2><span className="muted num">{events.length} pasos</span>{running && <span className="running" role="status"><span className="pulse" />{L.stateRunning}…</span>}</div>
     {stream === "lost" && <p className="compact-notice" role="status">{L.streamLost}</p>}
@@ -100,7 +103,7 @@ export default function Steps({ events, running, stream, live, targetSeq, active
         <div className="trace-heading"><span className={`step-type type-${e.type}`}>{EVENT_TYPE[e.type] || asText(e.type)}</span>{e.tool && <strong>{TOOL[e.tool] || asText(e.tool)}</strong>}<Author who={authorOf(e)} />{e.truncated && <Chip kind="warn">{L.truncated}</Chip>}</div>
         {e.summary ? <p className="prose">{asText(e.summary)}</p> : <p className="muted">{L.traceNoData}</p>}
         {e.truncated && <p className="hint">{L.truncatedHelp}</p>}
-        {Array.isArray(e.event_ids) && e.event_ids.length > 0 && <EventIds ids={e.event_ids.map(asText)} />}
+        {logIds(e).length > 0 && <EventIds ids={logIds(e)} />}
         {Object.keys(obj(e.args)).length > 0 && <details className="technical-details"><summary>{L.queryParameters}</summary><pre className="raw-data">{asText(e.args)}</pre></details>}
       </div>
     </li>)}{ticket && !running && <FinalSteps ticket={ticket} decision={decision} />}</ol> : <p className="muted">{running ? L.loading : L.stepsEmpty}</p>}

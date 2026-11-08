@@ -21,7 +21,7 @@ function Pipeline({ lanes, onQueue }) {
         <button type="button" onClick={() => onQueue({ lane: key })} aria-label={`${PIPELINE_LANE[key]}: ${lane.total}`}>
           <span className="pipeline-name">{PIPELINE_LANE[key]}</span>
           <strong className="pipeline-total num">{lane.total}</strong>
-          {key === "person" && <span className="pipeline-needs">{L.pipelineNeedsPerson(lane.needsPerson)}</span>}
+          {(key === "person" || lane.needsPerson > 0) && <span className="pipeline-needs">{L.pipelineNeedsPerson(lane.needsPerson)}</span>}
           <span className="pipeline-severities">{SEVERITY_ORDER.filter(severity => lane.bySeverity[severity] > 0).map(severity => <span key={severity} className="pipeline-severity"><Severity value={severity} /><span className="num">{lane.bySeverity[severity]}</span></span>)}{lane.bySeverity.unknown > 0 && <span className="pipeline-severity"><span className="muted">{L.na}</span><span className="num">{lane.bySeverity.unknown}</span></span>}</span>
         </button>
         {index < LANE_FILTERS.length - 1 && <span className="pipeline-arrow" aria-hidden="true"><Icon name="arrowRight" /></span>}

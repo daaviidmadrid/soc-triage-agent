@@ -164,6 +164,8 @@ export const L = {
   slaWorkerRisk: "El trabajador no está en marcha: nadie la va a triar a tiempo sin una persona.",
   slaFilter: "SLA",
   slaTitle: "SLA de esta alerta",
+  slaDetails: "Detalles del SLA",
+  requiredAfterTriage: "Se podrá confirmar cuando termine el triaje.",
   slaStarted: "Entró en la aplicación (UTC)",
   slaStopped: "Reloj detenido (UTC)",
   slaDeadline: "Plazo (UTC)",

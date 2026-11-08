@@ -57,6 +57,8 @@ export default function SlaPanel({ alertId, record, ticketRow, decision, serverN
   const auto = obj(ticket.auto_close);
   const autoClosed = ticket.auto_closed === true && !decision;
   const live = liveSla(record, nowMs);
+  // Before a ticket exists there's nothing to hand over yet, unless the alert is already late or at risk.
+  const canConfirm = Boolean(ticketRow) || (live && ["at_risk", "breached"].includes(live.state));
 
   async function act(call) {
     setBusy(true); setError(null);
@@ -67,22 +69,25 @@ export default function SlaPanel({ alertId, record, ticketRow, decision, serverN
   const confirmation = live.escalation_confirmation && obj(live.escalation_confirmation);
   return <section className="panel sla-panel" aria-labelledby="sla-title">
     <div className="section-heading"><h2 id="sla-title">{L.slaTitle}</h2><SlaState state={live.state} />{live.secondsLeft !== null && <span className="num">{live.secondsLeft >= 0 ? L.slaLeft(formatDuration(live.secondsLeft)) : L.slaOver(formatDuration(live.secondsLeft))}</span>}</div>
-    <p className="hint">{L.slaClockNote}</p>
     {live.at_risk_reason === "worker" && <p className="inline-warn">{L.slaWorkerRisk}</p>}
     {ticket && ticketRow && live.stopped_at === null && ticket.verdict === "needs_more_info" && <p className="inline-warn">{L.fallbackSla}</p>}
     {live.severity_assumed && <p className="inline-warn">{L.slaAssumed}</p>}
+    <details className="technical-details sla-details">
+    <summary>{L.slaDetails}</summary>
+    <p className="hint">{L.slaClockNote}</p>
     <dl className="kv kv-grid">
-      <Field label={L.severity}><Severity value={live.severity} />{live.severity_source === "rule" && <span className="sub">{L.fromRule}</span>}</Field>
+      <Field label={live.severity_source === "rule" ? L.filterSeverity : L.severity}><Severity value={live.severity} />{live.severity_source === "rule" && <span className="sub">{L.fromRule}</span>}</Field>
       <Field label={L.slaStarted}><span className="num">{formatTime(live.started_at) || L.na}</span></Field>
       <Field label={L.slaDeadline}><span className="num">{live.deadline ? formatTime(live.deadline) : L.slaNoDeadline}</span></Field>
       <Field label={L.slaStopped}><span className="num">{live.stopped_at ? formatTime(live.stopped_at) : L.slaRunning}</span>{live.stopped_by === "person" && <span className="sub">{L.slaByPerson}</span>}</Field>
       {live.deadline_severity !== live.severity && <Field label={L.slaBy}><Severity value={live.deadline_severity} /></Field>}
       {arr(live.changes).length > 0 && <Field label={L.slaChanges}>{arr(live.changes).map((c, i) => <div key={i} className="num">{formatTime(c.at)} UTC: {L.slaChange(SEVERITY[c.from] || asText(c.from), SEVERITY[c.to] || asText(c.to))}</div>)}</Field>}
     </dl>
+    </details>
 
     {live.required_action && <div className="sla-action" role="group" aria-label={L.requiredAction}>
       <p><strong>{L.requiredAction}:</strong> {asText(live.required_action)}{live.deadline && <> · {L.slaDeadline}: <span className="num">{formatTime(live.deadline)}</span></>}</p>
-      {confirmation ? <p className="ok">{L.confirmedBy(confirmation.kind, asText(confirmation.by), formatTime(confirmation.at))}{confirmation.note && <span className="muted"> {asText(confirmation.note)}</span>}</p> : <>
+      {confirmation ? <p className="ok">{L.confirmedBy(confirmation.kind, asText(confirmation.by), formatTime(confirmation.at))}{confirmation.note && <span className="muted"> {asText(confirmation.note)}</span>}</p> : !canConfirm ? <p className="hint">{L.requiredAfterTriage}</p> : <>
         <p className="hint">{L.requiredHint}</p>
         <NameAndAction busy={busy} label={L.confirmCall} secondary={L.confirmHandover} extra extraLabel={L.confirmNote} onSubmit={(analyst, note, kind) => act(() => api.confirmEscalation(alertId, { analyst, kind, note }))} />
       </>}
