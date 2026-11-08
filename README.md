@@ -68,7 +68,7 @@ Code turns the LLM's suggestions into the 7 actions of Deloitte's simulated API,
 - **No person approved containment in the demo video.** A script stood in for one approval, and a banner on screen says so.
 
 ## How it works
-![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and decides close or escalate. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](docs/figures/workflow.svg)
+![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and proposes close or escalate, and a person decides. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](docs/figures/workflow.svg)
 
 | Decision | Who makes it |
 |---|---|
@@ -82,7 +82,7 @@ Code turns the LLM's suggestions into the 7 actions of Deloitte's simulated API,
 | Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
 | Approving and running containment | People |
 
-Everything in an alert or a log is treated as untrusted data, because attackers wrote some of it. If triage fails or there's no data to close on, the ticket goes to a person and can never close by itself.
+Everything in an alert or a log is treated as untrusted data, because attackers wrote some of it. If triage fails or there's no data to close on, the ticket is escalated and code never proposes closing it.
 
 All 4 levels are built: triage, judgement (grouping into incidents), investigation (incident reports) and response (containment).
 

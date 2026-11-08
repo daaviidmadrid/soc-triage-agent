@@ -62,7 +62,7 @@ The screenshots come from a read-only copy of run 3's database. Some alerts in t
 ### What makes it different
 - **It treats the data as untrusted.** Attackers wrote some of it, so nothing in an alert or a log is ever an instruction. Suspicious text on anything but an attack sends the ticket to a person.
 - **Code checks every answer it can.** Cited events must exist in the logs, approvals must match a real change or trip, and code computes the final severity from Tarvia's policy.
-- **When in doubt, it asks a person.** With no data to close on, or if the model is down, the ticket goes to a person and can never close by itself.
+- **When in doubt, it asks a person.** With no data to close on, or if the model is down, the ticket is escalated and code never proposes closing it.
 - **It sees a whole phishing campaign.** Code fetches what happened to the other recipients, which caught 2 attacks every earlier version missed.
 
 ### What the AI decides, what a person decides
@@ -81,9 +81,9 @@ The screenshots come from a read-only copy of run 3's database. Some alerts in t
 | Approving and running containment | People |
 
 ### One alert, end to end
-Two fixed rules can close well-known noise without the LLM, and a rule never escalates. Escalated tickets and incidents get an incident report (level 3).
+Two fixed rules can propose closing well-known noise without the LLM, and a rule never escalates. Escalated tickets and incidents get an incident report (level 3).
 
-![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and decides close or escalate. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](figures/workflow.svg)
+![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and proposes close or escalate, and a person decides. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](figures/workflow.svg)
 
 ### What the LLM sees
 Code builds the same context for the same alert every time. For a phishing alert it also fetches the rest of the campaign: other copies of the email, visits to the site and sign-ins from the IPs that served it. Everything taken from the data goes in one block marked as untrusted, because attackers wrote some of it. The answer checklist comes again after that block.
@@ -93,9 +93,9 @@ Code builds the same context for the same alert every time. For a phishing alert
 ### How code checks the LLM's draft
 The LLM only proposes. Wherever an answer can be checked, `build_ticket` and `_ask_llm` in `src/agent/triage.py` check it.
 
-![How code checks the LLM draft: real evidence, data to close on, severity by code, escalation rules, then close or escalate.](figures/checks.svg)
+![How code checks the LLM draft: real evidence, data to close on, severity by code, escalation rules, then a proposal to close or escalate.](figures/checks.svg)
 
-If triage fails, for example because the model is down, the ticket is `needs_more_info` and escalated, and it can never close.
+If triage fails, for example because the model is down, the ticket is `needs_more_info` and escalated, and code never proposes closing it.
 
 ### How we built the agent
 The analysis came first. Each trap it found became a rule in code with unit tests. Claude drafted the answer keys before any run, without seeing the agent's answers, and we reviewed the 20 answers it was least sure of, changing none. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
