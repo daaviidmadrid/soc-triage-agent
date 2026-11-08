@@ -1,6 +1,7 @@
 # Tarvia SOC Triage Agent
 
-By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026.
+By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026. Francesco built the core agent (triage, grouping, containment, prompt injection defences and the practice exam) and integrated the team's work. Alex built the data tools (log search, alert context, API client, severity), the level 3 incident reports and the first UI. David did the data analysis, redesigned the UI and built the automated version on the `automated-soc-triage` branch.
+
 
 An AI agent that triages security alerts for the SOC of Tarvia, a fictional retailer. Given an alert, it looks up the facts, works out what happened and writes a ticket with its evidence. Then it proposes closing the alert or escalating it, and a person decides.
 
