@@ -9,7 +9,7 @@ AI triage for the SOC of Tarvia, a fictional retailer. Plain code gathers and ch
 ## How it works
 
 ### One alert, end to end
-Level 3, the incident report, isn't built yet.
+Two fixed rules can close well-known noise without the LLM, and a rule never escalates. Escalated tickets and incidents get an incident report (level 3).
 
 ![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and decides close or escalate. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](docs/figures/workflow.svg)
 
@@ -29,10 +29,12 @@ If triage fails, for example because the model is down, the ticket is `needs_mor
 | Decision | Who makes it |
 |---|---|
 | What the alert is about, and which logs, assets and changes to fetch | Code |
+| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
 | Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
 | Final severity | Code, from the policy matrix |
 | Close or escalate, and to whom | Code, from the policy and the checked draft |
 | Which alerts belong to one incident | Code, by exact shared identifiers |
+| The incident report: story, scope, root cause | LLM writes it; code checks every timeline event and takes its time from the log |
 | Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
 | Approving and running containment | People |
 
@@ -44,7 +46,7 @@ The analysis came first. Each trap it found became a rule in code with unit test
 A change stays only if it fixes more than it breaks and misses no new attack. The final 40 are never used to choose a version.
 
 ## Agent versions
-Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/agent_versions.md](docs/agent_versions.md) has the full results by set.
+Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/agent_versions.md](docs/agent_versions.md) has the full results by set. v6, in the code now, adds the two fixed rules and hasn't been scored yet.
 
 ![Agent versions v2 to v5 and their scores on the 80 practice alerts, with reasoning on and off.](docs/figures/versions.svg)
 
