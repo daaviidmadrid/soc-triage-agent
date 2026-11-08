@@ -14,9 +14,9 @@ Two fixed rules can close well-known noise without the LLM, and a rule never esc
 ![One alert, end to end: code gathers the facts, the LLM drafts a ticket, code checks it and decides close or escalate. Every ticket is grouped into incidents, and escalated tickets get containment proposals that people approve and run.](docs/figures/workflow.svg)
 
 ### What the LLM sees
-Code builds the same context for the same alert every time. Everything taken from the data goes in one block marked as untrusted, because attackers wrote some of it.
+Code builds the same context for the same alert every time. For a phishing alert it also fetches the rest of the campaign: other copies of the email, visits to the site and sign-ins from the IPs that served it. Everything taken from the data goes in one block marked as untrusted, because attackers wrote some of it. The answer checklist comes again after that block.
 
-![What the LLM sees: code looks up the mock SOC API with exact rules and sends the result as an untrusted data block next to the instructions and the policy.](docs/figures/context.svg)
+![What the LLM sees: code looks up the mock SOC API with exact rules, adds the rest of a phishing campaign, and sends the result as an untrusted data block between the instructions and the policy and a repeated answer checklist.](docs/figures/context.svg)
 
 ### How code checks the LLM's draft
 The LLM only proposes. Wherever an answer can be checked, `build_ticket` and `_ask_llm` in `src/agent/triage.py` check it.
@@ -28,7 +28,7 @@ If triage fails, for example because the model is down, the ticket is `needs_mor
 ### Who decides what
 | Decision | Who makes it |
 |---|---|
-| What the alert is about, and which logs, assets and changes to fetch | Code |
+| What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
 | Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
 | Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
 | Final severity | Code, from the policy matrix |
@@ -39,18 +39,25 @@ If triage fails, for example because the model is down, the ticket is `needs_mor
 | Approving and running containment | People |
 
 ### How we build the agent
-The analysis came first. Each trap it found became a rule in code with unit tests. The answer keys were written before any run, without seeing the agent's answers. Then each round changes one thing and is scored on the same 80 practice alerts.
+The analysis came first. Each trap it found became a rule in code with unit tests. The answer keys were written before any run, without seeing the agent's answers. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
 
 ![How we build the agent: groundwork once, then rounds on the 80 practice alerts, then a frozen version scored once.](docs/figures/build_loop.svg)
 
-A change stays only if it fixes more than it breaks and misses no new attack. The final 40 are never used to choose a version.
+A change stays only if it fixes more than it breaks, misses no new attack and doesn't make the normal 40 worse. On the night of 8 Nov, `scripts/night_loop.py` ran eight rounds this way. Lessons could come only from the hard 40's misses, so the normal 40 stayed an honest check. The final 40 are never used to choose a version.
 
 ## Agent versions
-Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/agent_versions.md](docs/agent_versions.md) has the full results by set. v6, in the code now, adds the two fixed rules and hasn't been scored yet.
+Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/agent_versions.md](docs/agent_versions.md) has the full results by set, the look-alike pairs and the night's eight rounds. v8 is the default now: v7 with JSON mode off, the rest of a phishing campaign in the context, and the answer checklist repeated at the end of the prompt.
 
-![Agent versions v2 to v5 and their scores on the 80 practice alerts, with reasoning on and off.](docs/figures/versions.svg)
+![Agent versions v2 to v8, what each one changed, and their scores on the 80 practice alerts, with reasoning on and off.](docs/figures/versions.svg)
 
-Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one. They're marked against an answer key that AI drafted and no person has reviewed yet, on the same alerts used to choose the changes, so they're optimistic. One or two alerts either way can be chance. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
+Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one, and fully right means verdict, severity and escalation all match. They're marked against an answer key that AI drafted and no person has reviewed yet, on the same alerts used to choose the changes, so they're optimistic. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
+
+What the night showed:
+- **The campaign context fixes the 2 attacks every earlier version missed:** phishing reports that only matter because a colleague gave away a login. No round with it missed an attack, on either set.
+- **The same version run twice differs by a few alerts.** v7 got 74 fully right, then 72. v8's 77 and 76 are about that much better, so that gain could be chance. The gain on missed attacks is larger than the noise.
+- **JSON mode off stops empty answers.** With it on, reasoning sometimes ended in just `{}`, which cost a full retry. With it off there were none.
+- **v6's fixed rules don't change accuracy:** they changed no answer on the 80. They're kept because they close 43% of all alerts in about a second each, with no model call.
+- **A written lesson didn't help, so it was dropped.** The model can't judge a campaign it can't see; code had to fetch it.
 
 ## Setup
 ```bash
@@ -123,13 +130,22 @@ python3 scripts/exam.py merge runs/exam_FOLDER_laptop2.zip runs/exam_FOLDER_lapt
 ```bash
 python3 scripts/exam.py score
 ```
-All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `final` is 40 more with answers kept for the honest final score (never tune on them), `extra` is the other 62 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
+All laptops must be on the same commit and model. `--set` chooses the alerts: `exam` is 40 hard cases and `normal` is 40 in a normal day's mix, both with answers, `scored` is both, `pairs` is the 31 look-alike alerts within those 80, where one detail flips the answer, `final` is 40 more with answers kept for the honest final score (never tune on them), `extra` is the other 62 with no answers, and `all` is everything. `--workers 6` runs six alerts at once on a provider with no limits. `score --set normal` marks one set.
 
 Each run also keeps a call log in `calls/`: for every alert, the prompts sent, the model's raw answers and reasoning, and what our code changed. To read one:
 ```bash
 python3 scripts/exam.py explain ALR-20261007-011785
 ```
 Add `--prompt` to see the prompts. The app keeps the same for real runs in `runs/app_calls/`. These files hold alert and log text, which may contain attackers' instructions, so read them as data. `runs/` is not in git, and `pack` includes the logs.
+
+Since v8 three things are on by default, chosen by the night of 8 Nov (`docs/agent_versions.md`). Setting the variable switches one back for an experiment, and its tickets go to their own `runs/` folder:
+- JSON mode is off, because with reasoning on it often returned only `{}`. `LLM_JSON_MODE=1` turns it on.
+- A phishing alert's context holds the rest of the campaign: other copies of the email, visits to the phishing site and sign-ins from its IP. `AGENT_CAMPAIGN=0` turns it off.
+- The answer checklist is repeated at the end of the prompt. `AGENT_FORMAT_REMINDER=0` turns it off.
+
+`AGENT_LESSONS_FILE=path.json` adds reviewed general lessons, off unless it's set. `src/agent/lessons.py` checks them and refuses IDs, IPs, accounts, hosts, URLs and anything about approving containment.
+
+`scripts/night_loop.py round NAME --no-json-mode --campaign --reminder` runs the 80 scored alerts with all three (leave a flag out to switch that one off) and adds a row to `runs/night/summary.md`. `night_loop.py mistakes FOLDER` lists the exam set's mistakes as structured fields only, with no alert text.
 
 Analysis notebook:
 ```bash

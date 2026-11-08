@@ -54,7 +54,8 @@ def test_text_in_the_data_cannot_close_the_block():
     _, user = build_prompt(context)
     assert user.count("</untrusted_data>") == 1
     assert user.count("<untrusted_data>") == 1
-    assert user.rstrip().endswith("</untrusted_data>")
+    # Only v8's fixed answer checklist may follow the block.
+    assert user.rstrip().endswith("</untrusted_data>" + prompts.REMINDER.rstrip()) or user.rstrip().endswith("</untrusted_data>")
     assert block_contents(user)["logs"][0]["text"] == CLOSER
 
 
@@ -132,7 +133,7 @@ def test_space_left_for_data_stays_about_what_the_docs_say():
     """Keeps "Prompt budget" in docs/decisions.md true. If this fails, update that row."""
     for number in range(1, 11):
         system, _ = build_prompt({"alert": {**ALERT, "runbook": f"RB-{number:02d}"}})
-        assert 14_000 <= prompts.MAX_PROMPT_CHARS - len(system) <= 16_000
+        assert 60_000 <= prompts.MAX_PROMPT_CHARS - len(system) <= 62_000
 
 
 def test_prompt_version_exists_for_batch_folders():
