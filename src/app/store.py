@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS correlations (
     data TEXT NOT NULL,
     built_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    actor_kind TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS audit_by_subject ON audit(subject);
 """
 
 RUN_FIELDS = ("run_id", "alert_id", "mode", "status", "started_at", "finished_at", "duration_seconds", "ticket_id", "error")
@@ -230,6 +241,19 @@ class Store:
             (ticket_id, run_id),
         ))
 
+    def update_ticket(self, run_id, ticket):
+        """Changes one saved version in place, so the newest version stays the newest."""
+        self._write("UPDATE tickets SET data = ? WHERE run_id = ?", (_dumps(ticket), run_id))
+
+    def latest_ticket_for_alert(self, alert_id):
+        return self._ticket_row(self._one(
+            "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE alert_id = ? ORDER BY rowid DESC LIMIT 1",
+            (alert_id,),
+        ))
+
+    def count_tickets(self):
+        return self._one("SELECT COUNT(*) FROM tickets")[0]
+
     def list_tickets(self):
         rows = self._all(
             "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets "
@@ -311,3 +335,19 @@ class Store:
             f"SELECT {', '.join(DECISION_FIELDS)} FROM decisions WHERE id IN (SELECT MAX(id) FROM decisions GROUP BY run_id)"
         )
         return {row[2]: dict(zip(DECISION_FIELDS, row)) for row in rows}
+
+    # Audit: every automatic action and every person's action on it, with time, who or what, and why.
+
+    def add_audit(self, actor_kind, actor, action, subject, reason, data=None):
+        """actor_kind is code, model or person. actor is the rule, the model or the person's name."""
+        cursor = self._write(
+            "INSERT INTO audit (at, actor_kind, actor, action, subject, reason, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (now_iso(), actor_kind, actor, action, subject, reason, _dumps(data or {})),
+        )
+        return cursor.lastrowid
+
+    def audit_entries(self, subject=None, limit=200):
+        fields = ("id", "at", "actor_kind", "actor", "action", "subject", "reason", "data")
+        where, args = ("WHERE subject = ?", (subject,)) if subject else ("", ())
+        rows = self._all(f"SELECT {', '.join(fields)} FROM audit {where} ORDER BY id DESC LIMIT ?", (*args, limit))
+        return [{**dict(zip(fields, row)), "data": json.loads(row[-1])} for row in rows]
