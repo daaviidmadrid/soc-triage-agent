@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 540" width="980" height="540" role="img" aria-label="How code checks the LLM&#x27;s draft: real evidence, data to close on, severity by code, escalation rules, then close or escalate.">
+<title>How code checks the LLM&#x27;s draft: real evidence, data to close on, severity by code, escalation rules, then close or escalate.</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6B6860"/></marker></defs>
+<rect x="1" y="1" width="978" height="538" rx="16" fill="#FFFFFF" stroke="#E2DFD7" stroke-width="1.5"/>
+<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+<rect x="36" y="24" width="330" height="58" rx="9" fill="#DDF2EA" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="201.0" y="50.0" font-size="13.5" font-weight="600" fill="#0B3D2E" text-anchor="middle">LLM draft</text>
+<text x="201.0" y="67.0" font-size="11.5" font-weight="400" fill="#0F6E56" text-anchor="middle">verdict, evidence, ±1 proposals, flags</text>
+<line x1="366" y1="53" x2="420" y2="53" stroke="#C9C5BB" stroke-dasharray="2 3"/>
+<rect x="420" y="27.0" width="524" height="52" rx="9" fill="#FAFAF8" stroke="#E2DFD7"/>
+<text x="436" y="49.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">The LLM only proposes. Anything outside its schema, such as a severity or</text>
+<text x="436" y="65.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">a ticket ID, is ignored.</text>
+<rect x="36" y="112" width="330" height="58" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="201.0" y="138.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Is the evidence real?</text>
+<text x="201.0" y="155.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">checked against what code retrieved</text>
+<line x1="366" y1="141" x2="420" y2="141" stroke="#C9C5BB" stroke-dasharray="2 3"/>
+<rect x="420" y="99.0" width="524" height="84" rx="9" fill="#FAFAF8" stroke="#E2DFD7"/>
+<text x="436" y="121.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">Every cited event must be one that code retrieved, and &quot;authorised&quot; must</text>
+<text x="436" y="137.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">cite a change or trip that code matched. If not, the draft goes back with</text>
+<text x="436" y="153.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">the reason, within 3 calls. If it still fails, the verdict is</text>
+<text x="436" y="169.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">needs_more_info.</text>
+<rect x="36" y="200" width="330" height="58" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="201.0" y="226.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Is there data to close on?</text>
+<text x="201.0" y="243.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">no closing on the alert&#x27;s own text</text>
+<line x1="366" y1="229" x2="420" y2="229" stroke="#C9C5BB" stroke-dasharray="2 3"/>
+<rect x="420" y="203.0" width="524" height="52" rx="9" fill="#FAFAF8" stroke="#E2DFD7"/>
+<text x="436" y="225.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">A false positive with no log rows, or a high or critical one citing no</text>
+<text x="436" y="241.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">event, becomes needs_more_info: attackers can write the alert&#x27;s text.</text>
+<rect x="36" y="288" width="330" height="58" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="201.0" y="314.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Severity, computed by code</text>
+<text x="201.0" y="331.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">policy matrix and asset criticality</text>
+<line x1="366" y1="317" x2="420" y2="317" stroke="#C9C5BB" stroke-dasharray="2 3"/>
+<rect x="420" y="291.0" width="524" height="52" rx="9" fill="#FAFAF8" stroke="#E2DFD7"/>
+<text x="436" y="313.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">One level up or down at most, the bank-details floor of critical,</text>
+<text x="436" y="329.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">authorised gives low, and no −1 when evidence was cut off.</text>
+<rect x="36" y="376" width="330" height="58" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="201.0" y="402.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Escalation rules</text>
+<text x="201.0" y="419.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">section 5 of the policy</text>
+<line x1="366" y1="405" x2="420" y2="405" stroke="#C9C5BB" stroke-dasharray="2 3"/>
+<rect x="420" y="371.0" width="524" height="68" rx="9" fill="#FAFAF8" stroke="#E2DFD7"/>
+<text x="436" y="393.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">Escalates a true positive at high or critical, any of the five policy</text>
+<text x="436" y="409.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">flags, needs_more_info, suspicious text on a non-attack, or when the LLM</text>
+<text x="436" y="425.0" font-size="12" font-weight="400" fill="#1F1E1C" text-anchor="start">asks.</text>
+<path d="M201,82 L201,110" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M201,170 L201,198" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M201,258 L201,286" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M201,346 L201,374" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M36,141 L22,141 L22,53 L34,53" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text transform="rotate(-90 14 101)" x="14" y="101" font-size="11" font-weight="500" fill="#5A5852" text-anchor="middle">sent back</text>
+<rect x="36" y="466" width="140" height="50" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="106.0" y="488.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Close</text>
+<text x="106.0" y="505.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">ticket stays visible</text>
+<rect x="190" y="466" width="176" height="50" rx="9" fill="#E3ECF8" stroke="#3B6DB3" stroke-width="1.3"/>
+<text x="278.0" y="488.0" font-size="13.5" font-weight="600" fill="#14325C" text-anchor="middle">Escalate to a person</text>
+<text x="278.0" y="505.0" font-size="11.5" font-weight="400" fill="#2E5A94" text-anchor="middle">N2, by phone if critical</text>
+<path d="M150,434 L106,464" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M252,434 L278,464" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="420" y="465.0" width="524" height="52" rx="9" fill="#FFF7EC" stroke="#E9D3AE"/>
+<text x="436" y="487.0" font-size="12" font-weight="400" fill="#5C3D0A" text-anchor="start">If triage fails, for example because the model is down, the ticket is</text>
+<text x="436" y="503.0" font-size="12" font-weight="400" fill="#5C3D0A" text-anchor="start">needs_more_info, escalated, and it can never close.</text>
+</g>
+</svg>

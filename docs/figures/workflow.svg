@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 542" width="980" height="542" role="img" aria-label="One alert, end to end: code gathers facts; a fixed rule may close well-known noise, otherwise the LLM drafts a ticket and code checks it and decides close or escalate. Tickets are grouped into incidents, escalated ones get an incident report, and containment proposals that people approve and run.">
+<title>One alert, end to end: code gathers facts; a fixed rule may close well-known noise, otherwise the LLM drafts a ticket and code checks it and decides close or escalate. Tickets are grouped into incidents, escalated ones get an incident report, and containment proposals that people approve and run.</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6B6860"/></marker></defs>
+<rect x="1" y="1" width="978" height="540" rx="16" fill="#FFFFFF" stroke="#E2DFD7" stroke-width="1.5"/>
+<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+<rect x="16" y="16" width="948" height="176" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="32" y="38" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Level 1: triage each alert</text>
+<rect x="36" y="46" width="164" height="70" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="118.0" y="70.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Alert arrives</text>
+<text x="118.0" y="87.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">any format,</text>
+<text x="118.0" y="102.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">any field names</text>
+<rect x="222" y="46" width="164" height="70" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="304.0" y="70.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Gather the facts</text>
+<text x="304.0" y="87.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">assets, people, changes,</text>
+<text x="304.0" y="102.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">threat data, logs</text>
+<rect x="408" y="46" width="164" height="70" rx="9" fill="#DDF2EA" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="490.0" y="70.5" font-size="13.5" font-weight="600" fill="#0B3D2E" text-anchor="middle">LLM drafts a ticket</text>
+<text x="490.0" y="87.5" font-size="11.5" font-weight="400" fill="#0F6E56" text-anchor="middle">verdict, evidence, flags;</text>
+<text x="490.0" y="102.5" font-size="11.5" font-weight="400" fill="#0F6E56" text-anchor="middle">at most 3 calls</text>
+<rect x="594" y="46" width="164" height="70" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="676.0" y="70.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Code checks the draft</text>
+<text x="676.0" y="87.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">evidence, approvals,</text>
+<text x="676.0" y="102.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">final severity</text>
+<rect x="780" y="46" width="164" height="70" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="862.0" y="70.5" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Close or escalate</text>
+<text x="862.0" y="87.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">decided by code,</text>
+<text x="862.0" y="102.5" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">from the policy</text>
+<path d="M200,81 L222,81" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M386,81 L408,81" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M572,81 L594,81" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M758,81 L780,81" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="408" y="132" width="350" height="46" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="583.0" y="152.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Or a fixed rule closes it, without the LLM</text>
+<text x="583.0" y="169.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">2 rules for well-known noise; a rule never escalates</text>
+<path d="M304,116 L304,155 L406,155" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M758,155 L862,155 L862,118" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="16" y="228" width="466" height="112" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="32" y="250" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Level 2: judgement</text>
+<rect x="91" y="262" width="316" height="62" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="249.0" y="290.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Group tickets into incidents</text>
+<text x="249.0" y="307.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">by exact shared identifiers, within 14 days</text>
+<rect x="16" y="360" width="466" height="128" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="32" y="382" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Level 3: investigation</text>
+<rect x="91" y="392" width="316" height="80" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="249.0" y="414.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Incident report with a timeline</text>
+<text x="249.0" y="431.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">code gathers the whole incident&#x27;s evidence,</text>
+<text x="249.0" y="446.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">the LLM writes the story, code checks</text>
+<text x="249.0" y="461.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">every event and takes its time from the log</text>
+<rect x="498" y="228" width="466" height="260" rx="13" fill="#FAFAF8" stroke="#E2DFD7" stroke-width="1.2"/>
+<text x="514" y="250" font-size="12" font-weight="600" fill="#5A5852" text-anchor="start">Level 4: response</text>
+<rect x="573" y="262" width="316" height="56" rx="9" fill="#F3F2EE" stroke="#A8A398" stroke-width="1.3"/>
+<text x="731.0" y="287.0" font-size="13.5" font-weight="600" fill="#1F1E1C" text-anchor="middle">Containment proposal</text>
+<text x="731.0" y="304.0" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="middle">one of 7 actions, exact target, who approves</text>
+<rect x="573" y="344" width="316" height="56" rx="9" fill="#E3ECF8" stroke="#3B6DB3" stroke-width="1.3"/>
+<text x="731.0" y="369.0" font-size="13.5" font-weight="600" fill="#14325C" text-anchor="middle">People approve</text>
+<text x="731.0" y="386.0" font-size="11.5" font-weight="400" fill="#2E5A94" text-anchor="middle">a different named person for each role</text>
+<rect x="573" y="426" width="316" height="48" rx="9" fill="#E3ECF8" stroke="#3B6DB3" stroke-width="1.3"/>
+<text x="731.0" y="447.0" font-size="13.5" font-weight="600" fill="#14325C" text-anchor="middle">A person clicks run</text>
+<text x="731.0" y="464.0" font-size="11.5" font-weight="400" fill="#2E5A94" text-anchor="middle">the mock API runs it once</text>
+<path d="M731,318 L731,342" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M731,400 L731,424" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M249,324 L249,390" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M249,192 L249,226" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="259" y="200" width="88.80000000000001" height="18" rx="5" fill="#FFFFFF" stroke="#E2DFD7"/>
+<text x="303.4" y="213" font-size="11" font-weight="500" fill="#5A5852" text-anchor="middle">every ticket</text>
+<path d="M731,192 L731,226" fill="none" stroke="#6B6860" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="741" y="200" width="120.80000000000001" height="18" rx="5" fill="#FFFFFF" stroke="#E2DFD7"/>
+<text x="801.4" y="213" font-size="11" font-weight="500" fill="#5A5852" text-anchor="middle">escalated tickets</text>
+<rect x="36" y="508" width="14" height="14" rx="3" fill="#F3F2EE" stroke="#A8A398"/>
+<text x="56" y="519" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">Plain code</text>
+<rect x="148.0" y="508" width="14" height="14" rx="3" fill="#DDF2EA" stroke="#1D9E75"/>
+<text x="168.0" y="519" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">LLM</text>
+<rect x="213.8" y="508" width="14" height="14" rx="3" fill="#E3ECF8" stroke="#3B6DB3"/>
+<text x="233.8" y="519" font-size="11.5" font-weight="400" fill="#5A5852" text-anchor="start">A person</text>
+</g>
+</svg>
