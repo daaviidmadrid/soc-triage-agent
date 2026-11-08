@@ -2,7 +2,7 @@
 
 The answers for the 40 alerts in `key_normal40_alerts.txt`, a random sample in about the severity mix of a normal day. Scores here show how the AI copes with ordinary traffic, and `key40_review.md` covers the hard cases.
 
-**Status: draft, not yet reviewed by a person.** Four Claude helpers wrote it from the policy, runbooks and logs, without seeing any AI ticket. It is a judgement, not ground truth.
+**Status: Claude's draft, partly reviewed.** Four Claude helpers wrote it from the policy, runbooks and logs, without seeing any AI ticket. David, Alex and Francesco reviewed the 6 answers under "Check these first", before seeing any of the agent's results, and changed none. The review was recorded in `labels.csv` on 8 Nov. The other 34 answers haven't been reviewed by a person. It is a judgement, not ground truth.
 
 The key has 19 attacks, 3 authorised and 18 false positives. To change an answer, edit `labels.csv` and replace `claude-draft` with your name.
 
