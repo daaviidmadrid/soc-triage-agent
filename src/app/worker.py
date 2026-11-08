@@ -1,7 +1,7 @@
-"""Runs level 1 in the background, one alert at a time, in priority order. Level 4 is never touched here.
+"""Runs levels 1 to 3 in the background, one thing at a time, in priority order. Level 4 is never touched here.
 
-It only chooses what to do next and when. Triage goes through the same function as the route a person
-clicks, passed in by src/app/main.py. Nothing here calls the LLM, reads alert text or decides anything about a
+It only chooses what to do next and when. Triage, grouping and reports go through the same functions as the routes a
+person clicks, passed in by src/app/main.py. Nothing here calls the LLM, reads alert text or decides anything about a
 ticket, and no text from the data reaches the order: it uses the rule's severity field, the CMDB's criticality and
 the order alerts arrived, never an ID number.
 
@@ -23,6 +23,7 @@ from src.tools.alert_fields import fill_from_catalogue
 from src.tools.context import _parse_entities
 
 DEFAULT_MAX_CALLS_PER_MINUTE = 30
+GROUP_EVERY_SECONDS = 30
 IDLE_SECONDS = 1.0
 
 
@@ -42,9 +43,11 @@ def number(name, default, kind=float):
 class Settings:
     def __init__(self):
         self.enabled = switch("AUTO_TRIAGE")
+        self.investigate = switch("AUTO_INVESTIGATE")
         self.pace_seconds = number("AUTO_TRIAGE_PACE_SECONDS", PACE_SECONDS)
         self.max_calls_per_run = number("AUTO_TRIAGE_MAX_CALLS_PER_RUN", MAX_CALLS_PER_RUN, int)
         self.max_calls_per_minute = number("AUTO_TRIAGE_MAX_CALLS_PER_MINUTE", DEFAULT_MAX_CALLS_PER_MINUTE, int)
+        self.group_every_seconds = number("AUTO_GROUP_SECONDS", GROUP_EVERY_SECONDS)
         self.max_failures = number("AUTO_TRIAGE_MAX_FAILURES", MAX_FAILURES_IN_A_ROW, int)
 
 
@@ -87,14 +90,17 @@ def order_key(alert, criticality, position):
 
 
 class Worker:
-    """triage_one and try_rules are the app's own functions. See main.py."""
+    """triage_one, try_rules, group, report_candidates and report_one are the app's own functions. See main.py."""
 
-    def __init__(self, store, settings, *, triage_one, try_rules, criticality=None,
+    def __init__(self, store, settings, *, triage_one, try_rules, group, report_candidates, report_one, criticality=None,
                  clock=time.monotonic, wait=None):
         self.store = store
         self.settings = settings
         self.triage_one = triage_one
         self.try_rules = try_rules
+        self.group = group
+        self.report_candidates = report_candidates
+        self.report_one = report_one
         self.criticality = criticality or alert_criticality
         self.clock = clock
         self._wait = wait
@@ -112,10 +118,14 @@ class Worker:
         self.failures_in_a_row = 0
         self.failures_total = 0
         self.triaged = 0
+        self.reports = 0
         self._window = deque()
         self._next_llm_at = 0.0
         self._rules_checked = set()
         self._tried = set()
+        self._reports_tried = set()
+        self._tickets_grouped = None
+        self._last_group_at = None
         self.current = None
 
     # Controls. Only routes a person calls, and the server start with AUTO_TRIAGE=1, get here.
@@ -226,8 +236,22 @@ class Worker:
             return self._halt("failures", f"{self.failures_in_a_row} fallos seguidos: el resto de alertas sigue en la cola para una persona.")
         return None
 
+    def _maybe_group(self, now):
+        """Grouping uses no LLM. At most once every N seconds, and only if there are new tickets."""
+        tickets = self.store.count_tickets()
+        if tickets == 0 or tickets == self._tickets_grouped:
+            return False
+        if self._last_group_at is not None and now - self._last_group_at < self.settings.group_every_seconds:
+            return False
+        self._tickets_grouped, self._last_group_at = tickets, now
+        try:
+            self.group()
+        except Exception as error:  # incidents stay as they were, and triage carries on
+            self._audit("auto_group_failed", f"La agrupación falló ({type(error).__name__}). Sigue el triaje.")
+        return True
+
     def step(self):
-        """One unit of work. Returns what it did: stopped, paused, rules, triage, wait or idle."""
+        """One unit of work. Returns what it did: stopped, paused, rules, triage, group, report, wait or idle."""
         with self._lock:
             if self.state == "stopping":
                 self.state = "stopped"
@@ -252,8 +276,16 @@ class Worker:
                     self.current = None
                 return "rules"
 
+        if self._maybe_group(now):
+            return "group"
+
+        candidates = self.report_candidates() if self.settings.investigate else []
+        candidates = [c for c in candidates if c["key"] not in self._reports_tried]
         next_alert = pending[0] if pending else None
-        if not next_alert:
+        report = candidates[0] if candidates else None
+        # A report goes first only if it is of a higher severity than the next alert, whose triage has a deadline.
+        report_first = report and (next_alert is None or LEVELS.index(report["severity"]) > LEVELS.index(_rule_severity(next_alert)))
+        if not next_alert and not report:
             return "idle"
 
         ok, why = self._can_call(now)
@@ -262,6 +294,18 @@ class Worker:
         if not ok:
             return "wait"
         self._next_llm_at = now + self.settings.pace_seconds
+
+        if report_first:
+            self._reports_tried.add(report["key"])
+            self.current = report["key"]
+            try:
+                run_id = self.report_one(report["key"])
+            finally:
+                self.current = None
+            if not run_id:
+                return "idle"
+            self.reports += 1
+            return self._after_run(run_id, self.clock()) or "report"
 
         alert_id = next_alert["alert_id"]
         self._tried.add(alert_id)
@@ -291,9 +335,9 @@ class Worker:
 
     def view(self):
         return {
-            "enabled": self.settings.enabled, "state": self.state, "stop_reason": self.stop_reason,
+            "enabled": self.settings.enabled, "investigate": self.settings.investigate, "state": self.state, "stop_reason": self.stop_reason,
             "current": self.current, "llm_calls_used": self.calls_used, "llm_calls_limit": self.settings.max_calls_per_run,
             "llm_calls_per_minute": self.settings.max_calls_per_minute, "pace_seconds": self.settings.pace_seconds,
             "failures_in_a_row": self.failures_in_a_row, "failures_total": self.failures_total, "max_failures": self.settings.max_failures,
-            "triaged": self.triaged,
+            "triaged": self.triaged, "reports": self.reports, "group_every_seconds": self.settings.group_every_seconds,
         }

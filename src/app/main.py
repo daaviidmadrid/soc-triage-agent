@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
+from src.app.sla_tracker import is_fallback
 from src.app.store import Store, now_iso
 from src.app.worker import Settings, Worker
 from src.agent.correlate import correlate
@@ -367,12 +368,16 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         except Exception as error:
             raise HTTPException(503, mock_problem(error)) from None
 
-    @app.post("/api/incidents/build")
-    def build_incidents():
-        """Level 2: groups the latest tickets into incidents with plain code, and keeps the result with its reasons."""
+    def group_now():
         pairs = triaged_pairs()
         result = correlate(pairs)
         built_at = store.save_correlation(result)
+        return result, built_at
+
+    @app.post("/api/incidents/build")
+    def build_incidents():
+        """Level 2: groups the latest tickets into incidents with plain code, and keeps the result with its reasons."""
+        result, built_at = group_now()
         return {"built_at": built_at, "alerts": result["alerts"], "incidents": len(result["incidents"]),
                 "grouped_alerts": len(result["memberships"])}
 
@@ -665,7 +670,61 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         store.update_ticket(row["run_id"], {**ticket, "auto_closed": False, "auto_close": detail})
         store.add_audit(actor_kind, actor, "auto_close_reopened", row["alert_id"], reason, {"ticket_id": row["ticket_id"], "run_id": row["run_id"]})
 
-    worker = Worker(store, settings, triage_one=worker_triage, try_rules=worker_rules)
+    def worker_group():
+        """Level 2, by the same code as the route. An auto-closed alert that joined an escalated incident goes back to
+        a person: the policy escalates a chain even if each alert alone is low."""
+        result, built_at = group_now()
+        store.add_audit("code", "src/agent/correlate.py", "auto_grouped", "worker", "Hay tickets nuevos desde la última agrupación.",
+                        {"built_at": built_at, "alerts": result["alerts"], "incidents": len(result["incidents"])})
+        runs = store.latest_runs()
+        for incident in result["incidents"]:
+            if not is_escalated(incident["ticket"]):
+                continue
+            for member in incident["members"]:
+                row = latest_ticket(member["alert_id"], runs)
+                if row and row["ticket"].get("auto_closed") is True:
+                    reopen_ticket(row, "code", "src/agent/correlate.py", "Forma parte de un incidente escalado: debe verlo una persona.")
+
+    def report_candidates():
+        """Escalated incidents and tickets with no report or run yet, critical first. A ticket waits for the grouping
+        after it, so it isn't investigated alone just before it joins an incident. Fallback tickets stay out: nothing
+        was triaged, so a person looks at them first."""
+        latest = store.latest_correlation()
+        # Example tickets are made up, and a report always calls the real LLM, so they never start one.
+        if not latest or runner.current_mode() != "real":
+            return []
+        reports = store.latest_reports()
+        found = []
+        for incident in latest.get("incidents", []):
+            ticket = incident.get("ticket") or {}
+            key = incident.get("incident_id")
+            if is_escalated(ticket) and key not in reports and not store.active_run(key):
+                found.append({"key": key, "severity": ticket.get("severity") if ticket.get("severity") in SEVERITIES else "medium"})
+        grouped = latest.get("memberships", {})
+        runs = store.latest_runs()
+        for row in store.list_tickets():
+            run = runs.get(row["alert_id"])
+            ticket = row["ticket"]
+            if (run and run["run_id"] == row["run_id"] and row["mode"] == "real" and is_escalated(ticket) and row["alert_id"] not in grouped
+                    and row["saved_at"] <= latest["built_at"] and row["ticket_id"] not in reports and not store.active_run(row["ticket_id"])
+                    and not is_fallback(ticket, store.events_after(row["run_id"]))):
+                found.append({"key": row["ticket_id"], "severity": ticket.get("severity") if ticket.get("severity") in SEVERITIES else "medium"})
+        return sorted(found, key=lambda item: -SEVERITIES.index(item["severity"]))
+
+    def worker_report(key):
+        """Level 3, by the same work_report() as the route. The report only proposes containment."""
+        subject = report_subject(key)
+        if not subject or not subject["escalated"]:
+            return None
+        run_id, active = claim_run(key, "report")
+        if active:
+            return None
+        store.add_audit("code", "src/app/worker.py", "auto_investigation_started", key, "Escalado sin informe: primero los críticos.", {"run_id": run_id})
+        work_report(run_id, subject)
+        return run_id
+
+    worker = Worker(store, settings, triage_one=worker_triage, try_rules=worker_rules, group=worker_group,
+                    report_candidates=report_candidates, report_one=worker_report)
     app.state.worker = worker
 
     def require_enabled():
