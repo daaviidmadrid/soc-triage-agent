@@ -14,7 +14,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.agent import triage as triage_module  # noqa: E402
 from src.agent.llm import LLMBlocked, LLMResult, LLMUnavailable, complete  # noqa: E402
-from src.agent.triage import MAX_LLM_CALLS, run_triage, triage  # noqa: E402
+from src.agent.triage import MAX_LLM_CALLS, run_triage  # noqa: E402
 
 SCHEMA = json.loads((REPO_ROOT / "data" / "01_contexto" / "ticket_salida.schema.json").read_text(encoding="utf-8"))
 

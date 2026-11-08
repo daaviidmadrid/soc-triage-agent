@@ -14,11 +14,23 @@ import time
 from collections import deque
 from types import SimpleNamespace
 
-from src.agent.batch import MAX_CALLS_PER_RUN, MAX_FAILURES_IN_A_ROW, PACE_SECONDS, _calls_used, _out_of_quota, _should_save
+from src.agent.batch import (
+    MAX_CALLS_PER_RUN,
+    MAX_FAILURES_IN_A_ROW,
+    PACE_SECONDS,
+    _calls_used,
+    _out_of_quota,
+    _should_save,
+)
 from src.agent.rules import RULES
 from src.agent.triage import MAX_LLM_CALLS
 from src.policy import sla as sla_policy
-from src.policy.severity import CRITICALITIES, DEFAULT_CRITICALITY, LEVELS, resolve_criticality
+from src.policy.severity import (
+    CRITICALITIES,
+    DEFAULT_CRITICALITY,
+    LEVELS,
+    resolve_criticality,
+)
 from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
 from src.tools.context import _parse_entities
@@ -95,7 +107,7 @@ class Worker:
     """triage_one, try_rules, group, report_candidates and report_one are the app's own functions. See main.py."""
 
     def __init__(self, store, settings, *, triage_one, try_rules, group, report_candidates, report_one, tick=None, criticality=None,
-                 clock=time.monotonic, wait=None):
+                 clock=time.monotonic):
         self.store = store
         self.settings = settings
         self.triage_one = triage_one
@@ -106,7 +118,6 @@ class Worker:
         self.tick = tick or (lambda: None)
         self.criticality = criticality or alert_criticality
         self.clock = clock
-        self._wait = wait
         self._memo = {}
         self._criticalities = {}
         self._lock = threading.Lock()

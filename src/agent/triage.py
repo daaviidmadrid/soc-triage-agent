@@ -1,4 +1,4 @@
-"""Turns one alert into a ticket. The final event carries the ticket. Branch: agent/triage
+"""Turns one alert into a ticket. The final event carries the ticket.
 
 The LLM only proposes. Plain code here checks the answer, computes the final severity,
 applies the mandatory escalation rules and decides whether a ticket can close.
@@ -8,8 +8,9 @@ import json
 import re
 import time
 import uuid
+from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Iterator, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -30,7 +31,12 @@ from contracts.models import (
     Verdict,
 )
 from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, complete
-from src.agent.prompts import LOG_SOURCES, PROMPT_VERSION, build_prompt_with_info, context_to_dict
+from src.agent.prompts import (
+    LOG_SOURCES,
+    PROMPT_VERSION,
+    build_prompt_with_info,
+    context_to_dict,
+)
 from src.agent.rules import check_rules
 from src.policy.severity import compute_severity as default_compute_severity
 from src.tools.alert_fields import normalise_alert
@@ -216,7 +222,7 @@ def mandatory_escalation_reasons(verdict, severity, flags):
 
 
 def _read_severity(result):
-    """compute_severity lives on the data branch, so this accepts a string, a dict or an object."""
+    """compute_severity can be a fake in tests, so this accepts a string, a dict or an object."""
     if isinstance(result, str):
         return result, ""
     get = result.get if isinstance(result, dict) else lambda key: getattr(result, key, None)
@@ -480,7 +486,7 @@ def _ticket_id(alert):
 
 
 def _rows_from(result):
-    """search_logs lives on the data branch, so this accepts a list, a dict or an object."""
+    """search_logs can be a fake in tests, so this accepts a list, a dict or an object."""
     if isinstance(result, list):
         return result, False
     get = result.get if isinstance(result, dict) else lambda key, default=None: getattr(result, key, default)
@@ -668,7 +674,7 @@ def final_checks(ticket, context):
 
 
 def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None, rules_only=False) -> Iterator[TraceEvent]:
-    """The data functions are arguments because the data branch may not be merged yet, and tests need fakes.
+    """The data functions are arguments so tests can pass fakes.
 
     call_log, if given, is a list that receives every model call and what code decided. It holds prompts and data
     text, so it is kept apart from the trace the UI shows, and nothing in it is ever sent back to the model.

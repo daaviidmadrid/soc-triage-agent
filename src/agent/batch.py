@@ -1,4 +1,4 @@
-"""Runs many alerts and saves results in runs/. Branch: agent/batch
+"""Runs many alerts and saves results in runs/.
 
 Run from the repo root: python -m src.agent.batch alert_ids.txt
 To split a run across laptops, use scripts/exam.py, which calls this.

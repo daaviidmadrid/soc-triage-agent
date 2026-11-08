@@ -4,7 +4,7 @@ TRIAGE_MODE=example (the default) replays hand-written example events from
 contracts/examples/ with short delays, so the live steps can be seen working.
 TRIAGE_MODE=real calls the agent in src/agent/triage.py.
 
-Every event is a dict in the TraceEvent format of contracts/models.py on agent/core:
+Every event is a dict in the TraceEvent format of contracts/models.py:
 run_id, seq, at, type, tool, args, summary, event_ids, truncated, ticket.
 The app overwrites run_id and seq with its own when it stores them.
 """
@@ -20,7 +20,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "contracts" / "examples"
 SCENARIOS = ("escalated", "closed_authorised", "needs_more_info", "injection")
-MODES = ("example", "real")
 DEFAULT_STEP_SECONDS = 0.7
 MAX_QUOTA_PAUSE_SECONDS = 4
 
@@ -45,9 +44,7 @@ def run_triage(alert, mode=None):
 
 
 def real_events(alert):
-    # TODO(connect-triage): this is where the real agent plugs in. It needs src.agent.triage.triage(alert)
-    # from agent/core, plus the data branch's build_context, search_logs and compute_severity, the mock API
-    # running and an LLM key in .env. Nothing else in the app has to change: events are stored and shown as they come.
+    # Imported here so example mode keeps working when the agent can't be imported.
     try:
         from src.agent.triage import triage
     except ImportError as error:

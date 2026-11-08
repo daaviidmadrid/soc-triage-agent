@@ -2,9 +2,8 @@
 // Containment runs only from the approval screen in Containment.jsx, after every required person has approved.
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, None, asText, formatTime, isBlank, obj } from "../components.jsx";
+import { Clip, ErrorBox, asText, formatTime, isBlank, obj } from "../components.jsx";
 import Icon from "../icons.jsx";
-import Containment from "./Containment.jsx";
 import { DECISION, L, OUTCOME } from "../labels.js";
 
 const ANALYST_KEY = "tarvia.analyst";
@@ -161,32 +160,7 @@ function History({ decisions, runId, continuous = false }) {
   );
 }
 
-function ActionItem({ action, waiting, continuous = false }) {
-  return (
-    <li className="action">
-      {waiting && (
-        <Chip kind="person">
-          <Icon name="pause" />
-          {L.waitingApproval}
-        </Chip>
-      )}
-      <div>
-        <strong>
-          {continuous ? asText(action.action) : <Clip value={action.action} max={120} />}
-        </strong>{" "}
-        <Icon name="arrowRight" className="icon-inline" /> <code className="indicator">{isBlank(action.target) ? L.na : asText(action.target)}</code>{" "}
-        {!waiting && <span className="muted">({L.actionNoApproval})</span>}
-      </div>
-      {!isBlank(action.justification) && (
-        <div className="sub">
-          {continuous ? <p className="prose">{asText(action.justification)}</p> : <Clip value={action.justification} max={200} />}
-        </div>
-      )}
-    </li>
-  );
-}
-
-export default function DecisionPanel({ ticketRow, current, onNext, next, decisions, waiting, others, executed, onSaved, compact = false }) {
+export default function DecisionPanel({ ticketRow, current, onNext, next, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -213,27 +187,8 @@ export default function DecisionPanel({ ticketRow, current, onNext, next, decisi
       ) : (
         <DecisionForm key={ticketRow.run_id} ticketRow={ticketRow} onSaved={saved} onCancel={current ? () => setEditing(false) : null} />
       )}
-
-      {!compact && <>
-      <h4>{L.decisionsHistory}</h4>
-      <History decisions={decisions} runId={ticketRow.run_id} />
-
-      <Containment ticketRow={ticketRow} />
-
-      {others.length > 0 && (
-        <>
-          <h4>{L.otherSuggestions}</h4>
-          <ul className="actions-list">
-            {others.map((a, i) => (
-              <ActionItem key={i} action={a} />
-            ))}
-          </ul>
-        </>
-      )}
-
-      </>}
     </>
   );
 }
 
-export { History, ActionItem };
+export { History };

@@ -1,4 +1,4 @@
-"""The one place that calls the LLM. Branch: agent/llm"""
+"""The one place that calls the LLM."""
 import json
 import logging
 import os

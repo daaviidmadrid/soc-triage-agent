@@ -9,7 +9,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.agent import llm  # noqa: E402
-from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, LLMUnavailable, complete  # noqa: E402
+from src.agent.llm import (  # noqa: E402
+    LLMBlocked,
+    LLMError,
+    LLMQuotaExhausted,
+    LLMUnavailable,
+    complete,
+)
 
 REQUEST = httpx2.Request("POST", "https://llm.test/chat/completions")
 

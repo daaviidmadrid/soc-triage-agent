@@ -1,4 +1,4 @@
-"""Severity matrix from the SOC policy. Branch: data/severity
+"""Severity matrix from the SOC policy.
 
 Source: data/01_contexto/politica_soc.md, section 2. Where the sample ticket
 (ticket_ejemplo.json) disagrees, this follows the policy: the sample drops two levels

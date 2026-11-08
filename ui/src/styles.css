@@ -255,22 +255,6 @@ dd {
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s3);
-  min-width: 0;
-}
-.brand-btn {
-  white-space: nowrap;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--text);
-  font: 600 var(--fs-lg) / 1.3 var(--font);
-  cursor: pointer;
-  transition: color var(--dur-hover) ease;
-}
 .mode {
   font-size: var(--fs-sm);
   padding: 2px var(--s2);
@@ -402,10 +386,7 @@ dd {
     background: var(--surface-2);
     color: var(--text);
   }
-  .brand-btn:hover {
-    color: var(--accent);
-  }
-  .grid tbody tr:hover td {
+    .grid tbody tr:hover td {
     background-color: var(--surface-2);
   }
   /* Example rows keep their paper tint under the pointer */
@@ -419,10 +400,7 @@ dd {
     outline: 1px solid var(--line-strong);
     outline-offset: 2px;
   }
-  .disclosure summary:hover {
-    color: var(--accent);
   }
-}
 
 input[type="text"],
 input[type="search"],
@@ -742,15 +720,6 @@ table.grid {
 .row-example td {
   background-color: var(--example-tint);
 }
-.verdict-cell {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1);
-}
-.verdict-cell .chip + .chip {
-  margin-left: 0;
-}
 .sla {
   display: flex;
   flex-direction: column;
@@ -792,13 +761,6 @@ dl.kv {
 .role .field dd {
   max-width: 72ch;
 }
-dl.kv-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s3) var(--s6);
-  margin-bottom: var(--s4);
-}
-.kv-row .field + .field,
 .kv-grid .field + .field {
   margin-top: 0;
 }
@@ -809,40 +771,7 @@ dl.kv-row {
 }
 
 /* 10. Ticket screen */
-.ticket-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-  gap: var(--s3);
-  align-items: start;
-}
-.ticket-layout > :only-child {
-  grid-column: 1 / -1;
-  max-width: 720px;
-}
-@media (max-width: 1100px) {
-  .ticket-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* Live steps: a quiet timeline */
-.steps-panel {
-  position: sticky;
-  top: var(--s2);
-  max-height: calc(100vh - var(--s4));
-  overflow: auto;
-}
-.steps-panel h2 {
-  margin-bottom: var(--s1);
-}
-/* One column: the steps scroll with the page instead of sticking over the ticket */
-@media (max-width: 1100px) {
-  .steps-panel {
-    position: static;
-    max-height: none;
-    overflow: visible;
-  }
-}
 ol.steps {
   position: relative;
   list-style: none;
@@ -887,27 +816,6 @@ ol.steps::before {
   background: var(--dot);
   box-shadow: 0 0 0 3px var(--surface);
 }
-.step-tool_call {
-  --dot: var(--accent);
-}
-.step-tool_result {
-  --dot: var(--code);
-}
-.step-note {
-  --dot: var(--warn);
-}
-.step-error {
-  --dot: var(--bad);
-}
-.step-ticket_ready {
-  --dot: var(--ok);
-}
-.step-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px var(--s2);
-}
 .step-type {
   font-size: var(--fs-xs);
   font-weight: 700;
@@ -932,33 +840,8 @@ ol.steps::before {
 .type-started {
   color: var(--text-2);
 }
-.step-tool {
-  flex: 1 1 0;
-  min-width: 0;
-  font-weight: 600;
-}
-.step-meta {
-  margin-left: auto;
-  color: var(--text-3);
-  font-size: var(--fs-xs);
-  white-space: nowrap;
-}
 .step .chip {
   margin-top: 2px;
-}
-.step-summary {
-  margin-top: 2px;
-}
-.step-args {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--s3);
-  margin-top: 2px;
-  color: var(--text-3);
-  font: var(--fs-xs) / 1.5 var(--mono);
-}
-.step-ids {
-  margin-top: var(--s1);
 }
 .running {
   display: flex;
@@ -980,34 +863,6 @@ ol.steps::before {
 }
 
 /* Ticket */
-.ticket.is-example {
-  border: 1px dashed var(--example-line);
-}
-.ticket.is-real {
-  border-color: rgba(8, 2, 44, 0.55);
-}
-.ticket-head {
-  padding-bottom: var(--s4);
-  border-bottom: 1px solid var(--line);
-}
-.ticket-head-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s2);
-}
-.example-note {
-  margin-top: var(--s1);
-  color: var(--example-paper);
-  font-size: var(--fs-sm);
-}
-.ticket-title {
-  margin: var(--s3) 0;
-  font-size: var(--fs-lg);
-  font-weight: 500;
-  text-wrap: pretty;
-}
-
 .injection {
   margin: 0 calc(-1 * var(--s4));
   padding: var(--s4);
@@ -1018,55 +873,12 @@ ol.steps::before {
   margin-bottom: var(--s1);
 }
 
-.roles {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--s5);
-  margin-top: var(--s5);
-}
 /* Two columns: the LLM's reading on the left, code and the person stacked on the right.
    Reading order stays LLM → code → person, and the decision is no longer two screens down. */
-@media (max-width: 1400px) {
-  .roles {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    grid-template-areas: "llm code" "llm person";
-    align-items: start;
-  }
-  .role-llm {
-    grid-area: llm;
-  }
-  .role-code {
-    grid-area: code;
-  }
-  .role-person {
-    grid-area: person;
-  }
-}
-@media (max-width: 800px) {
-  .roles {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "llm" "code" "person";
-  }
-}
 .role {
   min-width: 0;
   padding-top: var(--s3);
   border-top: 1px solid var(--line);
-}
-.role-person {
-  padding: var(--s3) var(--s4) var(--s4);
-  border-top: 0;
-  border-radius: var(--r2);
-  background: var(--person-tint);
-}
-.role-title {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  margin-bottom: var(--s1);
-}
-.role-title .chip {
-  margin: 0;
 }
 
 dl.breakdown {
@@ -1154,11 +966,6 @@ dl.breakdown .field + .field {
   margin-top: 2px;
   color: var(--text-2);
 }
-.actions-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
 .action {
   padding: var(--s2) 0;
   border-bottom: 1px solid var(--line);
@@ -1168,16 +975,6 @@ dl.breakdown .field + .field {
 }
 .action .chip {
   margin-bottom: var(--s1);
-}
-
-/* Disclosures */
-.disclosure summary {
-  cursor: pointer;
-  font-weight: 600;
-  transition: color var(--dur-hover) ease;
-}
-.disclosure[open] summary {
-  margin-bottom: var(--s2);
 }
 
 /* Loading skeleton: the shape of the content, gently breathing */
@@ -1217,10 +1014,7 @@ dl.breakdown .field + .field {
 
 /* Phones: the subtitle gives way to the product name */
 @media (max-width: 600px) {
-  .brand > .muted {
-    display: none;
-  }
-  /* Narrow screens: the actions scroll with the row instead of covering the alert and rule */
+    /* Narrow screens: the actions scroll with the row instead of covering the alert and rule */
   .grid .actions,
   .grid th.actions {
     position: static;
@@ -1281,20 +1075,10 @@ main:focus {
   .shortcuts-toggle {
     display: none;
   }
-  .brand-btn {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-  .link-btn {
+    .link-btn {
     padding-block: var(--s2);
   }
-  .disclosure summary {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
   }
-}
 
 /* 11. Queue: counts that filter, the focused row, shortcuts */
 .counts {
@@ -1623,12 +1407,6 @@ kbd {
   outline: none;
 }
 
-/* The ticket's place while the run streams */
-.ticket-pending {
-  min-height: 320px;
-  border-style: dashed;
-}
-
 @media (hover: hover) and (pointer: fine) {
   .count:hover {
     border-color: var(--text-3);
@@ -1650,12 +1428,6 @@ kbd {
   transition:
     opacity var(--dur-enter) var(--ease-out),
     transform var(--dur-enter) var(--ease-out);
-}
-.ticket-page[data-live] .ticket .role-code {
-  transition-delay: 50ms;
-}
-.ticket-page[data-live] .ticket .role-person {
-  transition-delay: 100ms;
 }
 @starting-style {
   .ticket-page[data-live] .ticket {
@@ -1740,9 +1512,6 @@ button, a { touch-action: manipulation; }
 .sidebar-link { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 11px 14px; border-radius: 7px; color: var(--deloitte-gray); text-decoration: none; font-weight: 500; font-size: 13px; transition: background-color 140ms ease, color 140ms ease; }
 .sidebar-link .icon { width: 18px; height: 18px; stroke-width: 1.5; }
 .sidebar-link.selected { background: var(--deloitte-white); color: var(--deloitte-gray); font-weight: 650; }
-.sidebar-bottom { display: flex; align-items: center; gap: 10px; padding: 19px 10px; border-top: 1px solid var(--line); margin-top: auto; }
-.sidebar-bottom strong { display: block; font-size: 11px; color: var(--deloitte-gray); font-weight: 600; }
-.sidebar-bottom div > span { display: block; font-size: 9px; color: var(--deloitte-gray); margin-top: 2px; }
 .workspace-symbol { display: grid; place-items: center; width: 32px; height: 32px; color: var(--deloitte-sky); background: var(--deloitte-white); border-radius: 7px; }
 .console-workspace { margin-left: var(--sidebar-width); min-width: 0; }
 .console-shell .topbar { height: 66px; padding: 0 30px; background: var(--deloitte-white); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 15px; position: relative; }
@@ -1760,7 +1529,6 @@ button, a { touch-action: manipulation; }
 .console-shell h1 { font-size: 25px; letter-spacing: -.6px; font-weight: 650; color: var(--deloitte-navy); }
 .console-shell h2 { font-weight: 620; }
 .page-head { margin-bottom: 24px; gap: 20px; }
-.page-subtitle { margin-top: 5px; font-size: 12px; color: var(--text-3); }
 .page-title { gap: 12px; }
 .page-actions { gap: 9px; }
 .btn { min-height: 36px; border-radius: 6px; padding: 8px 13px; font-weight: 550; font-size: 12px; gap: 7px; }
@@ -1769,14 +1537,13 @@ button, a { touch-action: manipulation; }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--deloitte-white); }
 .btn-icon { padding: 8px; width: 36px; }
 .btn .icon { width: 15px; height: 15px; }
-.mobile-menu, .menu-scrim, .sidebar-close { display: none; }
+.menu-scrim, .sidebar-close { display: none; }
 .skip-link { z-index: 100; }
 .panel { border: 1px solid var(--line); border-radius: 10px; background: var(--deloitte-white); }
 .control-label { font-size: 11px; font-weight: 550; color: var(--deloitte-gray); }
 input[type='text'], input[type='search'], select, textarea { border-radius: 6px; padding: 8px 10px; min-height: 36px; background: var(--deloitte-white); border-color: var(--deloitte-border); font-size: 12px; }
 input[type='radio'] { accent-color: var(--deloitte-gray); }
 .link-btn { text-underline-offset: 3px; }
-.disclosure { padding: 16px 20px; }
 .chip { border-radius: 4px; font-size: 9px; letter-spacing: .2px; }
 .sev { font-size: 11px; padding: 3px 7px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
 .sev-critical { background: var(--deloitte-white); border-color: var(--deloitte-border); }
@@ -1889,25 +1656,10 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
 .ticket-page .page-head .page-title { align-items: flex-start; flex-direction: column; gap: 10px; }
 .ticket-page .page-title > .btn { padding-left: 0; min-height: 24px; font-size: 11px; }
 .ticket-page h1 { font-size: 21px; }
-.ticket-page .ticket-layout { grid-template-columns: 260px minmax(0, 1fr); gap: 20px; }
-.ticket-page .steps-panel { top: 20px; max-height: min(740px, calc(100dvh - 40px)); overflow: auto; padding: 20px; scrollbar-width: thin; }
-.steps-panel h2 { font-size: 13px; margin-bottom: 20px; }
 .step { padding-bottom: 20px; }
 .step-type { font-size: 9px; letter-spacing: .2px; text-transform: none; font-weight: 600; }
-.step-tool { font-size: 10px; }
-.step-meta { font-size: 9px; }
-.step-summary, .step-args, .step-ids { font-size: 11px; }
-.step-args { display: flex; flex-direction: column; gap: 3px; }
-.step-args .arg { max-width: 100%; }
-.step-ids { line-height: 1.8; }
-.ticket-page .roles { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: none; gap: 0; }
 .ticket-page .role { grid-area: auto; padding: 22px; border: 0; border-top: 1px solid var(--line); background: white; }
-.ticket-page .role-title { color: var(--deloitte-gray); margin-bottom: 18px; font-size: 14px; }
-.ticket-page .role-person { background: var(--deloitte-white); }
 .ticket-page .ticket { padding: 0; overflow: hidden; }
-.ticket-head { padding: 22px; }
-.ticket-head-row { margin-bottom: 9px; }
-.ticket-title { font-size: 15px; font-weight: 600; color: var(--deloitte-gray); margin-top: 14px; }
 .ticket-page .kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .ticket-page .role .field + .field { margin-top: 19px; }
 .ticket-page .field dt { font-size: 10px; color: var(--deloitte-gray); margin-bottom: 6px; }
@@ -1916,11 +1668,9 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
 .ticket-page .rows-list { margin-top: 8px; }
 .ticket-page .rows-list > li { padding: 12px 0; }
 .ticket-page .injection { margin: 0 22px 20px; padding: 14px; }
-.ticket-page .raw-alert, .ticket-page .disclosure { margin-top: 20px; }
 .decision-form .control { margin-top: 14px; }
 .decision-form .choices { margin: 12px 0 16px; gap: 7px; }
 .choice { font-size: 12px; min-height: 34px; }
-.decision-bar { border-radius: 9px; }
 .stage-btn { padding: 12px 16px; }
 .stage-name { font-size: 11px; }
 .stage-state { font-size: 9px; }
@@ -1929,7 +1679,6 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
 .legend { display: none; }
 .fact dd { font-size: 13px; }
 .bar-status .finished { font-size: 11px; font-weight: 500; }
-.example-note { font-size: 10px; }
 .ticket-page .ticket .role { transition-delay: 0ms; }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1969,8 +1718,7 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
   .dashboard-bottom-grid > :last-child .completion-track { display: none; }
   .resolution-facts { padding-top: 8px; }
   .queue .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .ticket-page .ticket-layout { grid-template-columns: 230px minmax(0, 1fr); gap: 16px; }
-}
+  }
 @media (max-width: 980px) {
   :root { --sidebar-width: 180px; }
   .sidebar { padding: 0 9px; }
@@ -1983,9 +1731,7 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
   .donut-wrap { width: 132px; }
   .state-legend { display: grid; grid-template-columns: 1fr; max-width: 250px; }
   .topbar-workspace, .breadcrumb-divider { display: none; }
-  .ticket-page .ticket-layout { grid-template-columns: minmax(0, 1fr); }
-  .ticket-page .steps-panel { position: relative; top: 0; max-height: 360px; }
-  .timeline-chart svg { height: 210px; }
+      .timeline-chart svg { height: 210px; }
 }
 @media (max-width: 700px) {
   .sidebar { width: 232px; transform: translateX(-100%); visibility: hidden; transition: transform 180ms var(--ease-out); }
@@ -1993,8 +1739,7 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
   .sidebar-close { display: inline-flex; position: absolute; top: 75px; right: 15px; padding: 6px; border: 0; background: none; width: 30px; min-height: 30px; }
   .console-workspace { margin-left: 0; }
   .menu-scrim { display: block; position: fixed; inset: 0; z-index: 35; border: 0; background: rgba(8, 2, 44, 0.314); width: 100%; cursor: pointer; }
-  .mobile-menu { display: inline-flex; }
-  .console-shell .topbar { padding: 0 18px; height: 62px; }
+    .console-shell .topbar { padding: 0 18px; height: 62px; }
   .topbar-left { gap: 10px; }
   .topbar-right { gap: 10px; }
   .console-shell .mode { font-size: 10px; }
@@ -2034,7 +1779,7 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
   .queue .table-wrap { max-height: 65dvh; }
   .ticket-page h1 .id { display: block; margin-top: 5px; overflow-wrap: anywhere; }
   .ticket-page .kv-grid { grid-template-columns: minmax(0, 1fr); }
-  .ticket-head, .ticket-page .role { padding: 18px; }
+  .ticket-page .role { padding: 18px; }
   .stage-btn { padding: 10px 12px; }
   .btn, .link-btn, .sidebar-link { min-height: 40px; }
 }
@@ -2054,11 +1799,9 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
 }
 /* Keep chart coordinates at the rendered width, so labels remain legible on phones. */
 .timeline-chart svg { height: auto; }
-.example-note { color: var(--deloitte-gray); }
 @media (max-width: 700px) {
   .chart-detail, .chart-key { font-size: 11px; }
 }
-.ticket-page .steps-panel h2 { position: sticky; top: 0; z-index: 3; background: var(--deloitte-white); margin: -20px -20px 18px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
 .ticket-page .step { scroll-margin-top: 65px; }
 @media (max-width: 700px) {
   .btn, .link-btn, .legend-row, .distribution-row, .product-row { min-height: 44px; }
@@ -2072,20 +1815,18 @@ input[type='radio'] { accent-color: var(--deloitte-gray); }
   --chart-duration: 250ms;
   --chart-shadow: 0 10px 25px rgba(8, 2, 44, 0.15);
 }
-.console-shell :is(h1, h2, h3, h4), .chart-heading h2, .ticket-page .role-title,
+.console-shell :is(h1, h2, h3, h4), .chart-heading h2,
 .console-brand, .kpi-value, .donut-center strong, .resolution-number > strong { color: var(--deloitte-black); }
 body, .console-shell, .console-workspace, .console-shell .content { background: var(--deloitte-white); }
 .console-shell .sidebar, .console-shell .topbar { background: var(--deloitte-white); border-color: var(--deloitte-border); }
 .console-shell .sidebar { background: var(--deloitte-navy); border-color: var(--deloitte-gray); }
 .console-shell .topbar { background: var(--deloitte-gray); border-color: var(--deloitte-gray); }
-.sidebar .console-brand, .sidebar .console-mark, .sidebar-bottom strong,
+.sidebar .console-brand, .sidebar .console-mark,
 .topbar-left strong { color: var(--deloitte-white); }
-.sidebar .sidebar-link,
-.sidebar-bottom div > span, .console-shell .topbar .mode,
+.sidebar .sidebar-link, .console-shell .topbar .mode,
 .console-shell .topbar .topbar-workspace, .console-shell .topbar .breadcrumb-divider { color: var(--deloitte-sky); }
 .sidebar .sidebar-close { color: var(--deloitte-sky); }
 .sidebar .workspace-symbol { background: var(--deloitte-gray); color: var(--deloitte-sky); }
-.sidebar-link.selected .nav-active-dot { background: var(--deloitte-navy); }
 .console-mark { color: var(--deloitte-black); }
 .console-brand { position: relative; }
 .console-mark::after { content: ''; position: absolute; left: 37px; top: 46px; width: 7px; height: 7px; border: 1px solid var(--deloitte-white); border-radius: 50%; background: var(--deloitte-green); }
@@ -2108,10 +1849,10 @@ body, .console-shell, .console-workspace, .console-shell .content { background: 
 .sev-critical { color: var(--deloitte-navy); border-color: var(--deloitte-navy); font-weight: 750; }
 .sev-high, .sev-medium { color: var(--deloitte-blue); border-color: var(--deloitte-blue); }
 .sev-low, .sev-informational { color: var(--deloitte-gray); border-color: var(--deloitte-border); }
-.sev, .grid .row-example td, .role-person, .example-note, .state-pending { background: var(--deloitte-white); }
+.sev, .grid .row-example td, .state-pending { background: var(--deloitte-white); }
 .queue .count[aria-pressed='true'] { color: var(--deloitte-black); border-bottom-color: var(--deloitte-gray); background: color-mix(in srgb, var(--deloitte-blue) 10%, var(--deloitte-white)); box-shadow: none; }
 .grid tbody tr.is-active td:first-child { box-shadow: inset 2px 0 var(--deloitte-blue); }
-.step-error, .state-failed, .bad { color: var(--deloitte-black); }
+.state-failed, .bad { color: var(--deloitte-black); }
 .state-failed { font-weight: 700; }
 ::selection { background: var(--deloitte-sky); color: var(--deloitte-black); }
 
@@ -2427,7 +2168,6 @@ body, .console-shell, .console-workspace, .console-shell .content { background: 
 /* Tarvia workbench. Shared frame and motion tokens for every route. */
 :root {
   --motion-fast: 140ms;
-  --motion-standard: 220ms;
   --motion-out: cubic-bezier(.23, 1, .32, 1);
   --op-none: var(--deloitte-navy);
   --op-running: var(--deloitte-blue);
@@ -2722,9 +2462,6 @@ html[data-motion-input='keyboard'] .btn:active { transform: none; }
 
 /* Incident report (level 3). The timeline reads top to bottom by event time; a dot marks each step,
    and steps only the investigation found get the accent so they stand out from what alerts linked. */
-.step-report_ready {
-  --dot: var(--ok);
-}
 .type-report_ready {
   color: var(--ok);
 }
@@ -2744,11 +2481,6 @@ html[data-motion-input='keyboard'] .btn:active { transform: none; }
 }
 .report-page .workspace-empty p {
   margin: 0 0 var(--s2);
-}
-.report-narrative {
-  margin: 0;
-  max-width: 68ch;
-  text-wrap: pretty;
 }
 .timeline {
   margin-top: var(--s3);

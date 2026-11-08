@@ -7,9 +7,8 @@ export function clock(at) {
 }
 
 // The agent reports quota limits as note and error events from the LLM step.
-// TODO(connect-triage): src/agent/llm.py on agent/core retries silently while it waits for quota and only
-// reports at the end (error event, args.kind "unavailable", "RateLimitError" in the summary). The
-// "waiting" state below needs a note event with args.kind "rate_limited" from the agent during the wait.
+// src/agent/llm.py retries silently while it waits for quota and only reports at the end (error event,
+// args.kind "quota"). The "waiting" state below only shows if a note event with args.kind "rate_limited" arrives.
 function isQuotaEvent(e) {
   const kind = obj(e.args).kind;
   if (kind === "rate_limited" || kind === "quota") return true;

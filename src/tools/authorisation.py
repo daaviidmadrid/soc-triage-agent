@@ -1,4 +1,4 @@
-"""Which approved changes, flows and trips fit an alert. Branch: data/context
+"""Which approved changes, flows and trips fit an alert.
 
 The agent may only call an alert authorised by citing an ID that this code returned
 (docs/decisions.md, "What counts as authorised"). So matching is deliberately strict:

@@ -6,7 +6,13 @@ import pytest
 from src.agent.llm import LLMResult
 from src.agent.triage import run_triage
 from src.app.import_alerts import ImportProblem, parse_alerts
-from src.tools.alert_fields import entities_from_text, normalise_alert, parse_time, rename_fields, severity_word
+from src.tools.alert_fields import (
+    entities_from_text,
+    normalise_alert,
+    parse_time,
+    rename_fields,
+    severity_word,
+)
 from src.tools.context import build_context
 
 ROW = {"alert_id": "ALR-X-1", "rule_id": "UC-EDR-002", "severity": "medium", "description": "algo"}

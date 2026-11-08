@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
-export function canAnimate() {
+function canAnimate() {
   return typeof Element.prototype.animate === "function" && !document.hidden && document.documentElement.dataset.motionInput !== "keyboard"
     && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }

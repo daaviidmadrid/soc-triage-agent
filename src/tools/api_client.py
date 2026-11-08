@@ -1,4 +1,4 @@
-"""One function per mock API endpoint. Branch: data/api-client
+"""One function per mock API endpoint.
 
 Lookups that can miss (alert, asset, user, sandbox) return None on 404.
 Any other HTTP error raises APIError with the status and the API's message.

@@ -1,7 +1,7 @@
 // Calls to the local backend, through Vite's /api proxy.
 import { L } from "./labels.js";
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(message, status) {
     super(message);
     this.status = status;

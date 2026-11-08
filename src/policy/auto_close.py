@@ -23,18 +23,6 @@ OT_RULE_PREFIX = "UC-OT-"
 OT_NETWORKS_FALLBACK = ("10.40.16.0/20",)
 MAX_LOOKUPS = 60
 
-FAILED = {
-    "mode": "No es un ticket del agente real: los tickets de ejemplo los escribió una persona, no los cerró el código.",
-    "not_closed": "El código no cerró este ticket.",
-    "severity": "La severidad final no es informativa ni baja.",
-    "verdict": "El veredicto es needs_more_info o no se reconoce.",
-    "policy_flags": "El modelo marcó un criterio de escalado obligatorio.",
-    "injection_flags": "Hay texto que intenta influir en el triaje.",
-    "evidence_check": "La comprobación de la evidencia no pasó o no consta.",
-    "authorisation_check": "La comprobación de la autorización no pasó o no consta.",
-    "ot": "El ticket toca la red OT.",
-    "ot_unknown": "No se pudo comprobar si el ticket toca la red OT.",
-}
 VERDICTS = ("true_positive", "benign_true_positive", "false_positive")
 
 

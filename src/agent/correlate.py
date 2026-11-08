@@ -23,7 +23,7 @@ import ipaddress
 import json
 import re
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -319,7 +319,7 @@ def merge(members, links, items):
     return {"incident_id": incident_id, "chain": chain, "members": member_rows, "ticket": ticket.model_dump(mode="json")}
 
 
-def _noise(items, grouped, counts):
+def _noise(items, grouped):
     """Closed alerts left on their own, counted by rule and verdict, with how many sources they came from."""
     buckets = collections.defaultdict(lambda: {"count": 0, "sources": set(), "examples": []})
     for alert_id, item in items.items():
@@ -356,7 +356,7 @@ def correlate(pairs, history=ALERTS_FILE):
     return {
         "incidents": incidents,
         "memberships": memberships,
-        "noise": _noise(items, set(memberships), counts),
+        "noise": _noise(items, set(memberships)),
         "alerts": len(items),
         "settings": {"link_window_days": LINK_WINDOW.days, "max_shared_by": MAX_SHARED_BY},
     }

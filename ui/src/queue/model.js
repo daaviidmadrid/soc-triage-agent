@@ -1,7 +1,7 @@
 // Pure helpers for the queue: severity order, run state, filtering, counts and the filters kept in the URL hash. No React here.
 import { PIPELINE_LANE, SEVERITY_ORDER, SLA_FILTERS, STATE_FILTERS } from "../labels.js";
 
-export function rank(severity) {
+function rank(severity) {
   const i = SEVERITY_ORDER.indexOf(severity);
   return i === -1 ? SEVERITY_ORDER.length : i;
 }
@@ -93,7 +93,7 @@ export function pipelineCounts(alerts) {
   return lanes;
 }
 
-export function hasInjection(item) {
+function hasInjection(item) {
   return Boolean(item.ticket && item.ticket.injection_flags > 0);
 }
 

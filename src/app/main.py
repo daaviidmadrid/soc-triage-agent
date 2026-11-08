@@ -22,21 +22,28 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from contracts.models import ActionProposal
+from src.agent.correlate import correlate
+from src.agent.rules import RULES
 from src.app import runner
 from src.app.import_alerts import MAX_BYTES, ImportProblem, load_alerts, parse_alerts
 from src.app.sla_tracker import SlaTracker, is_fallback
 from src.app.store import Store, now_iso
 from src.app.worker import Settings, Worker
-from src.agent.correlate import correlate
-from src.agent.rules import RULES
 from src.policy import auto_close as auto_close_policy
 from src.policy import sla as sla_policy
-from src.policy.containment import ApprovalProblem, approve, approver_record, proposals_from_steps, propose, ready_to_run
+from src.policy.containment import (
+    ApprovalProblem,
+    approve,
+    approver_record,
+    proposals_from_steps,
+    propose,
+    ready_to_run,
+)
 from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
 from src.tools.context import _source_of
 from src.tools.logs import search_logs
-from contracts.models import ActionProposal
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "runs" / "app.sqlite3"
@@ -815,7 +822,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         now = now_iso()
         records = store.all_sla()
         runs = store.latest_runs()
-        pending = {severity: 0 for severity in SEVERITIES}
+        pending = dict.fromkeys(SEVERITIES, 0)
         sla_counts = {severity: {"on_track": 0, "at_risk": 0, "breached": 0, "met": 0, "batch": 0} for severity in SEVERITIES}
         for alert_id, record in records.items():
             view = tracker.view(record, blocked, now)

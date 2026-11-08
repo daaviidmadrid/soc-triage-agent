@@ -25,7 +25,6 @@ import contextlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -262,8 +261,8 @@ def command_check(args):
     _use_project()
     print(f"  ok  code: {_commit()}")
     with running_mock():
-        from src.tools.context import build_context
         from eval import score
+        from src.tools.context import build_context
 
         alert = score._read_jsonl(score.SAMPLE)[0]
         started = time.monotonic()

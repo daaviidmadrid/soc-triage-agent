@@ -1,5 +1,5 @@
 """The change/trip matcher on made-up rows, so each rule is checked on its own."""
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 

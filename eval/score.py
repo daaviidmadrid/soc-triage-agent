@@ -1,4 +1,4 @@
-"""Compares tickets with eval/labels.csv and prints a scorecard. Branch: data/eval
+"""Compares tickets with eval/labels.csv and prints a scorecard.
 
 Usage: python eval/score.py [runs/v2]   (reads the tickets in that folder, by default the newest in runs/, and eval/labels.csv)
 """
@@ -34,7 +34,7 @@ def _read_ids(path):
 
 def _read_jsonl(path):
     with open(path, encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+        return [json.loads(line) for line in f if line.strip()]
 
 
 def load_test_set():
@@ -223,7 +223,7 @@ def main(arguments=None):
     for path in sorted(folder.glob("*.json")):
         tickets += load_tickets(path)
     test_ids = {a["alert_id"] for a in load_test_set()}
-    labels = [l for l in load_labels() if l["alert_id"] in test_ids]
+    labels = [label for label in load_labels() if label["alert_id"] in test_ids]
     if not labels:
         print("No labels for the test set in eval/labels.csv yet.")
     print(f"Tickets read: {len(tickets)} from {folder}")

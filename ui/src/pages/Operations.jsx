@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 import { Chip, ErrorBox, Severity, Skeleton, asText, formatTime } from "../components.jsx";
 import Icon from "../icons.jsx";
-import { L, PIPELINE_LANE, SEVERITY, SEVERITY_ORDER, SLA_STATE, VERDICT, WORKER_STATE, WORKER_STOP } from "../labels.js";
+import { L, PIPELINE_LANE, SEVERITY_ORDER, SLA_STATE, VERDICT, WORKER_STATE, WORKER_STOP } from "../labels.js";
 import { pipelineCounts } from "../queue/model.js";
 import { rememberName, rememberedName } from "../ticket/DecisionPanel.jsx";
 
@@ -79,7 +79,7 @@ function Notifications({ data, name, onAcknowledge, onOpen, busy }) {
   </section>;
 }
 
-function AutoClosed({ status, name, busy, onReview, onReopen, onOpen }) {
+function AutoClosed({ status, name, busy, onReview, onOpen }) {
   return <section className="panel ops-panel" aria-labelledby="auto-title">
     <div className="section-heading"><h2 id="auto-title">{L.autoCountsTitle}</h2></div>
     <p className="hint">{L.autoCountsHelp}</p>

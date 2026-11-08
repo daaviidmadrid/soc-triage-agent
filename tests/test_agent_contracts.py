@@ -9,7 +9,14 @@ from pydantic import ValidationError
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from contracts.models import ContainmentStep, Context, IncidentReport, Ticket, TimelineEvent, TraceEvent  # noqa: E402
+from contracts.models import (  # noqa: E402
+    ContainmentStep,
+    Context,
+    IncidentReport,
+    Ticket,
+    TimelineEvent,
+    TraceEvent,
+)
 
 CONTEXT_DIR = REPO_ROOT / "data" / "01_contexto"
 SCHEMA = json.loads((CONTEXT_DIR / "ticket_salida.schema.json").read_text(encoding="utf-8"))

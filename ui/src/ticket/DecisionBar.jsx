@@ -14,7 +14,7 @@ const STAGES = [
 const STAGE_TEXT = { done: L.stageDone, active: L.stageActive, waiting: L.stageWaiting, todo: L.stageTodo, failed: L.stageFailed };
 
 // done | active | waiting | todo | failed, for each of the four stages.
-export function stageStates({ run, events, ticket, decided, fallback }) {
+function stageStates({ run, events, ticket, decided, fallback }) {
   if (!run) return ["todo", "todo", "todo", "todo"];
   const llmStarted = events.some((e) => e.tool === "llm");
   if (run.status === "failed") {

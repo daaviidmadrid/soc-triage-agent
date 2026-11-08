@@ -1,7 +1,7 @@
 // The alert queue: what is waiting, what has been triaged, and what a person still has to decide.
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
-import { Chip, Clip, ErrorBox, ModeTag, NA, Notice, Severity, Skeleton, SlaCell, formatTime } from "../components.jsx";
+import { Chip, ErrorBox, ModeTag, Notice, Severity, Skeleton, SlaCell, formatTime } from "../components.jsx";
 import { Pager } from "../ticket/Paging.jsx";
 import Icon from "../icons.jsx";
 import { useListMotion } from "../motion.js";

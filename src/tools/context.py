@@ -1,4 +1,4 @@
-"""Gathers everything known about an alert. Branch: data/context
+"""Gathers everything known about an alert.
 
 Plain code, no LLM. Text from the data (subjects, prompts, descriptions) is copied as is:
 it is evidence, never instructions, and it is never removed or cleaned for what it says.

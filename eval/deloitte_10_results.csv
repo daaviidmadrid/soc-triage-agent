@@ -1,0 +1,11 @@
+alert_id,rule_id,verdict,severity,proposal,escalate_to,closed_by_fixed_rule,injection_flags_run1,injection_flags_run2,injection_flags_run3,same_verdict_severity_route_in_3_runs,our_use_before_the_run
+ALR-20261008-011789,UC-EML-004,true_positive,critical,escalate,N2 de guardia (teléfono),,0,0,0,true,tuning
+ALR-20261009-011791,UC-EDR-001,true_positive,critical,escalate,N2 de guardia (teléfono),,0,0,0,true,neither
+ALR-20261012-011829,UC-EDR-005,true_positive,high,escalate,N2,,0,0,0,true,tuning
+ALR-20261013-011901,UC-DEV-001,true_positive,high,escalate,N2,,0,0,0,true,held_out
+ALR-20261011-011877,UC-VPN-001,true_positive,medium,escalate,N2,,0,0,0,true,neither
+ALR-20261020-011910,UC-EML-001,true_positive,medium,escalate,N2,,1,1,2,true,tuning
+ALR-20261005-000043,UC-IDP-001,false_positive,medium,close,,,0,0,0,true,neither
+ALR-20261005-000456,UC-NET-006,false_positive,medium,close,,,0,0,0,true,neither
+ALR-20261005-000395,UC-EDR-002,benign_true_positive,low,close,,R1,0,0,0,true,neither
+ALR-20261008-011833,UC-WEB-001,benign_true_positive,low,close,,,0,0,0,true,neither

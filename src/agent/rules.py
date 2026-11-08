@@ -1,4 +1,4 @@
-"""Fixed rules that close well-known noise without calling the LLM. Branch: agent/rules
+"""Fixed rules that close well-known noise without calling the LLM.
 
 A rule may only close. It never escalates, never decides that something is an attack beyond
 what the logs show, and never overrides a mandatory escalation (src/agent/triage.py checks the
@@ -16,7 +16,13 @@ from dataclasses import dataclass, field
 
 from src.agent.correlate import _external_ip
 from src.policy.severity import RULE_SERVICE
-from src.tools.authorisation import MADRID, SCCM_ACCOUNT, _sccm_exception, match_changes, parse_change
+from src.tools.authorisation import (
+    MADRID,
+    SCCM_ACCOUNT,
+    _sccm_exception,
+    match_changes,
+    parse_change,
+)
 from src.tools.context import CONTEXT_WINDOW, _parse_utc
 from src.tools.logs import search_logs
 
@@ -323,7 +329,7 @@ def blocked_web_scan(alert, context, find):
     check.summary = (
         f"Cerrada por la regla fija R2, sin consultar al modelo. {len(rows)} intento(s) desde {ip}"
         + (f" ({', '.join(countries)})" if countries else "")
-        + f" contra la tienda online, todos bloqueados por el WAF con 403"
+        + " contra la tienda online, todos bloqueados por el WAF con 403"
         + (f", firma {', '.join(signatures)}" if signatures else "")
         + f". En las 24 h siguientes esa IP no consiguió ninguna petición con éxito ({len(waf_later)} en el WAF, todas bloqueadas) "
         "ni aparece en los logs de la tienda. Es un intento real sin efecto: verdadero positivo con −1 por el bloqueo, y se cierra. "

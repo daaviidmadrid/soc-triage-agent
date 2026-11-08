@@ -1,4 +1,4 @@
-"""Level 3: rebuilds how an escalated ticket or incident unfolded and writes an incident report. Branch: agent/investigate
+"""Level 3: rebuilds how an escalated ticket or incident unfolded and writes an incident report.
 
 Run from the repo root on the alerts of one incident:
     python scripts/investigate.py ALR-... ALR-... [--tickets runs/FOLDER] [--out runs/reports]
@@ -17,18 +17,17 @@ Plain code gathers the evidence first, the LLM writes the story, and plain code 
    here approves or runs an action (tests/test_containment.py checks that boundary).
 6. Related incidents come from plain code: other alerts that share an exact identifier with this one.
 """
-import argparse
 import collections
 import json
 import os
 import re
-import sys
 import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator, get_args
+from typing import get_args
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -44,12 +43,28 @@ from contracts.models import (
     TimelineEvent,
     TraceEvent,
 )
-from src.agent.correlate import ALERTS_FILE, BROAD, LABELS, MAX_SHARED_BY, SPECIFIC, _external_ip, identifiers, incident_id_for, shared_by
+from src.agent.correlate import (
+    ALERTS_FILE,
+    BROAD,
+    LABELS,
+    MAX_SHARED_BY,
+    SPECIFIC,
+    _external_ip,
+    identifiers,
+    incident_id_for,
+    shared_by,
+)
 from src.agent.llm import LLMBlocked, LLMError, LLMQuotaExhausted, complete
 from src.agent.prompts import _read, data_block
 from src.agent.triage import _record, _Trace
 from src.tools.alert_fields import EVENT_ID, catalogue_rule, normalise_alert
-from src.tools.context import SHARED_IPS, _lookup_entities, _parse_utc, _source_of, to_madrid
+from src.tools.context import (
+    SHARED_IPS,
+    _lookup_entities,
+    _parse_utc,
+    _source_of,
+    to_madrid,
+)
 from src.tools.logs import LOG_FIELDS
 from src.tools.logs import search_logs as default_search_logs
 
@@ -71,8 +86,6 @@ MARGIN_AFTER = timedelta(days=1)
 EXPAND_FIELDS = ("session_id", "message_id")
 MAX_EXPANSION_ROUNDS = 2
 MAX_EXPANSION_VALUES = 12
-# Rows of the same user or machine this close to an attack row are sent before the rest.
-NEAR_KEY = timedelta(minutes=60)
 SEARCH_WORKERS = 6
 
 # Reports can afford reasoning and a longer prompt than triage (29,000 characters, analysis section 5).
@@ -366,7 +379,7 @@ def _search_pivots(evidence, pivots, search, linked, lo, hi, emit):
     results = _run_searches(tasks, search)
     evidence.searches += len(tasks)
     by_pivot = collections.OrderedDict()
-    for (criterion, value, kind, source, _, _), result in zip(tasks, results):
+    for (_, value, kind, source, _, _), result in zip(tasks, results):
         found = by_pivot.setdefault((kind, value), {"ids": [], "sources": collections.Counter(), "truncated": False, "errors": 0})
         if result.get("truncated"):
             evidence.truncated.add(source)

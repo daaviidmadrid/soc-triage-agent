@@ -1,4 +1,4 @@
-"""Builds the prompt for one alert. Branch: agent/prompt"""
+"""Builds the prompt for one alert."""
 import json
 import os
 import re

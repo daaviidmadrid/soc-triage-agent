@@ -1,12 +1,17 @@
 """One test call to the free LLM API. Needs LLM_API_KEY, LLM_BASE_URL and LLM_MODEL in .env."""
-import json, os, sys, time
+import json
+import os
+import sys
+import time
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
 load_dotenv()
 client = OpenAI(api_key=os.environ["LLM_API_KEY"], base_url=os.environ["LLM_BASE_URL"], timeout=60, max_retries=1)
 alert_id = sys.argv[1] if len(sys.argv) > 1 else "ALR-20261007-011786"
-alert = next(a for a in map(json.loads, open("data/03_alertas/alertas.jsonl", encoding="utf-8")) if a["alert_id"] == alert_id)
+with open("data/03_alertas/alertas.jsonl", encoding="utf-8") as file:
+    alert = next(a for a in map(json.loads, file) if a["alert_id"] == alert_id)
 
 started = time.time()
 response = client.chat.completions.create(

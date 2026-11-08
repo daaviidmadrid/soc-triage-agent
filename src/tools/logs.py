@@ -1,4 +1,4 @@
-"""Log search with exact-field matching. Branch: data/search-logs
+"""Log search with exact-field matching.
 
 The mock API's `q` is a case-insensitive substring match on the whole JSON row, so
 q="laura.ferrer" also returns laura.ferrer2 and q="10.10.1.1" also returns 10.10.1.12.
