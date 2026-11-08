@@ -12,7 +12,8 @@
 
 --set chooses the alerts: exam (40 hard cases with answers, the default), normal (40 alerts in a normal
 day's mix, with answers), scored (both), final (40 kept for the honest final score: never tune on
-them), extra (the other test alerts, with no answers), all (everything)
+them), extra (the other test alerts, with no answers), all (everything), pairs (the look-alike pairs and
+other behaviour cases of eval/extra_alerts.txt that are in exam or normal: one detail flips the answer)
 or the path of a file with one alert ID per line.
 
 If a run stops for any reason, run the same command again. Saved tickets are never redone.
@@ -117,6 +118,10 @@ def choose_ids(name):
         ids = final
     elif name == "scored":
         ids = exam + normal
+    elif name == "pairs":
+        # Look-alike pairs (analysis section 11). Only those in exam or normal: the final set is never used to choose.
+        scored = set(exam + normal)
+        ids = [alert_id for alert_id in score._read_ids(score.EXTRA_FILE) if alert_id in scored]
     elif name in ("extra", "all"):
         chosen = set(exam + normal + final)
         extra = [alert["alert_id"] for alert in score.load_test_set() if alert["alert_id"] not in chosen]
@@ -573,6 +578,9 @@ def command_score(args):
     if report["no_ticket"]:
         print(f"Note: {len(report['no_ticket'])} labelled alerts have no ticket yet, and they count as missed below. Run or merge the rest first.")
     score._print(report)
+    fields = [row for row in report["per_alert"] if any(field in row for field in ("verdict", "severity", "escalate"))]
+    right = sum(all(row[field][0] == row[field][1] for field in ("verdict", "severity", "escalate") if field in row) for row in fields)
+    print(f"Fully right (verdict, severity and escalation all match the key): {right}/{len(fields)}")
     _print_mistakes(report)
     other = [ticket for ticket in tickets if not set(ticket.get("alert_ids") or []) & labelled]
     if other:

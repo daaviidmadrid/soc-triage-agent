@@ -127,7 +127,14 @@ def parse_answer(text, can_search):
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError:
-        return None, ["It wasn't valid JSON."]
+        # Without JSON mode a model may wrap the object in a sentence; the object itself is still checked below.
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        try:
+            data = json.loads(cleaned[start:end + 1]) if 0 <= start < end else None
+        except json.JSONDecodeError:
+            data = None
+        if data is None:
+            return None, ["It wasn't valid JSON."]
     if not isinstance(data, dict):
         return None, ["It wasn't a JSON object."]
     try:
