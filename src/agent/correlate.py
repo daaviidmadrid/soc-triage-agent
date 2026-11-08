@@ -23,7 +23,7 @@ import ipaddress
 import json
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -259,7 +259,7 @@ def incident_id_for(alert_ids):
 
 def merge(members, links, items):
     """One ticket for the whole incident. Plain code decides everything. Each member keeps its own ticket."""
-    ordered = sorted(members, key=lambda alert_id: (items[alert_id]["time"] or datetime.max.replace(tzinfo=None).astimezone(), alert_id))
+    ordered = sorted(members, key=lambda alert_id: (items[alert_id]["time"] or datetime.max.replace(tzinfo=timezone.utc), alert_id))
     tickets = [items[alert_id]["ticket"] for alert_id in ordered]
     alerts = [items[alert_id]["alert"] for alert_id in ordered]
     incident_id = incident_id_for(members)
@@ -286,9 +286,7 @@ def merge(members, links, items):
                        lambda a: (a.get("action"), a.get("target")))
     affected = {field: _dedupe([x for t in tickets for x in (t.get("affected") or {}).get(field) or []], json.dumps)
                 for field in ("users", "hosts", "business_services", "customers")}
-    group_links = [{"alert_id": second, "linked_to": first, "reasons": reasons_,
-                    "strength": "specific" if any(not r.startswith((LABELS["account"] + " (", LABELS["host"] + " (")) for r in reasons_) else "lead"}
-                   for (first, second), reasons_ in sorted(links.items())]
+    group_links = [{"alert_id": second, "linked_to": first, "reasons": reasons_} for (first, second), reasons_ in sorted(links.items())]
     ticket = Ticket(
         ticket_id=incident_id,
         alert_ids=ordered,

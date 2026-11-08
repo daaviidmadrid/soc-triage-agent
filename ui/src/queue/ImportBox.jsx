@@ -62,7 +62,6 @@ export function ImportReport({ report, onDismiss }) {
   return (
     <Notice kind={errors.length ? "warn" : "info"} role="status" title={`${L.importTitle}.`}>
       {L.importResult(imported.length, skipped.length, errors.length)}
-      {report.result.requires_start && <span> Alertas preparadas. Pulsa «Iniciar flujo» para procesarlas.</span>}
       <button type="button" className="link-btn" onClick={onDismiss}>
         {L.dismiss}
       </button>

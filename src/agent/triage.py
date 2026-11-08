@@ -25,6 +25,7 @@ from contracts.models import (
     RuleClosure,
     SeverityInputs,
     Ticket,
+    TicketChecks,
     TraceEvent,
     Verdict,
 )
@@ -373,18 +374,7 @@ def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
         ),
         injection_flags=flags,
         authorised_by=authorised_by,
-        policy_flags={key: getattr(draft.policy_flags, key) if key in draft.policy_flags.model_fields_set else None for key in MANDATORY_FLAGS},
-        safety_checks={
-            "citations_valid": not bool(check_evidence(draft, ids)),
-            "authorisation_valid": not bool(check_authorisation(draft, context)),
-            "evidence_complete": not incomplete and not bool(assumptions),
-            "not_ot": _not_ot(context),
-            "injection_review_clear": not bool(flags),
-            "deterministic_eligible": False,
-        },
-        analysis_origin="model",
-        model_proposal={"verdict": draft.verdict, "escalate": draft.escalate,
-                        "severity_adjustments": [a.model_dump() for a in draft.severity_adjustments]},
+        policy_flags=[flag for flag in MANDATORY_FLAGS if getattr(draft.policy_flags, flag)],
     )
     return ticket, notes
 
@@ -450,26 +440,8 @@ def rule_ticket(alert, context, check, compute, seconds):
         closed_by_rule=RuleClosure(
             rule_id=check.rule_id, name=check.name, detection_rule=check.detection_rule, conditions=conditions, event_ids=check.event_ids
         ),
-        policy_flags={key: False for key in MANDATORY_FLAGS},
-        safety_checks={
-            "citations_valid": bool(check.event_ids) and set(check.event_ids) <= retrieved_ids(context) | {i for lookup in check.lookups for i in lookup["event_ids"]},
-            "authorisation_valid": not check.authorised_by or check.authorised_by.get("id") in _authorising_ids(context),
-            # R1 reads complete linked rows; unrelated truncated searches do not invalidate them.
-            "evidence_complete": not bool(context.get("data_gaps")) and (check.rule_id == "R1" or not bool(context.get("truncated_sources") or context.get("trimmed_for_prompt"))),
-            "not_ot": True if check.rule_id == "R2" and not context.get("assets") else _not_ot(context),
-            "injection_review_clear": not bool(context.get("injection_flags")),
-            "deterministic_eligible": True,
-        },
-        analysis_origin="deterministic",
     )
     return ticket, None
-
-
-def _not_ot(context):
-    assets = context.get("assets") or []
-    if not assets or any(not a.get("zone") for a in assets):
-        return None
-    return not any(a["zone"] == "LOGISTICS-OT" for a in assets)
 
 
 def failsafe_ticket(alert, context, reason, compute, seconds, assumptions=()):
@@ -548,13 +520,13 @@ def _gather(alert, build, emit):
     for section in ("users", "assets", "changes", "trips", "hr_events", "intel", "sandbox"):
         items = context.get(section)
         if items:
-            yield emit("tool_result", tool=section, args={"result_count": len(items)}, summary=f"{len(items)} resultado(s)")
+            yield emit("tool_result", tool=section, summary=f"{len(items)} resultado(s)")
     truncated = context.get("truncated_sources") or []
     for source, rows in _log_groups(context.get("logs")).items():
         yield emit(
             "tool_result",
             tool="search_logs",
-            args={"source": source, "result_count": len(rows)},
+            args={"source": source},
             summary=f"{len(rows)} fila(s) de {source}",
             event_ids=_row_ids(rows),
             truncated=source in truncated,
@@ -575,7 +547,7 @@ def _extra_search(request, context, search, emit):
     context["extra_search"] = "done"
     if truncated:
         context["truncated_sources"] = [*(context.get("truncated_sources") or []), request.source]
-    yield emit("tool_result", tool="search_logs", args={**args, "result_count": len(rows)}, summary=f"{len(rows)} fila(s) de {request.source}", event_ids=_row_ids(rows), truncated=truncated)
+    yield emit("tool_result", tool="search_logs", args=args, summary=f"{len(rows)} fila(s) de {request.source}", event_ids=_row_ids(rows), truncated=truncated)
 
 
 def _try_rules(alert, context, search, compute, emit, seconds, call_log):
@@ -602,7 +574,7 @@ def _try_rules(alert, context, search, compute, emit, seconds, call_log):
     yield emit("tool_call", tool="rules", args={"rule": check.rule_id}, summary=f"Comprobando la regla fija {check.rule_id}: {check.name}")
     for lookup in check.lookups:
         yield emit("tool_call", tool="search_logs", args=lookup["args"], summary=f"Búsqueda de la regla fija {check.rule_id}: actividad posterior del origen")
-        yield emit("tool_result", tool="search_logs", args={**lookup["args"], "result_count": lookup["count"]}, summary=f"{lookup['count']} fila(s) de {lookup['source']}",
+        yield emit("tool_result", tool="search_logs", args=lookup["args"], summary=f"{lookup['count']} fila(s) de {lookup['source']}",
                    event_ids=lookup["event_ids"], truncated=lookup["truncated"])
     if ticket is not None:
         yield emit("tool_result", tool="rules", args={"rule": check.rule_id, "result": "closed", "llm_calls": 0},
@@ -689,11 +661,19 @@ def _ask_llm(context, llm, search, emit, max_calls, call_log=None):
     return unauthorised
 
 
-def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None) -> Iterator[TraceEvent]:
+def final_checks(ticket, context):
+    """check_evidence and check_authorisation on the finished ticket, kept on it so the app can read the result.
+    Only records them: close or escalate was already decided, and nothing here changes it."""
+    return TicketChecks(evidence=not check_evidence(ticket, retrieved_ids(context)), authorisation=not check_authorisation(ticket, context))
+
+
+def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None, rules_only=False) -> Iterator[TraceEvent]:
     """The data functions are arguments because the data branch may not be merged yet, and tests need fakes.
 
     call_log, if given, is a list that receives every model call and what code decided. It holds prompts and data
-    text, so it is kept apart from the trace the UI shows, and nothing in it is ever sent back to the model."""
+    text, so it is kept apart from the trace the UI shows, and nothing in it is ever sent back to the model.
+
+    rules_only=True stops before the LLM: the last event carries a ticket only if a fixed rule closed the alert."""
     build = build_context or default_build_context
     compute = compute_severity or default_compute_severity
     search = search_logs or default_search_logs
@@ -707,6 +687,8 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         return round(time.monotonic() - started, 2)
 
     def finish(ticket):
+        if context is not None:
+            ticket.checks = final_checks(ticket, context)
         event_ids = [item.event_id for item in ticket.evidence if item.event_id]
         return emit("ticket_ready", summary=f"{ticket.verdict}, severidad {ticket.severity}", event_ids=event_ids, ticket=ticket)
 
@@ -725,11 +707,14 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
     except Exception as error:
         problem = "no está disponible" if isinstance(error, NotImplementedError) else f"falló ({type(error).__name__})"
         yield emit("error", tool="build_context", args={"kind": "context"}, summary=f"El contexto {problem}")
-        yield fail(f"No se pudo reunir el contexto de la alerta: {problem}.")
+        if not rules_only:
+            yield fail(f"No se pudo reunir el contexto de la alerta: {problem}.")
         return
     closed = yield from _try_rules(alert, context, search, compute, emit, seconds, call_log)
     if closed is not None:
         yield finish(closed)
+        return
+    if rules_only:
         return
     try:
         draft = yield from _ask_llm(context, ask, search, emit, max_llm_calls, call_log)

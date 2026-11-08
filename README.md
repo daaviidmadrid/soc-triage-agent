@@ -14,7 +14,7 @@ An AI agent that triages security alerts for the SOC of Tarvia, a fictional reta
 | Attacks missed on those 80 (v8) | 0 in both runs |
 | Closed with no LLM | 43% of all alerts, by 2 fixed rules, in about a second each |
 | Speed | About 2.5 minutes per model call, with reasoning on |
-| Code tests | 806 unit tests, plus 14 for the UI logic |
+| Code tests | 857 unit tests, plus 19 for the UI logic |
 
 These practice scores are optimistic: see [What it doesn't solve](#what-it-doesnt-solve).
 
@@ -23,7 +23,7 @@ These practice scores are optimistic: see [What it doesn't solve](#what-it-doesn
 |---|---|
 | What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
 | Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
-| Whether a closed ticket skips human review, with `AUTO_CLOSE_LOW_RISK=1` (off by default) | Code, only when every condition holds (`src/app/automation.py`) |
+| Whether a closed ticket skips human review, with `AUTO_TRIAGE=1` | Code, only when every condition holds (`src/policy/auto_close.py`) |
 | Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
 | Final severity | Code, from the policy matrix |
 | Close or escalate, and to whom | Code, from the policy and the checked draft |
@@ -46,7 +46,7 @@ These practice scores are optimistic: see [What it doesn't solve](#what-it-doesn
 - **The fixed rules cover only two kinds of noise,** and a ticket closed by a rule has no injection flags, because no model reads it.
 - **Containment runs only on the simulated API.** Approvers are typed names, not signed-in users, and the console only answers the local machine.
 - **It has only seen Deloitte's fictional data,** never a real SOC.
-- **Automatic flow has limits of its own,** and it runs one job at a time, so a batch can take a long time: see [docs/automation.md](docs/automation.md).
+- **Automatic triage has limits of its own,** such as an auto-close hiding a rule mistake, and it's off by default: see [Automatic triage](#automatic-triage-levels-1-to-3).
 
 ## Try it
 The interface runs with no LLM key, using fictional example results, but it needs Deloitte's dataset for its alerts (Python, and Node 22 or newer):
@@ -162,12 +162,33 @@ UI logic tests, from `ui/`:
 node --test "src/**/*.test.js"
 ```
 
-## Automatic flow (levels 1 to 3)
-Upload stages the alerts and starts nothing. A person presses `Iniciar flujo` once per batch. Then code runs triage in priority order, one job at a time, followed by grouping and the reports. To start everything:
+## Automatic triage (levels 1 to 3)
+Off by default, so the queue works by clicking. To turn it on (needs the mock API and the LLM key in `.env`):
 ```bash
-python scripts/dev.py
+TRIAGE_MODE=real AUTO_TRIAGE=1 uvicorn src.app.main:app --port 8001
 ```
-`AUTO_TRIAGE` is on by default, and `AUTO_CLOSE_LOW_RISK` is off by default. Level 4 stays human: every containment action needs a person's approval and a person's click. Details and limits are in [docs/automation.md](docs/automation.md).
+The worker starts with the server and takes the alerts with no ticket, including the ones you import: fixed rules first, then the LLM by rule severity, asset criticality and earliest deadline. To start, pause and stop it, use the buttons on the Operación page in the side menu. Stopping finishes the alert in progress and starts no more. With `AUTO_TRIAGE=0` the buttons are off and the routes refuse, so restart the server to turn it on.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AUTO_TRIAGE` | `0` | `1` turns on the worker, automatic grouping and auto-close. Example tickets never auto-close. |
+| `AUTO_INVESTIGATE` | `0` | `1` also writes a report for each escalation, critical first. Needs `AUTO_TRIAGE=1`. |
+| `AUTO_TRIAGE_MAX_CALLS_PER_RUN` | `100` | LLM calls from one start of the worker, reports included. It stops there. |
+| `AUTO_TRIAGE_MAX_CALLS_PER_MINUTE` | `30` | LLM calls per minute. It waits rather than stops. |
+| `AUTO_TRIAGE_PACE_SECONDS` | `LLM_PACE_SECONDS`, or `2` | Pause between alerts that may call the LLM. |
+| `AUTO_TRIAGE_MAX_FAILURES` | `3` | Failures in a row before it stops. It also stops when the LLM runs out of quota. |
+| `AUTO_GROUP_SECONDS` | `30` | Grouping runs at most this often, and only with new tickets. |
+| `AUTO_CLOSE_SAMPLE_PERCENT` | `5` | Share of auto-closed tickets shown at random for review. |
+
+A ticket the code already closed skips human review only if its final severity is informational or low, its verdict isn't `needs_more_info`, it has no policy or injection flags, the evidence and authorisation checks passed, and nothing about it touches the OT network (`src/policy/auto_close.py`). Everything else waits for a person, and a person can reopen any auto-closed ticket. The LLM never decides close or escalate on its own, never approves and never runs anything, and level 4 stays human: every containment action needs a person's approval and a person's click.
+
+SLA targets are in `src/policy/sla.py`. The clock starts when an alert enters the app and stops when its ticket is created.
+
+What this doesn't solve:
+- An auto-close can hide a rule mistake, or a model misled by text in the data. Only the sample and the per-rule counts make that visible.
+- The LLM budget caps coverage. Alerts that don't fit stay for a person and show as at risk or breached, and they're never closed because of the delay.
+- The SLA is measured in the app, not from the real SIEM arrival time.
+- Notifications stay inside the app. Nothing reaches the SOC lead, the CISO or on-call N2 outside the console, so a breach at night goes unseen until someone opens it. The system calls nobody: a person confirms the N2 call or handover.
 
 ## Practice exam
 `scripts/exam.py` triages alerts and scores them against `eval/labels.csv`. It starts the mock API if needed, and a run that stops can be repeated without redoing anything. On each laptop:

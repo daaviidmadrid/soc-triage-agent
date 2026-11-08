@@ -37,7 +37,7 @@ def _seg(value):
 
 
 def _request(method, path, **kwargs):
-    r = httpx.request(method, base_url() + path, timeout=kwargs.pop("timeout", TIMEOUT_SECONDS), **kwargs)
+    r = httpx.request(method, base_url() + path, timeout=TIMEOUT_SECONDS, **kwargs)
     if r.status_code >= 400:
         try:
             detail = r.json().get("detail", r.text)
@@ -46,11 +46,6 @@ def _request(method, path, **kwargs):
         cls = NotFoundError if r.status_code == 404 else APIError
         raise cls(r.status_code, detail, path)
     return r.json()
-
-
-def check_connection():
-    """Read-only startup probe. Never asks a provider or contacts an indicator."""
-    _request("GET", "/alerts", params={"limit": 1}, timeout=3.0)
 
 
 def _get_or_none(path, **kwargs):

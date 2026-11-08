@@ -5,8 +5,6 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from contextlib import contextmanager
-from contextvars import ContextVar
 from functools import lru_cache
 from types import SimpleNamespace
 
@@ -38,17 +36,6 @@ THINKING_TEXT = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 # Models that hit their daily limit, and when to try them again. Retrying before then wastes time.
 _exhausted = {}
-_attempt_guard = ContextVar("llm_attempt_guard", default=None)
-
-
-@contextmanager
-def attempt_guard(guard):
-    """Caller-owned budget. Invoked before *each* paid attempt, including provider retries."""
-    token = _attempt_guard.set(guard)
-    try:
-        yield
-    finally:
-        _attempt_guard.reset(token)
 
 
 @dataclass
@@ -231,9 +218,6 @@ def complete(system: str, user: str, client=None, sleep=time.sleep, thinking=Non
         if _exhausted.get(model, 0) > time.monotonic():
             continue
         for attempt in range(ATTEMPTS_PER_MODEL):
-            guard = _attempt_guard.get()
-            if guard is not None:
-                guard()
             attempts += 1
             try:
                 response = client.chat.completions.create(

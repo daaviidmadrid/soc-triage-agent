@@ -96,7 +96,7 @@ class AuthorisedBy(BaseModel):
 
 
 class RuleClosure(BaseModel):
-    """Origin of a fixed-rule triage result, with no LLM call; not a final closed disposition.
+    """Set when a fixed rule in src/agent/rules.py closed the alert and no LLM was called.
     Lists every condition that matched, in order, and the event IDs they rely on, so a person can audit it."""
 
     rule_id: str
@@ -112,11 +112,18 @@ class GroupLink(BaseModel):
     alert_id: str
     linked_to: str
     reasons: list[str]
-    strength: Literal["specific", "lead"] | None = None
+
+
+class TicketChecks(BaseModel):
+    """The results of check_evidence and check_authorisation on the finished ticket. Set only by plain code in
+    src/agent/triage.py. Information only: nothing here changes a verdict, a severity or close or escalate."""
+
+    evidence: bool
+    authorisation: bool
 
 
 class Ticket(BaseModel):
-    """Follows the reference ticket schema, with optional provenance and operational metadata."""
+    """Follows data/01_contexto/ticket_salida.schema.json. The fields from triage_seconds on are our additions."""
 
     ticket_id: str
     alert_ids: list[str]
@@ -141,11 +148,12 @@ class Ticket(BaseModel):
     merged_into: str | None = None
     group_links: list[GroupLink] = Field(default_factory=list)
     closed_by_rule: RuleClosure | None = None
-    # Operational safety metadata: missing values are unknown, never assumed safe.
-    policy_flags: dict[str, bool | None] | None = None
-    safety_checks: dict[str, bool | None] | None = None
-    analysis_origin: Literal["model", "deterministic"] | None = None
-    model_proposal: dict | None = None
+    # Which of the policy's mandatory flags (section 5) the model set. Any of them means the ticket escalates.
+    policy_flags: list[str] = Field(default_factory=list)
+    checks: TicketChecks | None = None
+    # Set by the app when a ticket skips human review (src/policy/auto_close.py). A person can undo it.
+    auto_closed: bool = False
+    auto_close: dict | None = None
 
 
 class TimelineEvent(BaseModel):
