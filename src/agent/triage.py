@@ -25,6 +25,7 @@ from contracts.models import (
     RuleClosure,
     SeverityInputs,
     Ticket,
+    TicketChecks,
     TraceEvent,
     Verdict,
 )
@@ -373,6 +374,7 @@ def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
         ),
         injection_flags=flags,
         authorised_by=authorised_by,
+        policy_flags=[flag for flag in MANDATORY_FLAGS if getattr(draft.policy_flags, flag)],
     )
     return ticket, notes
 
@@ -659,11 +661,19 @@ def _ask_llm(context, llm, search, emit, max_calls, call_log=None):
     return unauthorised
 
 
-def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None) -> Iterator[TraceEvent]:
+def final_checks(ticket, context):
+    """check_evidence and check_authorisation on the finished ticket, kept on it so the app can read the result.
+    Only records them: close or escalate was already decided, and nothing here changes it."""
+    return TicketChecks(evidence=not check_evidence(ticket, retrieved_ids(context)), authorisation=not check_authorisation(ticket, context))
+
+
+def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None, rules_only=False) -> Iterator[TraceEvent]:
     """The data functions are arguments because the data branch may not be merged yet, and tests need fakes.
 
     call_log, if given, is a list that receives every model call and what code decided. It holds prompts and data
-    text, so it is kept apart from the trace the UI shows, and nothing in it is ever sent back to the model."""
+    text, so it is kept apart from the trace the UI shows, and nothing in it is ever sent back to the model.
+
+    rules_only=True stops before the LLM: the last event carries a ticket only if a fixed rule closed the alert."""
     build = build_context or default_build_context
     compute = compute_severity or default_compute_severity
     search = search_logs or default_search_logs
@@ -677,6 +687,8 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         return round(time.monotonic() - started, 2)
 
     def finish(ticket):
+        if context is not None:
+            ticket.checks = final_checks(ticket, context)
         event_ids = [item.event_id for item in ticket.evidence if item.event_id]
         return emit("ticket_ready", summary=f"{ticket.verdict}, severidad {ticket.severity}", event_ids=event_ids, ticket=ticket)
 
@@ -695,11 +707,14 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
     except Exception as error:
         problem = "no está disponible" if isinstance(error, NotImplementedError) else f"falló ({type(error).__name__})"
         yield emit("error", tool="build_context", args={"kind": "context"}, summary=f"El contexto {problem}")
-        yield fail(f"No se pudo reunir el contexto de la alerta: {problem}.")
+        if not rules_only:
+            yield fail(f"No se pudo reunir el contexto de la alerta: {problem}.")
         return
     closed = yield from _try_rules(alert, context, search, compute, emit, seconds, call_log)
     if closed is not None:
         yield finish(closed)
+        return
+    if rules_only:
         return
     try:
         draft = yield from _ask_llm(context, ask, search, emit, max_llm_calls, call_log)
