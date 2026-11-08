@@ -2,7 +2,7 @@
 
 The answers for the 40 alerts in `key_final40_alerts.txt`, chosen at random from alerts nobody has tuned on. **Never tune on these.** Score them once, at the end, for the honest result.
 
-**Status: draft, not yet reviewed by a person.** Four Claude helpers wrote it from the policy, runbooks and logs, without seeing any AI ticket. It is a judgement, not ground truth.
+**Status: Claude's draft, partly reviewed.** Four Claude helpers wrote it from the policy, runbooks and logs, without seeing any AI ticket. David, Alex and Francesco reviewed the 5 answers under "Check these first", before seeing any of the agent's results, and changed none. The review was recorded in `labels.csv` on 8 Nov. The other 35 answers haven't been reviewed by a person. It is a judgement, not ground truth.
 
 The key has 16 attacks, 5 authorised and 19 false positives. To change an answer, edit `labels.csv` and replace `claude-draft` with your name.
 

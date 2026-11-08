@@ -1,10 +1,69 @@
-# Deloitte_Challenge_UAB_THE_HACK_2026
-## Authors: 
-- David
-- Alex
-- Francesco
+# Tarvia SOC Triage Agent
 
-AI triage for the SOC of Tarvia, a fictional retailer. Plain code gathers and checks the facts, the LLM judges, and a person decides. The LLM never approves or runs containment.
+By David, Alex and Francesco, for Deloitte's challenge at UAB The Hack 2026.
+
+An AI agent that triages security alerts for the SOC of Tarvia, a fictional retailer. Given an alert, it looks up the facts, works out what happened, and writes a ticket with its evidence. Then it closes the alert or escalates it to a person.
+
+**Plain code gathers and checks the facts, the LLM judges, and a person decides. The LLM never approves or runs containment.**
+
+## At a glance
+| | |
+|---|---|
+| Levels built | All 4: triage, judgement (grouping into incidents), investigation (incident reports), response (containment) |
+| Fully right on 80 practice alerts (v8) | 77 and 76 in two runs: verdict, severity and escalation all match the key |
+| Attacks missed on those 80 (v8) | 0 in both runs |
+| Closed with no LLM | 43% of all alerts, by 2 fixed rules, in about a second each |
+| Speed | About 2.5 minutes per model call, with reasoning on |
+| Code tests | 857 unit tests, plus 19 for the UI logic |
+
+These practice scores are optimistic: see [What it doesn't solve](#what-it-doesnt-solve).
+
+## What the AI decides, what a person decides
+| Decision | Who makes it |
+|---|---|
+| What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
+| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
+| Whether a closed ticket skips human review, with `AUTO_TRIAGE=1` | Code, only when every condition holds (`src/policy/auto_close.py`) |
+| Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
+| Final severity | Code, from the policy matrix |
+| Close or escalate, and to whom | Code, from the policy and the checked draft |
+| Which alerts belong to one incident | Code, by exact shared identifiers |
+| The incident report: story, scope, root cause | LLM writes it; code checks every timeline event and takes its time from the log |
+| Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
+| Approving and running containment | People |
+
+## What makes it different
+- **It treats the data as untrusted.** Attackers wrote some of it, so nothing in an alert or a log is ever an instruction. Suspicious text on anything but an attack sends the ticket to a person.
+- **Code checks every answer it can.** Cited events must exist in the logs, approvals must match a real change or trip, and code computes the final severity from Tarvia's policy.
+- **When in doubt, it asks a person.** With no data to close on, or if the model is down, the ticket goes to a person and can never close by itself.
+- **It sees a whole phishing campaign.** Code fetches what happened to the other recipients, which caught 2 attacks every earlier version missed.
+
+## What it doesn't solve
+- **The scores measure agreement, not accuracy.** Claude drafted the answer key, and we reviewed only the 20 of its 120 answers it was least sure of, before seeing any results. We changed none. The 80 practice alerts were also used to tune the agent.
+- **The model varies.** The same version run twice differs by a few alerts in 80.
+- **It still makes mistakes.** For example, a vendor VPN session inside its approved change goes to a person as `needs_more_info`. In v8's two runs, its mistakes never closed an attack.
+- **It's slow.** Reasoning on takes minutes per alert. Reasoning off takes seconds but scores clearly worse.
+- **The fixed rules cover only two kinds of noise,** and a ticket closed by a rule has no injection flags, because no model reads it.
+- **Containment runs only on the simulated API.** Approvers are typed names, not signed-in users, and the console only answers the local machine.
+- **It has only seen Deloitte's fictional data,** never a real SOC.
+- **Automatic triage has limits of its own,** such as an auto-close hiding a rule mistake, and it's off by default: see [Automatic triage](#automatic-triage-levels-1-to-3).
+
+## Try it
+The interface runs with no LLM key, using fictional example results, but it needs Deloitte's dataset for its alerts (Python, and Node 22 or newer):
+```bash
+git clone https://github.com/dttdfr/DTT-UAB-The-Hack.git data
+```
+```bash
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+```
+```bash
+uvicorn src.app.main:app --port 8001
+```
+In a second terminal, then open http://localhost:5173:
+```bash
+cd ui && npm install && npm run dev
+```
+The real agent also needs the mock API and an LLM key: see [Setup](#setup).
 
 ## How it works
 
@@ -25,22 +84,8 @@ The LLM only proposes. Wherever an answer can be checked, `build_ticket` and `_a
 
 If triage fails, for example because the model is down, the ticket is `needs_more_info` and escalated, and it can never close.
 
-### Who decides what
-| Decision | Who makes it |
-|---|---|
-| What the alert is about, and which logs, assets and changes to fetch, including the rest of a phishing campaign | Code |
-| Closing well-known noise without the LLM | Code, only when every condition of a fixed rule holds (`src/agent/rules.py`) |
-| Whether a closed ticket skips human review, with `AUTO_TRIAGE=1` | Code, only when every condition holds (`src/policy/auto_close.py`) |
-| Verdict, proposed ±1 adjustments, policy flags, the explanation | LLM, checked by code |
-| Final severity | Code, from the policy matrix |
-| Close or escalate, and to whom | Code, from the policy and the checked draft |
-| Which alerts belong to one incident | Code, by exact shared identifiers |
-| The incident report: story, scope, root cause | LLM writes it; code checks every timeline event and takes its time from the log |
-| Which containment action, on what target, and who must approve | Code, from section 4 of the policy |
-| Approving and running containment | People |
-
 ### How we build the agent
-The analysis came first. Each trap it found became a rule in code with unit tests. The answer keys were written before any run, without seeing the agent's answers. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
+The analysis came first. Each trap it found became a rule in code with unit tests. Claude drafted the answer keys before any run, without seeing the agent's answers, and we reviewed the 20 answers it was least sure of, changing none. Then each round changes one thing and is scored on the same 80 practice alerts, and on the 31 look-alike alerts among them, where one detail flips the answer.
 
 ![How we build the agent: groundwork once, then rounds on the 80 practice alerts, then a frozen version scored once.](docs/figures/build_loop.svg)
 
@@ -51,7 +96,7 @@ Each version is a value of `PROMPT_VERSION` in `src/agent/prompts.py`. [docs/age
 
 ![Agent versions v2 to v8, what each one changed, and their scores on the 80 practice alerts, with reasoning on and off.](docs/figures/versions.svg)
 
-Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one, and fully right means verdict, severity and escalation all match. They're marked against an answer key that AI drafted and no person has reviewed yet, on the same alerts used to choose the changes, so they're optimistic. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
+Totals over the 80 practice alerts: the hard 40 and the normal-day 40. Severity counts the 55 alerts whose expected answer has one, and fully right means verdict, severity and escalation all match. They're marked against an answer key that Claude drafted, on the same alerts used to choose the changes, so they're optimistic. David, Alex and Francesco reviewed the 20 of its 120 answers it was least sure of, before seeing any results, and changed none. The other 100 aren't reviewed, so the scores measure agreement with the key, not the truth. v2's missed and needless counts came from an older scorer, so they're left out. The 40 alerts kept back for the final score aren't in this grid.
 
 What the night showed:
 - **The campaign context fixes the 2 attacks every earlier version missed:** phishing reports that only matter because a colleague gave away a login. No round with it missed an attack, on either set.
@@ -72,10 +117,10 @@ Create a `.env` file with your own key:
 LLM_API_KEY=uth-your_team_key
 LLM_BASE_URL=https://dcc-llm-gw.uab.cat/uabthehack/v1
 LLM_MODEL=ornith
-LLM_ENABLE_THINKING=false
 MOCK_API_URL=http://localhost:8000
 ```
-With `LLM_ENABLE_THINKING=false`, `ornith` answers in seconds. Without it, the model reasons first and an alert takes minutes.
+The model reasons first by default, as in all of v8's results, so an alert takes minutes. Adding `LLM_ENABLE_THINKING=false` makes it answer in seconds, with worse results.
+
 The UI also needs Node 22 or newer (on a Mac, `brew install node`):
 ```bash
 cd ui && npm install
@@ -104,6 +149,19 @@ TRIAGE_MODE=real APP_SAMPLE=none APP_DB_PATH=runs/final.sqlite3 uvicorn src.app.
 ```
 The import button takes JSON, JSONL or CSV, with other field names too. Save an Excel file as CSV first.
 
+Test the LLM:
+```bash
+python scripts/test_llm.py
+```
+Tests:
+```bash
+pytest
+```
+UI logic tests, from `ui/`:
+```bash
+node --test "src/**/*.test.js"
+```
+
 ## Automatic triage (levels 1 to 3)
 Off by default, so the queue works by clicking. To turn it on (needs the mock API and the LLM key in `.env`):
 ```bash
@@ -131,19 +189,6 @@ What this doesn't solve:
 - The LLM budget caps coverage. Alerts that don't fit stay for a person and show as at risk or breached, and they're never closed because of the delay.
 - The SLA is measured in the app, not from the real SIEM arrival time.
 - Notifications stay inside the app. Nothing reaches the SOC lead, the CISO or on-call N2 outside the console, so a breach at night goes unseen until someone opens it. The system calls nobody: a person confirms the N2 call or handover.
-
-Test the LLM:
-```bash
-python scripts/test_llm.py
-```
-Tests:
-```bash
-pytest
-```
-UI logic tests, from `ui/`:
-```bash
-node --test "src/**/*.test.js"
-```
 
 ## Practice exam
 `scripts/exam.py` triages alerts and scores them against `eval/labels.csv`. It starts the mock API if needed, and a run that stops can be repeated without redoing anything. On each laptop:
@@ -210,12 +255,12 @@ analysis/     data analysis notebook
 contracts/    data formats
 src/tools/    api client, log search
 src/policy/   severity, approvals, sla, auto-close
-src/agent/    llm, triage
+src/agent/    llm, triage, fixed rules, grouping, incident reports
 src/app/      backend
 ui/           frontend (react, css)
 eval/         labels, scoring
-docs/         notes, one-pager, demo script
-scripts/      quick tests
+docs/         notes, figures, results of each version
+scripts/      practice exam, night rounds, quick tests
 data/         deloitte dataset (not in git)
 ```
 

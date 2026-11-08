@@ -22,7 +22,7 @@ Never choose between versions with `--set final`. Those 40 alerts are scored onc
 | v8 | v7 with three changes from the night of 8 Nov, each on by default and off with its variable set to the other value: JSON mode off (`LLM_JSON_MODE=1` turns it on), phishing campaign context (`AGENT_CAMPAIGN=0`), and the answer checklist repeated at the end of the prompt (`AGENT_FORMAT_REMINDER=0`). Its results are rounds R5 and R7 below, whose checklist said `<untrusted_data>` where v8 says "the data block" |
 
 ## Results on the 80 practice alerts
-Model `ornith` on the UAB server, 7 Nov 2026. Marked against `eval/labels.csv`, still Claude's draft with no row reviewed by a person. These 80 alerts were used to choose the changes, so the figures are optimistic.
+Model `ornith` on the UAB server, 7 Nov 2026. Marked against `eval/labels.csv`, which Claude drafted. David, Alex and Francesco reviewed the 20 of its 120 answers it was least sure of (15 of them in these 80), before seeing any results, and changed none. The other 100 aren't reviewed. These 80 alerts were used to choose the changes, so the figures are optimistic.
 
 | Version | Set | Verdict | Severity | Escalate or close | Missed attacks | Needless escalations |
 |---|---|---|---|---|---|---|
