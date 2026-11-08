@@ -14,7 +14,9 @@ export function effective(item) {
 
 // none | running | failed | pending (waiting for a person) | decided
 export function stateOf(item) {
-  if (item.job?.status === "pending") return "queued";
+  if (item.run?.status === "running") return "running";
+  if (["pending", "staged"].includes(item.job?.status)) return "queued";
+  if (item.job?.status === "failed") return "failed";
   if (!item.run) return "none";
   if (item.run.status === "running") return "running";
   if (item.run.status === "failed") return "failed";
@@ -35,7 +37,8 @@ export function attentionOf(item) {
 
 export function flowStage(item) {
   if (item.run?.status === "running") return "triage";
-  if (item.job?.status === "pending" || !item.run) return "intake";
+  if (["pending", "staged"].includes(item.job?.status) || !item.run) return "intake";
+  if (item.job?.status === "failed") return "review";
   if (item.correlation_pending) return "correlation";
   if (["pending", "running"].includes(item.report_state?.status)) return "investigation";
   if (stateOf(item) === "auto_closed") return "finished";
@@ -55,7 +58,8 @@ export function filterAndSort(alerts, filters) {
     .filter((a) => !filters.state || (filters.state.startsWith("attention:") ? attentionOf(a) === filters.state.slice(10) : stateOf(a) === filters.state))
     .filter((a) => !filters.injection || hasInjection(a))
     .filter((a) => !q || [a.alert_id, a.rule_name, a.rule_id].some((v) => typeof v === "string" && v.toLowerCase().includes(q)))
-    .sort((a, b) => ["review", "processing", "automatic", "human"].indexOf(attentionOf(a)) - ["review", "processing", "automatic", "human"].indexOf(attentionOf(b)) || rank(effective(a).severity) - rank(effective(b).severity) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    .sort((a, b) => ["review", "processing", "automatic", "human"].indexOf(attentionOf(a)) - ["review", "processing", "automatic", "human"].indexOf(attentionOf(b)) ||
+      (a.queue_position != null && b.queue_position != null ? a.queue_position - b.queue_position : rank(effective(a).severity) - rank(effective(b).severity)) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
 export function productsOf(alerts) {

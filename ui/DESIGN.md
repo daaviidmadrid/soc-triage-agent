@@ -175,6 +175,13 @@ Configuración: `docs/deloitte-charts.md` (nombre histórico).
 
 ## Flujo automático y atención
 
+La subida prepara las alertas y muestra «Listas para iniciar». Dashboard y cola
+ofrecen el mismo botón primario «Iniciar flujo», con el número de alertas preparadas.
+El dashboard también permite importar. Antes de empezar se comprueba la API simulada;
+si falla, el mensaje explica cómo arrancarla y no se reclaman trabajos. Los errores
+de contexto se distinguen de cuota y presupuesto. La cola muestra su orden operativo,
+compartido con el worker. Los siguientes niveles avanzan tras ese único inicio.
+
 Dashboard y cola empiezan por un flujo de etapas persistidas: entrada, triaje,
 correlación, investigación condicional, revisión humana y finalizados. Cada etapa
 muestra su recuento y hasta ocho puntos con ID, severidad y acceso al ticket;

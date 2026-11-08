@@ -3,6 +3,14 @@ import { test } from "node:test";
 import { attentionOf, effective, filterAndSort, flowStage, stateOf, EMPTY_FILTERS, filtersFromQuery } from "./model.js";
 
 const analysed = { alert_id: "SYNTHETIC", run: { status: "done" }, ticket: { severity: "low", closed_by_rule: "R1" } };
+test("uploaded cases wait for Start and follow the server queue order", () => {
+  const first = { alert_id: "FIRST", job: { status: "staged" }, queue_position: 1, rule_severity: "medium" };
+  const second = { alert_id: "SECOND", job: { status: "staged" }, queue_position: 2, rule_severity: "medium" };
+  assert.equal(stateOf(first), "queued");
+  assert.equal(flowStage(first), "intake");
+  assert.deepEqual(filterAndSort([second, first], EMPTY_FILTERS).map(a => a.alert_id), ["FIRST", "SECOND"]);
+  assert.equal(flowStage({ ...analysed, job: { status: "failed" }, report_state: { status: "blocked" } }), "review");
+});
 test("a rule result alone never means disposed or approved", () => {
   assert.equal(stateOf(analysed), "pending");
   assert.equal(attentionOf(analysed), "review");

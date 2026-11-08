@@ -209,10 +209,10 @@ export default function DecisionBar(props) {
       <div className="bar-body">
         {!run && (
           <div className="bar-actions">
-            <span>{L.barNoRun}</span>
-            <button type="button" className="btn btn-primary" onClick={onStart} disabled={starting}>
-              {starting ? L.starting : L.triage}
-            </button>
+            <span>{props.queued ? "En cola: se procesará según su prioridad." : props.waitingForFlow ? "Alerta preparada. Inicia el flujo para procesar la cola." : L.barNoRun}</span>
+            {!props.queued && <button type="button" className="btn btn-primary" onClick={onStart} disabled={starting}>
+              {starting ? L.starting : props.waitingForFlow ? "Iniciar flujo" : L.triage}
+            </button>}
           </div>
         )}
         {running && <Running run={run} now={now} ruleSeverity={ruleSeverity} />}

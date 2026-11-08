@@ -1,5 +1,43 @@
 # Verificación de la automatización
 
+## Actualización: subida e inicio explícito
+
+El nuevo recorrido se comprobó con `demo_alertas_comunes.jsonl`, sin cambiar reglas,
+prompts ni criterios de política a partir de sus alertas. El archivo contiene diez
+alertas y se usa solo como entrada de integración. Las herramientas consultan una
+copia local de la API simulada; las respuestas LLM son genéricas y falsas, sin
+evaluar veredictos ni entrenar sobre alertas reservadas.
+
+- La subida deja diez trabajos `staged`, sin runs ni llamadas al proveedor.
+- «Iniciar flujo» comprueba la API y libera la cola. El orden mostrado coincide con
+  el orden de los diez runs de triaje, usando prioridad y orden de encolado.
+- El lote produjo diez tickets y nueve informes con los proveedores falsos. Se
+  verificó que se genera un informe por caso final, sin repetir investigaciones
+  de las versiones intermedias del lote.
+- La prueba reproduce `ConnectError` de contexto: no inicia investigaciones a
+  partir del análisis fallido. El inicio comprueba conectividad antes de reclamar.
+- El botón puede reintentar el bloqueo de fallos consecutivos, manteniendo llamadas
+  consumidas y época de presupuesto; no limpia cuota ni presupuesto gastado.
+- Un fallo histórico que ya tiene una ejecución posterior correcta no se reintenta
+  al empezar otro lote.
+- Firefox: subida desde dashboard, inicio, cola, procesamiento completo y tamaños
+  de 390, 768, 1024 y 1440 px, sin errores de consola ni scroll vertical anidado.
+- El nuevo `python scripts/dev.py` arrancó mock, backend y Vite en puertos de QA;
+  mostró una cola vacía esperando Start y cerró los tres servicios limpiamente.
+- Suite completa con el JSON opcional: **805 pruebas superadas**. Pruebas frontend
+  y build de producción superados. Las acciones individuales no adelantan trabajos
+  preparados o pendientes fuera del orden de la cola.
+
+La suite puede repetir la integración del archivo mediante
+`TARVIA_IMPORT_TEST_FILE=/ruta/al/archivo.jsonl pytest`. Sin esa variable, esa prueba
+opcional se omite; las pruebas sintéticas del inicio siempre se ejecutan. Los
+artefactos de esta sesión quedan bajo `runs/flow-start-verification/`.
+
+No se hicieron llamadas reales al LLM. No se aprobaron ni ejecutaron acciones de
+contención. La configuración privada de `.env` no se abrió ni imprimió.
+
+## Verificación anterior
+
 Comprobación local del 8 de noviembre de 2026. Backend con SQLite temporal, alertas
 sintéticas y proveedores falsos. La suite existente usa una copia temporal de la API
 simulada para que sus escrituras no afecten a `data/`.

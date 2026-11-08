@@ -1,5 +1,32 @@
 # Automatic processing in the local console
 
+Current interaction: **upload → Iniciar flujo → priority triage → correlation → reports when needed → human review**.
+New imports have job status `staged`; duplicate imports do not create another job. Upload does
+not start work, including when a previous batch has finished. `POST /api/automation/start` checks
+the mock API with a read-only request before releasing staged work. A failed check leaves all jobs
+untouched and reports how to start the services. After an explicitly started flow, crash recovery
+can resume pending jobs. Direct per-alert retries remain secondary manual actions.
+
+Run all services with `python scripts/dev.py`. This uses the project virtual environment, keeps
+the mock's writable files under `runs/dev-mock/`, and points the backend and UI at matching local
+ports. No provider request occurs during startup or preflight. Existing provider configuration
+continues to be used only when the real agent calls the LLM.
+For an explicitly started batch, triage follows the displayed queue and reports are prepared
+after its pending triages finish. Correlation can refresh meanwhile; level 3 uses the completed
+batch snapshot, avoiding repeated investigations of intermediate versions. Reports are then
+prioritised by case severity/criticality.
+
+`automation.flow` exposes active/ready/pending/running counts and ready/running/finished state.
+`queue_position` exposes the backend's priority and FIFO order; UI sorting uses it for queued cases.
+`last_error` records the actual tool/error behind a stop, including context connection failures.
+An analysis with trace errors does not automatically generate a level-3 report; its report status
+is `blocked` until triage succeeds. This prevents cascading context failures from consuming the
+failure allowance on investigations before the alert queue is processed.
+
+Start retries failed jobs and can clear a consecutive-failure stop, retaining used calls and the
+budget epoch. It does not clear provider quota or a spent budget. Pause/resume preserve these limits.
+Programmatic tests can opt out of the UI gate with injected `Config(require_start=False)`.
+
 The scheduler in `src/app/automation.py` invokes the same `work`/`work_report` functions as
 `POST /api/triage/{alert_id}` and `POST /api/reports/{key}`. These still consume the generators in
 `src/app/runner.py`, persist every event/ticket/report and serve the existing SSE replay route.

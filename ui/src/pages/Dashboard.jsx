@@ -8,6 +8,7 @@ import { DATA_COLORS, WORKFLOW_SERIES, dayComparison, shareLabel } from "../dash
 import { effective, stateOf } from "../queue/model.js";
 import { L, VERDICT, STATE_FILTERS, SEVERITY } from "../labels.js";
 import Flow from "../queue/Flow.jsx";
+import { ImportButton, ImportReport } from "../queue/ImportBox.jsx";
 
 const number = value => value.toLocaleString("es-ES");
 const shortDate = value => new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(value));
@@ -94,6 +95,7 @@ function StateChart({ summary, onQueue }) {
 export default function Dashboard({ onReport, onOpen, onQueue }) {
   const [data, setData] = useState(null), [error, setError] = useState(null), [updated, setUpdated] = useState(null), [refreshing, setRefreshing] = useState(false);
   const interaction = useChartFocus();
+  const [importReport, setImportReport] = useState(null);
   const alive = useRef(false);
   const alertCache = useRef(new Map());
   const [alertDetails, setAlertDetails] = useState({});
@@ -143,7 +145,8 @@ export default function Dashboard({ onReport, onOpen, onQueue }) {
   };
 
   return <div className="dashboard">
-    <header className="page-head dashboard-head"><div><h1>{L.dashboardTitle}</h1></div><div className="page-actions"><span className="period-label"><Icon name="calendar" />{period}</span><button className="btn" onClick={load} disabled={refreshing}><Icon name="refresh" />{L.refresh}</button></div></header>
+    <header className="page-head dashboard-head"><div><h1>{L.dashboardTitle}</h1></div><div className="page-actions"><ImportButton onDone={load} onReport={setImportReport} /><span className="period-label"><Icon name="calendar" />{period}</span><button className="btn" onClick={load} disabled={refreshing}><Icon name="refresh" />{L.refresh}</button></div></header>
+    <ImportReport report={importReport} onDismiss={() => setImportReport(null)} />
     {error && <ErrorBox message={error} onRetry={load} />}
     {!data && !error ? <div className="dashboard-loading"><Skeleton rows={3} cols={4} label={L.loading} /></div> : !data ? null : <>
       <div className="kpi-grid">{kpis.map(kpi => <button key={kpi.label} className={`kpi-card ${kpi.tone || "neutral"}`} onClick={() => onQueue(kpi.action)}><span className="kpi-label">{kpi.label}</span><strong className="kpi-value">{number(kpi.value)}</strong><span className="kpi-note">{kpi.note}</span></button>)}</div>

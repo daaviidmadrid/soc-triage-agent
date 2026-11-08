@@ -129,7 +129,7 @@ class Store:
 
     # Alerts
 
-    def add_alerts(self, alerts, origin, enqueue_priorities=None):
+    def add_alerts(self, alerts, origin, enqueue_priorities=None, job_status="pending"):
         """Adds alerts that aren't stored yet. Returns (added_ids, skipped_ids). Alerts are stored unchanged."""
         added, skipped = [], []
         at = now_iso()
@@ -141,8 +141,8 @@ class Store:
                 )
                 (added if cursor.rowcount else skipped).append(alert["alert_id"])
                 if cursor.rowcount and enqueue_priorities is not None:
-                    self._db.execute("INSERT OR IGNORE INTO jobs(kind, subject, revision, priority, origin, queued_at) VALUES ('triage', ?, 'import', ?, ?, ?)",
-                                     (alert["alert_id"], enqueue_priorities[alert["alert_id"]], origin, at))
+                    self._db.execute("INSERT OR IGNORE INTO jobs(kind, subject, revision, priority, origin, queued_at, status) VALUES ('triage', ?, 'import', ?, ?, ?, ?)",
+                                     (alert["alert_id"], enqueue_priorities[alert["alert_id"]], origin, at, job_status))
             self._db.commit()
         return added, skipped
 
@@ -387,9 +387,9 @@ class Store:
     def audits(self, limit=100):
         return [json.loads(r[0]) for r in self._all("SELECT data FROM operation_audit ORDER BY id DESC LIMIT ?", (limit,))]
 
-    def enqueue(self, kind, subject, revision, priority, origin):
-        cursor = self._write("INSERT OR IGNORE INTO jobs(kind, subject, revision, priority, origin, queued_at) VALUES (?, ?, ?, ?, ?, ?)",
-                             (kind, subject, revision, priority, origin, now_iso()))
+    def enqueue(self, kind, subject, revision, priority, origin, status="pending"):
+        cursor = self._write("INSERT OR IGNORE INTO jobs(kind, subject, revision, priority, origin, queued_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             (kind, subject, revision, priority, origin, now_iso(), status))
         return bool(cursor.rowcount)
 
     def jobs(self, status=None):
@@ -415,7 +415,7 @@ class Store:
                 at = now_iso()
                 self._db.execute("INSERT INTO runs(run_id, alert_id, mode, status, started_at) VALUES (?, ?, ?, 'running', ?)", (run_id, subject, mode, at))
                 if job_id is None:
-                    updated = self._db.execute("UPDATE jobs SET status='running', run_id=?, started_at=?, finished_at=NULL, reason='Reclamado' WHERE subject=? AND status='pending'", (run_id, at, subject))
+                    updated = self._db.execute("UPDATE jobs SET status='running', run_id=?, started_at=?, finished_at=NULL, reason='Reclamado' WHERE subject=? AND status IN ('pending','staged')", (run_id, at, subject))
                     if not updated.rowcount and enroll_priority is not None:
                         self._db.execute("INSERT INTO jobs(kind, subject, revision, priority, origin, status, queued_at, started_at, run_id) VALUES ('triage', ?, ?, ?, 'human', 'running', ?, ?, ?)",
                                          (subject, 'manual:' + run_id, enroll_priority, at, at, run_id))
@@ -435,6 +435,12 @@ class Store:
 
     def recover_jobs(self):
         self._write("UPDATE jobs SET status='pending', reason='Recuperado tras reinicio', run_id=NULL WHERE status='running'")
+
+    def release_staged_jobs(self):
+        return self._write("UPDATE jobs SET status='pending', reason='Flujo iniciado por una persona' WHERE status='staged'").rowcount
+
+    def retry_failed_job(self, job_id):
+        self._write("UPDATE jobs SET status='pending', reason='Reintento solicitado al iniciar flujo', run_id=NULL, finished_at=NULL WHERE id=? AND status='failed'", (job_id,))
 
     def disposition_history(self, ticket_id):
         return [json.loads(r[0]) for r in self._all("SELECT data FROM dispositions WHERE ticket_id=? ORDER BY id DESC", (ticket_id,))]

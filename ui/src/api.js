@@ -62,5 +62,6 @@ export const api = {
   eventsUrl: (runId, after = 0) => `/api/runs/${encodeURIComponent(runId)}/events${after > 0 ? `?after=${after}` : ""}`,
   automation: () => request("GET", "/api/automation"),
   controlAutomation: (action) => request("POST", "/api/automation/control", JSON.stringify({ action })),
+  startFlow: () => request("POST", "/api/automation/start", JSON.stringify({})),
   enqueue: (alertIds) => request("POST", "/api/automation/enqueue", JSON.stringify({ alert_ids: alertIds })),
 };

@@ -28,6 +28,7 @@ def fingerprint(value):
 
 @dataclass
 class Config:
+    require_start: bool = True
     auto_triage: bool = True
     auto_investigate: bool = True
     auto_close: bool = False
@@ -102,8 +103,29 @@ class Automation:
     def status(self):
         jobs = self.store.jobs()
         budget = self.store.operation("budget")
+        last_error = budget.get("last_error")
+        if not last_error and budget.get("failures"):
+            for job in sorted(jobs, key=lambda j: j["id"], reverse=True):
+                errors = [e for e in self.store.events_after(job["run_id"]) if e.get("type") == "error"] if job.get("run_id") else []
+                if errors:
+                    last_error = {"tool": errors[0].get("tool"), "kind": (errors[0].get("args") or {}).get("kind"), "message": errors[0].get("summary"), "run_id": job["run_id"]}
+                    break
         closed = [d for r in self.store.list_tickets() for d in [self.store.disposition(r["ticket_id"]) ] if d and d["origin"] == "automation" and d["state"] == "closed"]
-        return {"auto_triage": self.config.auto_triage, "auto_investigate": self.config.auto_investigate,
+        active = self.store.operation("flow_active", not self.config.require_start)
+        waiting = sum(j["status"] == "staged" for j in jobs)
+        pending = sum(j["status"] == "pending" for j in jobs)
+        running = sum(j["status"] == "running" for j in jobs)
+        latest_jobs = {}
+        for job in jobs:
+            key = (job["kind"], job["subject"])
+            if job["id"] > latest_jobs.get(key, {}).get("id", 0):
+                latest_jobs[key] = job
+        retryable = sum(j["status"] == "failed" for j in latest_jobs.values())
+        reconciling = self.config.require_start and active and self.store.operation("flow_reconciled") != list(self.store.work_revision())
+        state = "ready" if not active or (waiting and not pending and not running) else "running" if pending or running or reconciling else "finished"
+        return {"flow": {"state": state, "active": active, "ready": waiting, "pending": pending, "running": running, "retryable": retryable},
+                "last_error": last_error,
+                "auto_triage": self.config.auto_triage, "auto_investigate": self.config.auto_investigate,
                 "auto_close_low_risk": self.config.auto_close, "sample_rate": self.config.sample_rate,
                 "paused": self.store.operation("paused", False), "budget": {**budget, "limit": self.config.max_calls},
                 "jobs": jobs, "reason": self.blocked(), "audit": self.store.audits(30),
@@ -174,6 +196,8 @@ class Automation:
             quota = real and _out_of_quota(shaped)
             failed = any(e.get("type") == "error" for e in events)
             failed = failed or (self.store.get_run(run_id) or {}).get("status") == "failed"
+            errors = [e for e in events if e.get("type") == "error"]
+            last_error = {"tool": errors[0].get("tool"), "kind": (errors[0].get("args") or {}).get("kind"), "message": errors[0].get("summary"), "run_id": run_id} if errors else None
             def finish(b):
                 failures = (b["failures"] + 1 if failed else 0) if real else b["failures"]
                 reason = b.get("blocked")
@@ -183,7 +207,8 @@ class Automation:
                     reason = reason or "Límite de fallos consecutivos alcanzado."
                 if b["used"] + extra >= self.config.max_calls:
                     reason = reason or "Presupuesto de llamadas consumido."
-                return {**b, "used": b["used"] + extra, "failures": failures, "blocked": reason}
+                return {**b, "used": b["used"] + extra, "failures": failures, "blocked": reason,
+                        "last_error": last_error if failed else None}
             budget = self.store.edit_operation("budget", finish, self._default_budget)
             self.store.finish_jobs(run_id, "pending" if failed and budget["blocked"] else "failed" if failed else "done", budget["blocked"] or ("Falló la ejecución; requiere reintento explícito" if failed else "Análisis terminado"))
             job = next((j for j in self.store.jobs() if j["run_id"] == run_id), None)
@@ -228,15 +253,19 @@ class Automation:
         while not self.stop_event.is_set():
             try:
                 paused = self.store.operation("paused", False)
-                if not paused:
+                active = self.store.operation("flow_active", not self.config.require_start)
+                if not paused and active:
                     # Coalesce quick completions; a quiet queue is reconciled immediately.
                     pending = self.store.jobs("pending")
                     triages = [j for j in pending if j["kind"] == "triage"]
-                    if not triages or time.monotonic() - last_maintenance >= 2:
+                    staged_only = not pending and any(j["status"] == "staged" for j in self.store.jobs())
+                    if not staged_only and (not triages or time.monotonic() - last_maintenance >= 2):
                         self.maintain()
                         last_maintenance = time.monotonic()
                     if not self.blocked():
                         eligible = [j for j in self.store.jobs("pending") if not self.store.active_run(j["subject"]) and ((j["kind"] == "triage" and self.config.auto_triage) or (j["kind"] == "report" and self.config.auto_investigate))]
+                        if self.config.require_start:
+                            eligible.sort(key=lambda j: j["kind"] != "triage")  # Complete the displayed alert queue before level 3.
                         if any(self.process(job) for job in eligible):
                             continue
             except Exception as error:

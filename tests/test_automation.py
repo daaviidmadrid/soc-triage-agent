@@ -52,8 +52,10 @@ def report_runner(calls):
 
 def app_for(tmp_path, monkeypatch, **kwargs):
     monkeypatch.setenv("TRIAGE_MODE", "real")
+    config = kwargs.pop("config", Config(pace_seconds=0))
+    config.require_start = kwargs.pop("require_start", False)  # Legacy scheduler scenarios opt out of the UI start gate.
     return create_app(db_path=kwargs.pop("db_path", tmp_path / "app.sqlite"), sample_path="none", run_fn=kwargs.pop("run_fn", fake_triage),
-                      report_fn=kwargs.pop("report_fn", report_runner([])), automation_config=kwargs.pop("config", Config(pace_seconds=0)), **kwargs)
+                      report_fn=kwargs.pop("report_fn", report_runner([])), automation_config=config, **kwargs)
 
 
 def eventually(fn, timeout=8):

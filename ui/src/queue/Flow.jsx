@@ -30,12 +30,27 @@ export default function Flow({ data, onOpen, onRefresh, connectionError }) {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
+  async function start() {
+    setBusy(true); setError(null);
+    try { await api.startFlow(); await onRefresh(); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
   if (!ops) return null;
+  const flow = ops.flow || {};
+  const failedJobs = flow.retryable > 0;
+  const retryPreviousStop = !flow.active && ops.reason === "Límite de fallos consecutivos alcanzado.";
+  const canStart = flow.ready > 0 || !flow.active || Boolean(ops.reason) || failedJobs;
+  const hasWork = flow.ready > 0 || flow.pending > 0 || failedJobs;
+  const status = connectionError ? "Reconectando · último estado confirmado" : retryPreviousStop ? "Listo para reintentar el flujo" : ops.reason ? "Flujo detenido" : ops.paused && flow.active ? "Flujo pausado" : flow.state === "ready" ? "Alertas listas para iniciar" : flow.state === "finished" ? (failedJobs ? "Flujo terminado · hay alertas que reintentar" : "Procesamiento completado · revisa las conclusiones") : "Procesando la cola";
   return <section className="operation-flow" aria-labelledby="flow-title">
-    <div className="section-heading flow-heading"><h2 id="flow-title">Flujo en directo</h2><span className="muted">{connectionError ? "Reconectando · último estado confirmado" : ops.paused ? "Pausado · las ejecuciones en curso terminan" : ops.reason ? "Detenido por límite operativo" : ops.auto_triage ? "Automatización activa" : "Triaje manual"}</span>
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => control(ops.paused ? "resume" : "pause")}>{ops.paused ? "Reanudar" : "Pausar"}</button></div>
+    <div className="section-heading flow-heading"><h2 id="flow-title">Flujo en directo</h2><span className="muted" role="status">{status}</span>
+      {canStart && <button type="button" className="btn btn-primary start-flow" disabled={busy || !hasWork || !ops.auto_triage} onClick={start}>{busy ? "Comprobando el inicio…" : "Iniciar flujo"}{flow.ready > 0 ? ` (${flow.ready})` : ""}</button>}
+      {flow.active && (flow.pending > 0 || flow.running > 0 || ops.paused) && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => control(ops.paused ? "resume" : "pause")}>{ops.paused ? "Reanudar" : "Pausar"}</button>}</div>
     {error && <ErrorBox message={error} />}
-    {ops.reason && <p className="compact-notice" role="status">{ops.reason} Los trabajos pendientes se conservan.</p>}
+    {ops.reason && <p className="compact-notice" role="status">{retryPreviousStop ? "El intento anterior se detuvo tras varios fallos. Pulsa Iniciar flujo para comprobar la conexión y reintentar la cola." : `${ops.reason} Los trabajos pendientes se conservan.`}</p>}
+    {ops.last_error && <p className="compact-notice">{ops.last_error.tool === "build_context" ? "Fallo anterior: no se pudo consultar la API simulada para reunir el contexto. Con los servicios arrancados, pulsa Iniciar flujo para reintentar. Para arrancarlos juntos usa python scripts/dev.py." : `Último fallo: ${ops.last_error.message || "consulta no completada"}`}</p>}
+    {flow.state === "ready" && !ops.reason && <p className="hint">Primero sube las alertas y revisa la cola. Al iniciar se procesan por su orden de prioridad; los demás niveles continúan automáticamente.</p>}
     <ol className="flow-stages" aria-label="Etapas observadas del procesamiento">
       {STAGES.map(([key, title, help]) => {
         const items = data.alerts.filter(a => flowStage(a) === key);

@@ -77,10 +77,11 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
   }, [alertId, onNext]);
 
   async function start() {
-    if (detail && detail.ticket && !window.confirm(L.retriageConfirm)) return;
+    if (detail && detail.ticket && detail.job?.status !== "staged" && !window.confirm(L.retriageConfirm)) return;
     setStarting(true);
     try {
-      await api.triage(alertId);
+      if (detail?.job?.status === "staged") await api.startFlow();
+      else await api.triage(alertId);
       await load();
     } catch (e) {
       setError(e.message);
@@ -136,6 +137,8 @@ export default function Ticket({ alertId, onBack, onNext, onReport, onIncidents,
 
       {error && <ErrorBox message={error} onRetry={load} />}
       <DecisionBar compact
+        waitingForFlow={detail.job?.status === "staged"}
+        queued={detail.job?.status === "pending"}
         run={run}
         ticketRow={ticketRow}
         decision={decision}

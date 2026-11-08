@@ -238,6 +238,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
         stale = bool(row and store.operation("report-input:" + row["run_id"]) != revision)
         active = store.active_run(key)
         pending = any(j["kind"] == "report" and j["subject"] == key and j["status"] == "pending" and j["revision"] == revision for j in store.jobs())
+        failed_triage = bool(subject and not any(not any(e["type"] == "error" for e in store.events_after(r["run_id"])) for r in store.completed_tickets() if r["alert_id"] in subject["alert_ids"]))
+        if failed_triage and not row:
+            return {"status": "blocked", "stale": False, "run_id": None}
         return {"status": "running" if active else "pending" if pending else "stale" if stale else "ready" if row else "not_required" if subject and not subject["escalated"] else "needed",
                 "stale": stale, "run_id": row["run_id"] if row else None}
 
@@ -260,6 +263,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
         for job in store.jobs():
             if job["kind"] == "triage" and job["id"] > jobs_by_alert.get(job["subject"], {}).get("id", 0):
                 jobs_by_alert[job["subject"]] = job
+        waiting_jobs = sorted((j for j in jobs_by_alert.values() if j["status"] in ("pending", "staged", "failed")), key=lambda j: (-j["priority"], j["id"]))
+        queue_positions = {j["subject"]: i + 1 for i, j in enumerate(waiting_jobs)}
         report_states = {}
         items = []
         for row in store.list_alerts():
@@ -284,6 +289,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
                 "decision": decisions.get(run["run_id"]) if run else None,
                 "incident_id": incident_of.get(alert["alert_id"]),
                 "job": jobs_by_alert.get(alert["alert_id"]),
+                "queue_position": queue_positions.get(alert["alert_id"]),
                 "disposition": disposition_view(ticket_row, correlation),
                 "report_key": key,
                 "report_state": report_states.get(key),
@@ -321,7 +327,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
             "report_key": report_key_for(alert_id, ticket_row),
             "disposition": disposition_view(ticket_row),
             "disposition_history": store.disposition_history(ticket_row["ticket_id"]) if ticket_row else [],
-            "job": next((j for j in store.jobs() if j["subject"] == alert_id and j["status"] in ("pending", "running")), None),
+            "job": next((j for j in store.jobs() if j["subject"] == alert_id and j["status"] in ("pending", "running", "staged")), None),
         }
 
     # Containment (level 4). The LLM's suggestions become proposals by plain code. Only these routes, called by a
@@ -447,13 +453,15 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
         except ImportProblem as error:
             raise HTTPException(400, str(error)) from None
         priorities = {a["alert_id"]: priority(a) for a in result["alerts"]} if config.auto_triage else None
-        added, skipped = store.add_alerts(result["alerts"], "imported", enqueue_priorities=priorities)
+        added, skipped = store.add_alerts(result["alerts"], "imported", enqueue_priorities=priorities,
+                                         job_status="staged" if config.require_start else "pending")
         store.audit("human", "import", imported=len(added), skipped=len(skipped), enqueued=len(added) if config.auto_triage else 0)
         automation.wake.set()
         return {
             "format": result["format"],
             "rows": result["rows"],
             "imported": added,
+            "requires_start": config.require_start and bool(added),
             "skipped": [{"alert_id": alert_id, "reason": "Ya estaba en la cola."} for alert_id in skipped],
             "errors": result["errors"],
         }
@@ -713,6 +721,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
             rows = store.list_tickets()
             corpus_revision = fingerprint(store.list_alerts())
             active_triages = {j["subject"] for j in store.jobs() if j["kind"] == "triage" and j["status"] in ("pending", "running")}
+            defer_reports = config.require_start and bool(active_triages)
             report_candidates = {}
             for row in rows:
                 if store.get_run(row["run_id"])["status"] != "done":
@@ -735,8 +744,10 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
                                           "Condiciones deterministas y política validadas tras correlación.", rule=ticket["closed_by_rule"]["rule_id"],
                                           evidence=ticket["closed_by_rule"]["event_ids"], sampled_for_review=sampled)
                     store.audit("automation", "auto_close", ticket_id=row["ticket_id"], rule=ticket["closed_by_rule"]["rule_id"], sampled_for_review=sampled, result="closed")
-                if not config.auto_investigate or row["alert_id"] not in enrolled:
+                if defer_reports or not config.auto_investigate or row["alert_id"] not in enrolled:
                     continue
+                if any(e["type"] == "error" for e in store.events_after(row["run_id"])):
+                    continue  # A fallback from a failed triage needs retry/review, not automatic level 3.
                 key = report_key_for(row["alert_id"], row)
                 if key in report_candidates:
                     continue
@@ -749,6 +760,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
                 store.enqueue("report", key, rev, subject_priority(subject), "automation")
                 report_candidates[key] = True
             last_maintenance_input = marker
+            store.set_operation("flow_reconciled", list(store.work_revision()))
 
     def process(job):
         if automation.stop_event.is_set():
@@ -758,6 +770,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
             subject = report_subject(key)
             if not subject or not subject["escalated"]:
                 store.cancel_job(job["id"], "Los datos de entrada cambiaron.")
+                return True
+            if job["origin"] == "automation" and not any(not any(e["type"] == "error" for e in store.events_after(r["run_id"])) for r in store.completed_tickets() if r["alert_id"] in subject["alert_ids"]):
+                store.cancel_job(job["id"], "Debe completarse el triaje antes de investigar.")
                 return True
             current_revision = report_revision(subject)
             if current_revision != job["revision"]:
@@ -812,6 +827,40 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
             raise HTTPException(409, str(error)) from None
         return automation_status()
 
+    @app.post("/api/automation/start", status_code=202)
+    def start_flow():
+        """A deliberate start, after a read-only dependency check. Never resets spent calls or quota."""
+        if not config.auto_triage:
+            raise HTTPException(409, "El triaje automático está desactivado en el backend.")
+        if runner.current_mode() == "real" and run_fn is runner.run_triage:
+            try:
+                api_client.check_connection()
+            except Exception:
+                raise HTTPException(503, "No se puede conectar con la API simulada. Arranca la aplicación con python scripts/dev.py y vuelve a iniciar el flujo. No se ha procesado ninguna alerta nueva.") from None
+        with automation._lock:
+            budget = store.operation("budget")
+            failure_stop = budget.get("blocked") == "Límite de fallos consecutivos alcanzado."
+            if automation.blocked() and (not failure_stop or budget["used"] >= config.max_calls):
+                raise HTTPException(409, automation.blocked())
+            if failure_stop and not automation._active:
+                store.set_operation("budget", {**budget, "blocked": None, "failures": 0})
+                store.audit("human", "retry_after_failures", result="calls_and_epoch_preserved")
+            # Explicit Start retries failures once, leaving accepted analyses and human decisions intact.
+            latest_jobs = {}
+            for job in store.jobs():
+                key = (job["kind"], job["subject"])
+                if job["id"] > latest_jobs.get(key, {}).get("id", 0):
+                    latest_jobs[key] = job
+            for job in latest_jobs.values():
+                if job["status"] == "failed":
+                    store.retry_failed_job(job["id"])
+            released = store.release_staged_jobs()
+            store.set_operation("flow_active", True)
+            store.set_operation("paused", False)
+            store.audit("human", "start_flow", released=released, result="started")
+        automation.wake.set()
+        return automation_status()
+
     @app.post("/api/automation/enqueue", status_code=202)
     def enqueue_batch(body: EnqueueIn):
         unknown = [a for a in body.alert_ids if not store.get_alert(a)]
@@ -822,9 +871,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, auto
             row = store.get_alert(alert_id)
             # Explicit batch retry is deliberate; already pending/running jobs are left intact.
             jobs = [j for j in store.jobs() if j["subject"] == alert_id and j["kind"] == "triage"]
-            if any(j["status"] in ("pending", "running") for j in jobs):
+            if any(j["status"] in ("pending", "running", "staged") for j in jobs):
                 continue
-            count += store.enqueue("triage", alert_id, "batch:" + uuid.uuid4().hex, priority(row["alert"]), "human")
+            count += store.enqueue("triage", alert_id, "batch:" + uuid.uuid4().hex, priority(row["alert"]), "human", status="staged" if config.require_start else "pending")
         store.audit("human", "enqueue_batch", result=count)
         automation.wake.set()
         return {"enqueued": count, "automation_enabled": config.auto_triage}

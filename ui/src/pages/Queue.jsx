@@ -20,7 +20,7 @@ const PRODUCT_ICONS = { EDR: "device", IDP: "identity", AD: "identity", EMAIL_GW
 
 function StateCell({ item, changed }) {
   const state = stateOf(item);
-  const text = { none: L.stateNone, queued: "Encolada", auto_closed: "Cierre automático", running: "Procesando", failed: L.stateFailed, pending: L.statePending, decided: L.stateDecided }[state];
+  const text = { none: L.stateNone, queued: item.job?.status === "staged" ? "Lista para iniciar" : "Encolada", auto_closed: "Cierre automático", running: "Procesando", failed: "Requiere reintento", pending: L.statePending, decided: L.stateDecided }[state];
   return <span className={`state state-${state} operational-state${changed ? " state-changed" : ""}`}>
     <span className={`state-symbol${state === "running" ? " is-running" : ""}`}><Icon name={STATE_ICONS[state]} /></span>
     <span>{text}{state === "decided" && <>: {OUTCOME[item.decision.outcome] || item.decision.outcome}<span className="sub">{item.decision.analyst}</span></>}</span>
@@ -150,7 +150,7 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
       <td className="rule" data-label={L.colAlert}>
         <div className="alert-identity"><span className="alert-source-symbol"><Icon name={PRODUCT_ICONS[item.source_product] || "shield"} /></span><div className="alert-identity-text">
         <strong className="queue-rule">{item.rule_name || L.na}</strong>
-        <div className="queue-meta"><code className="id">{id}</code>{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}{item.incident_id && <Chip kind="warn" title={item.incident_id}>{L.inIncident}</Chip>}</div>
+        <div className="queue-meta"><code className="id">{id}</code>{item.queue_position != null && <span className="muted num">Orden {item.queue_position}</span>}{item.origin === "imported" && <Chip kind="origin">{L.originImported}</Chip>}{item.incident_id && <Chip kind="warn" title={item.incident_id}>{L.inIncident}</Chip>}</div>
         <div className="sub">{item.source_product || L.na}{item.rule_id && <> · <span className="id-plain">{item.rule_id}</span></>}</div>
         </div></div>
       </td>
@@ -162,7 +162,7 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
         <div className="queue-meta">{t && <ModeTag mode={t.mode} />}{t?.closed_by_rule && <Chip kind="code" title={L.closedByRuleHelp}>{L.closedByRule}</Chip>}{t?.injection_flags > 0 && <Chip kind="warn"><Icon name="alert" />{L.injectionShort}</Chip>}</div>
         {t?.attention_reason && <p className="sub queue-attention">{t.attention_reason}</p>}
         {t?.affected && <p className="sub">{[...(t.affected.hosts || []), ...(t.affected.users || [])].map(v => typeof v === "string" ? v : v.upn || v.hostname).filter(Boolean).join(", ")}</p>}
-        {item.report_state && <div className="sub">Informe: {({ pending: "pendiente", running: "en preparación", ready: "preparado", stale: "desactualizado", needed: "sin preparar", not_required: "no requerido" })[item.report_state.status]}</div>}
+        {item.report_state && <div className="sub">Informe: {({ pending: "pendiente", running: "en preparación", ready: "preparado", stale: "desactualizado", needed: "sin preparar", not_required: "no requerido", blocked: "primero debe completarse el triaje" })[item.report_state.status]}</div>}
         {t?.evidence_incomplete && <div className="sub">Evidencia incompleta o sin validar</div>}
         {item.disposition?.sampled_for_review && <Chip kind="warn">Muestra de auditoría</Chip>}
       </td>
@@ -172,7 +172,7 @@ function Row({ item, active, tabbable, changed, starting, onStart, onOpen, onFoc
           type="button"
           className={`btn btn-sm${running || starting ? " is-running" : ""}`}
           onClick={() => onStart(item)}
-          disabled={running || starting || item.job?.status === "pending"}
+          disabled={running || starting || ["pending", "staged"].includes(item.job?.status)}
           aria-label={`${running ? L.stateRunning : startLabel} ${id}`}
         >
           <Icon name={running || starting || item.run ? "refresh" : "play"} />{running ? L.stateRunning : starting ? L.starting : item.run ? L.retriageShort : L.triage}
@@ -240,6 +240,7 @@ export default function Queue({ onOpen, onReport, filters, setFilters, returnTo 
 
   const start = useCallback(
     async (item) => {
+      if (["staged", "pending"].includes(item.job?.status)) return;
       const alertId = item.alert_id;
       if (item.ticket && !window.confirm(L.retriageConfirm)) return;
       setActiveId(alertId);
