@@ -39,6 +39,8 @@ Judged on: correct and well-argued triage, working on the real data, clear roles
 5. The LLM can propose containment. Plain code works out who must approve, and only a person's click runs it.
 6. For an escalated ticket or incident, plain code searches every entity across the whole incident and expands by session and message ID. The LLM writes the incident report, and code checks every timeline event against what it retrieved and takes each time from the log (`python scripts/investigate.py ALR-…`, or the report page in the UI).
 
+7. After a person presses `Iniciar flujo`, a worker runs levels 1 to 3 in priority order. Closing without review needs `AUTO_CLOSE_LOW_RISK=1`, off by default, and level 4 always stays with a person.
+
 ## Test case
 The incident on the account `laura.ferrer2` is our test at every level (`laura.ferrer` is someone else with the same display name): a fake login page, a stolen session, a hidden inbox rule, then a fake IBAN change for 148,320 euros. Alerts `ALR-20261007-011785`, `-011786`, `-011787`, `-011788` and `ALR-20261008-011789`.
 

@@ -2,7 +2,7 @@
 
 This is the answer key for the 40 alerts in `key40_alerts.txt`. The scorer compares the AI's tickets with these answers.
 
-**Status: draft, not yet reviewed by a person.** Four Claude helpers wrote it from the policy, runbooks and logs, without seeing any AI ticket. It is a judgement, not ground truth.
+**Status: Claude's draft, partly reviewed.** Four Claude helpers wrote it from the policy, runbooks and logs, without seeing any AI ticket. David, Alex and Francesco reviewed the 9 answers under "Check these first", before seeing any of the agent's results, and changed none. The review was recorded in `labels.csv` on 8 Nov. The other 31 answers haven't been reviewed by a person. It is a judgement, not ground truth.
 
 ## How to review
 1. Read "Check these first". Then skim the attacks, because calling one of those wrong matters most.
