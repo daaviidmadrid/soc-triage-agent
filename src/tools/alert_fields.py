@@ -4,6 +4,7 @@ We don't know the format of the alerts Deloitte will give us, so this accepts ot
 fills gaps from Deloitte's rule catalogue and says what it had to assume. It never reads an alert's
 text as instructions, and it never drops a field, so the original values stay visible.
 """
+
 import csv
 import re
 import unicodedata
@@ -18,8 +19,20 @@ DEFAULT_SEVERITY = "medium"
 # Other names a field might have. Compared without case, accents, spaces or punctuation.
 FIELD_NAMES = {
     "alert_id": ("id", "alertid", "alert", "alerta", "idalerta", "alertaid", "alertuid", "uuid"),
-    "created_at": ("createdat", "timestamp", "time", "date", "datetime", "fecha", "fechahora", "hora", "eventtime",
-                   "detectedat", "alerttime", "fechaalerta"),
+    "created_at": (
+        "createdat",
+        "timestamp",
+        "time",
+        "date",
+        "datetime",
+        "fecha",
+        "fechahora",
+        "hora",
+        "eventtime",
+        "detectedat",
+        "alerttime",
+        "fechaalerta",
+    ),
     "rule_id": ("ruleid", "rule", "regla", "idregla", "reglaid", "usecase", "usecaseid", "casodeuso", "uc"),
     "rule_name": ("rulename", "name", "title", "nombre", "titulo", "nombreregla", "alertname"),
     "severity": ("severidad", "sev", "priority", "prioridad", "level", "nivel"),
@@ -33,11 +46,29 @@ FIELD_NAMES = {
 _ALIAS_TO_FIELD = {alias: field for field, aliases in FIELD_NAMES.items() for alias in aliases}
 
 SEVERITY_WORDS = {
-    "informational": "informational", "info": "informational", "informativa": "informational", "informativo": "informational",
-    "informacional": "informational", "none": "informational", "low": "low", "baja": "low", "bajo": "low",
-    "medium": "medium", "med": "medium", "moderate": "medium", "media": "medium", "medio": "medium", "moderada": "medium",
-    "high": "high", "alta": "high", "alto": "high", "critical": "critical", "crit": "critical", "critica": "critical",
-    "critico": "critical", "severe": "critical",
+    "informational": "informational",
+    "info": "informational",
+    "informativa": "informational",
+    "informativo": "informational",
+    "informacional": "informational",
+    "none": "informational",
+    "low": "low",
+    "baja": "low",
+    "bajo": "low",
+    "medium": "medium",
+    "med": "medium",
+    "moderate": "medium",
+    "media": "medium",
+    "medio": "medium",
+    "moderada": "medium",
+    "high": "high",
+    "alta": "high",
+    "alto": "high",
+    "critical": "critical",
+    "crit": "critical",
+    "critica": "critical",
+    "critico": "critical",
+    "severe": "critical",
 }
 
 # Only used when the alert names no entities we can read. These are lookup keys, nothing more.
@@ -51,8 +82,17 @@ ENTITY_KEYS = ("users", "hosts", "ips", "domains", "urls", "files", "processes",
 MAX_FOUND = 12
 MAX_TEXT = 20_000
 
-TIME_FORMATS = ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%d-%m-%Y",
-                "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M", "%Y/%m/%d")
+TIME_FORMATS = (
+    "%d/%m/%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%d/%m/%Y",
+    "%d-%m-%Y %H:%M:%S",
+    "%d-%m-%Y %H:%M",
+    "%d-%m-%Y",
+    "%Y/%m/%d %H:%M:%S",
+    "%Y/%m/%d %H:%M",
+    "%Y/%m/%d",
+)
 
 
 def _key(name):
@@ -116,7 +156,12 @@ def fill_from_catalogue(alert):
     if not rule:
         return alert, None
     filled = dict(alert)
-    for field, column in (("rule_id", "rule_id"), ("rule_name", "nombre"), ("runbook", "runbook"), ("source_product", "fuente")):
+    for field, column in (
+        ("rule_id", "rule_id"),
+        ("rule_name", "nombre"),
+        ("runbook", "runbook"),
+        ("source_product", "fuente"),
+    ):
         if not filled.get(field) and rule.get(column):
             filled[field] = rule[column]
     return filled, rule
@@ -176,8 +221,11 @@ def entities_from_text(alert):
     hashes = list(dict.fromkeys(item.lower() for item in SHA256.findall(text)))[:MAX_FOUND]
     ips = list(dict.fromkeys(IP.findall(text)))[:MAX_FOUND]
     events = set(EVENT_ID.findall(text))
-    hosts = [item for item in dict.fromkeys(HOSTNAME.findall(text))
-             if item not in events and any(c.isdigit() for c in item) and not NOT_A_HOST.match(item)][:MAX_FOUND]
+    hosts = [
+        item
+        for item in dict.fromkeys(HOSTNAME.findall(text))
+        if item not in events and any(c.isdigit() for c in item) and not NOT_A_HOST.match(item)
+    ][:MAX_FOUND]
     found = {}
     if emails:
         found["users"] = [{"upn": item} for item in emails]
@@ -222,7 +270,9 @@ def normalise_alert(alert):
         if base:
             notes.append(f"La alerta no traía una severidad reconocible: se usa la del catálogo de reglas ({base}).")
         else:
-            notes.append(f"La alerta no traía una severidad reconocible y la regla no está en el catálogo: se asume {DEFAULT_SEVERITY}.")
+            notes.append(
+                f"La alerta no traía una severidad reconocible y la regla no está en el catálogo: se asume {DEFAULT_SEVERITY}."
+            )
 
     if clean.get("created_at") not in (None, ""):
         moment, assumed = parse_time(clean["created_at"])

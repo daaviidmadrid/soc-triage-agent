@@ -3,6 +3,7 @@
 Lookups that can miss (alert, asset, user, sandbox) return None on 404.
 Any other HTTP error raises APIError with the status and the API's message.
 """
+
 import os
 from urllib.parse import quote
 
@@ -105,8 +106,8 @@ def get_changes(q=""):
 # - refuses any action on an OT asset (policy section 4: only escalate).
 # Who may approve (N2, service owner, business) is checked by the app, not here.
 OT_ZONES = {"LOGISTICS-OT"}
-_issued = {}     # approval_token -> (action, target), approvals made in this process
-_used = set()    # approval tokens already spent
+_issued = {}  # approval_token -> (action, target), approvals made in this process
+_used = set()  # approval tokens already spent
 
 
 class ContainmentRefused(Exception):
@@ -140,8 +141,7 @@ def run_containment(action, target, justification, approval_token="", ticket_id=
         raise ContainmentRefused(f"no human approval for {action} on {target}")
     if approval_token in _used:
         raise ContainmentRefused("this approval was already used")
-    body = {"target": target, "justification": justification,
-            "approval_token": approval_token, "ticket_id": ticket_id}
+    body = {"target": target, "justification": justification, "approval_token": approval_token, "ticket_id": ticket_id}
     rec = _request("POST", f"/containment/{_seg(action)}", json=body)
     _used.add(approval_token)
     return rec

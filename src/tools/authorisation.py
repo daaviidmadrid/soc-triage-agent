@@ -10,6 +10,7 @@ A change fits only if, all at once:
   - identity: the origin it names (host, IP, email; else account) appears in the alert.
 Text in the calendar is data written by people; it is parsed, never obeyed.
 """
+
 import re
 import unicodedata
 from datetime import date, datetime, timezone
@@ -23,8 +24,10 @@ MADRID = ZoneInfo("Europe/Madrid")
 SCCM_ACCOUNT = "svc_sccm"
 SCCM_LOGGED_AS = "nt authority\\system"
 SCCM_PARENT = "ccmexec.exe"
-SCCM_KNOWN_COMMAND = ("$inv = Get-CimInstance Win32_Product | Select Name,Version | ConvertTo-Json"
-                      " | Out-File C:\\Windows\\CCM\\Inventory\\sw.json")
+SCCM_KNOWN_COMMAND = (
+    "$inv = Get-CimInstance Win32_Product | Select Name,Version | ConvertTo-Json"
+    " | Out-File C:\\Windows\\CCM\\Inventory\\sw.json"
+)
 
 _HOSTS = re.compile(r"\b([A-Z]+(?:-[A-Z]+)*)(\d+)(?:\.\.(\d+))?\b")
 _IPS = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})(?:-(\d{1,3}))?\b")
@@ -123,13 +126,16 @@ def _in_scope(p, alert, named_assets, linked_assets=()):
     if "todos los puestos" in s:
         return bool(named_assets) and all(
             a.get("type") == "Portátil" or str(a.get("business_service", "")).startswith("Puesto de trabajo")
-            for a in named_assets)
+            for a in named_assets
+        )
     if "todas las redes salvo ot" in s:
         return all(a.get("zone") != "LOGISTICS-OT" for a in named_assets)
     if "servidores windows" in s:
         return bool(named_assets) and all(str(a.get("os", "")).startswith("Windows Server") for a in named_assets)
     if "directorio activo" in s:
-        return alert.get("source_product") == "AD" or any(a.get("type") == "Controlador de dominio" for a in named_assets)
+        return alert.get("source_product") == "AD" or any(
+            a.get("type") == "Controlador de dominio" for a in named_assets
+        )
     if s.strip() == "correo":
         return alert.get("source_product") in ("EMAIL_GW", "DLP")
     return False
@@ -141,7 +147,8 @@ def _sccm_exception(related_rows):
         str(r.get("user", "")).lower() == SCCM_LOGGED_AS
         and str(r.get("parent_name", "")).lower() == SCCM_PARENT
         and (r.get("details") or {}).get("decoded") == SCCM_KNOWN_COMMAND
-        for r in edr)
+        for r in edr
+    )
 
 
 def _identity(p, alert, related_rows):
@@ -198,8 +205,14 @@ def match_changes(changes, alert, named_assets, related_rows, event_times, linke
         ok, who = _identity(p, alert, related_rows)
         if not ok:
             continue
-        out.append({**c, "inicio_utc": _utc_text(start), "fin_utc": _utc_text(end),
-                    "matched_on": f"hora del evento, alcance, identidad: {who}"})
+        out.append(
+            {
+                **c,
+                "inicio_utc": _utc_text(start),
+                "fin_utc": _utc_text(end),
+                "matched_on": f"hora del evento, alcance, identidad: {who}",
+            }
+        )
     return out
 
 
@@ -221,8 +234,14 @@ def split_hr_events(users, event_times):
             rng = _trip_range(hr)
             if rng and event_times and all(rng[0] <= t.astimezone(MADRID).date() <= rng[1] for t in event_times):
                 username = str(hr.get("usuario", "")).split("@", 1)[0]
-                trips.append({"id": f"TRIP-{username}-{rng[0].isoformat()}", **hr,
-                              "desde": rng[0].isoformat(), "hasta": rng[1].isoformat()})
+                trips.append(
+                    {
+                        "id": f"TRIP-{username}-{rng[0].isoformat()}",
+                        **hr,
+                        "desde": rng[0].isoformat(),
+                        "hasta": rng[1].isoformat(),
+                    }
+                )
             else:
                 others.append(dict(hr))
     return trips, others

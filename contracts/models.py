@@ -1,4 +1,5 @@
 """Shared data formats. Fields get added once the team agrees them."""
+
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -285,7 +286,15 @@ class TraceEvent(BaseModel):
     report: IncidentReport | None = None
 
 
-ContainmentAction = Literal["isolate_host", "disable_user", "revoke_sessions", "reset_password", "block_ioc", "purge_email", "disable_access_key"]
+ContainmentAction = Literal[
+    "isolate_host",
+    "disable_user",
+    "revoke_sessions",
+    "reset_password",
+    "block_ioc",
+    "purge_email",
+    "disable_access_key",
+]
 
 
 class Approval(BaseModel):

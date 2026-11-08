@@ -1,4 +1,5 @@
 """Small, deterministic analysis helpers; no network or model calls."""
+
 import collections
 import json
 import re
@@ -60,22 +61,25 @@ def encoded(row):
 def exact_mask(frame, values):
     """Match full scalar values, including nested JSON and email recipients."""
     wanted = {str(x).casefold() for x in values if x}
-    return pd.Series([
-        any(str(v).casefold() in wanted for _, v in leaves(r))
-        for r in raw_records(frame)
-    ], index=frame.index, dtype=bool)
+    return pd.Series(
+        [any(str(v).casefold() in wanted for _, v in leaves(r)) for r in raw_records(frame)],
+        index=frame.index,
+        dtype=bool,
+    )
 
 
 def entity_values(alert):
-    return {str(v) for field, v in leaves(alert["entities"])
-            if v and not field.endswith("display_name")}
+    return {str(v) for field, v in leaves(alert["entities"]) if v and not field.endswith("display_name")}
 
 
 def change_times(changes, zone="Europe/Madrid"):
     result = changes.copy()
     for col in ("inicio", "fin"):
-        result[col + "_utc"] = pd.to_datetime(result[col]).dt.tz_localize(
-            zone, ambiguous="raise", nonexistent="raise").dt.tz_convert("UTC")
+        result[col + "_utc"] = (
+            pd.to_datetime(result[col])
+            .dt.tz_localize(zone, ambiguous="raise", nonexistent="raise")
+            .dt.tz_convert("UTC")
+        )
     return result
 
 

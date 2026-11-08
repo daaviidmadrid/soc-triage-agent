@@ -5,6 +5,7 @@ Needs the mock API and an LLM key in .env. Refuses the held-out alerts (eval/hel
 --allow-heldout is given, which is only for the final evaluation. The report only proposes containment:
 the policy check here names the approvers, and nothing approves or runs an action.
 """
+
 import argparse
 import json
 import sys
@@ -40,7 +41,9 @@ def main(arguments=None):
     parser.add_argument("alert_ids", nargs="+")
     parser.add_argument("--tickets", help="folder of triage tickets from the batch, used as leads")
     parser.add_argument("--out", default=str(inv.REPORTS_DIR))
-    parser.add_argument("--allow-heldout", action="store_true", help="only for the final evaluation, never while tuning")
+    parser.add_argument(
+        "--allow-heldout", action="store_true", help="only for the final evaluation, never while tuning"
+    )
     args = parser.parse_args(arguments)
     held = sorted(set(args.alert_ids) & heldout_ids())
     if held and not args.allow_heldout:
@@ -54,14 +57,23 @@ def main(arguments=None):
     tickets = _load_tickets(args.tickets, args.alert_ids) if args.tickets else []
     calls = []
     check = step_checker(api_client.get_asset, api_client.get_user)
-    report, events = inv.run_investigation([alerts[a] for a in args.alert_ids], tickets=tickets, call_log=calls,
-                                           check_containment=check)
+    report, events = inv.run_investigation(
+        [alerts[a] for a in args.alert_ids], tickets=tickets, call_log=calls, check_containment=check
+    )
     out = Path(args.out)
     _write_json(out / f"{report.incident_id}.json", report.model_dump(mode="json"))
-    _write_json(out / "traces" / f"{report.incident_id}.json", [e.model_dump(mode="json", exclude={"report"}, exclude_none=True) for e in events])
-    _write_json(out / "calls" / f"{report.incident_id}.json", {"incident_id": report.incident_id, "prompt_version": inv.PROMPT_VERSION, "calls": calls})
+    _write_json(
+        out / "traces" / f"{report.incident_id}.json",
+        [e.model_dump(mode="json", exclude={"report"}, exclude_none=True) for e in events],
+    )
+    _write_json(
+        out / "calls" / f"{report.incident_id}.json",
+        {"incident_id": report.incident_id, "prompt_version": inv.PROMPT_VERSION, "calls": calls},
+    )
     print(f"{report.incident_id}: {report.title}")
-    print(f"Evidence: {report.evidence_summary.rows_retrieved} rows, {report.evidence_summary.rows_not_linked_by_alerts} not linked by any alert")
+    print(
+        f"Evidence: {report.evidence_summary.rows_retrieved} rows, {report.evidence_summary.rows_not_linked_by_alerts} not linked by any alert"
+    )
     for step in report.timeline:
         extra = f" (+{len(step.similar_event_ids)})" if step.similar_event_ids else ""
         linked = "alert" if step.linked_by_alerts else "found"

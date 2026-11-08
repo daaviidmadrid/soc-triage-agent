@@ -3,6 +3,7 @@
 Plain code, no LLM. Text from the data (subjects, prompts, descriptions) is copied as is:
 it is evidence, never instructions, and it is never removed or cleaned for what it says.
 """
+
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -36,11 +37,24 @@ MADRID = ZoneInfo("Europe/Madrid")
 
 # Prefix of an event_id in related_events -> log source.
 EVENT_PREFIX_SOURCE = {
-    "ADE": "ad_events", "AIG": "ai_gateway", "CI": "cicd_builds", "CT": "cloudtrail",
-    "DLP": "dlp", "DNS": "dns", "ECO": "ecom_account", "ECA": "ecom_auth",
-    "EDR": "edr_events", "EML": "email", "CLK": "email_clicks", "FW": "firewall",
-    "AUD": "idp_audit", "SIGN": "idp_signins", "PRX": "proxy", "SQL": "sql_audit",
-    "VPN": "vpn", "WAF": "waf",
+    "ADE": "ad_events",
+    "AIG": "ai_gateway",
+    "CI": "cicd_builds",
+    "CT": "cloudtrail",
+    "DLP": "dlp",
+    "DNS": "dns",
+    "ECO": "ecom_account",
+    "ECA": "ecom_auth",
+    "EDR": "edr_events",
+    "EML": "email",
+    "CLK": "email_clicks",
+    "FW": "firewall",
+    "AUD": "idp_audit",
+    "SIGN": "idp_signins",
+    "PRX": "proxy",
+    "SQL": "sql_audit",
+    "VPN": "vpn",
+    "WAF": "waf",
 }
 
 # Log sources searched for each rule, from the runbooks' checks. Sources of the
@@ -51,26 +65,48 @@ _IDP = ["idp_signins", "idp_audit", "vpn"]
 _EDR = ["edr_events", "proxy", "firewall", "dns"]
 _NET = ["proxy", "dns", "firewall", "edr_events"]
 RULE_LOG_SOURCES = {
-    "UC-EML-001": _PHISH, "UC-EML-002": _PHISH, "UC-EML-003": _PHISH,
+    "UC-EML-001": _PHISH,
+    "UC-EML-002": _PHISH,
+    "UC-EML-003": _PHISH,
     "UC-EML-004": ["email", "idp_signins", "idp_audit"],
-    "UC-IDP-001": _IDP, "UC-IDP-002": _IDP, "UC-IDP-003": _IDP, "UC-IDP-004": _IDP,
-    "UC-IDP-005": _IDP + ["email"], "UC-IDP-006": _IDP, "UC-IDP-007": _IDP,
+    "UC-IDP-001": _IDP,
+    "UC-IDP-002": _IDP,
+    "UC-IDP-003": _IDP,
+    "UC-IDP-004": _IDP,
+    "UC-IDP-005": _IDP + ["email"],
+    "UC-IDP-006": _IDP,
+    "UC-IDP-007": _IDP,
     "UC-IDP-008": ["ad_events", "edr_events", "idp_signins"],
     "UC-VPN-001": ["vpn", "firewall", "idp_signins"],
-    "UC-EDR-001": _EDR, "UC-EDR-002": _EDR, "UC-EDR-003": _EDR, "UC-EDR-004": _EDR,
-    "UC-EDR-005": _EDR, "UC-EDR-006": _EDR, "UC-EDR-007": _EDR, "UC-EDR-008": _EDR,
-    "UC-EDR-010": _EDR, "UC-EDR-011": _EDR, "UC-EDR-012": _EDR,
+    "UC-EDR-001": _EDR,
+    "UC-EDR-002": _EDR,
+    "UC-EDR-003": _EDR,
+    "UC-EDR-004": _EDR,
+    "UC-EDR-005": _EDR,
+    "UC-EDR-006": _EDR,
+    "UC-EDR-007": _EDR,
+    "UC-EDR-008": _EDR,
+    "UC-EDR-010": _EDR,
+    "UC-EDR-011": _EDR,
+    "UC-EDR-012": _EDR,
     "UC-EDR-009": ["edr_events", "waf", "firewall"],
-    "UC-NET-001": _NET, "UC-NET-002": _NET, "UC-NET-005": _NET, "UC-NET-006": _NET,
-    "UC-NET-003": ["firewall", "edr_events"], "UC-NET-004": ["firewall", "edr_events", "ad_events"],
+    "UC-NET-001": _NET,
+    "UC-NET-002": _NET,
+    "UC-NET-005": _NET,
+    "UC-NET-006": _NET,
+    "UC-NET-003": ["firewall", "edr_events"],
+    "UC-NET-004": ["firewall", "edr_events", "ad_events"],
     "UC-WEB-001": ["waf"],
     "UC-WEB-002": ["waf", "ecom_auth", "ecom_account"],
     "UC-WEB-003": ["ecom_account", "ecom_auth"],
-    "UC-CLD-001": ["cloudtrail"], "UC-CLD-002": ["cloudtrail"],
-    "UC-CLD-003": ["cloudtrail"], "UC-CLD-004": ["cloudtrail"],
+    "UC-CLD-001": ["cloudtrail"],
+    "UC-CLD-002": ["cloudtrail"],
+    "UC-CLD-003": ["cloudtrail"],
+    "UC-CLD-004": ["cloudtrail"],
     "UC-DLP-001": ["dlp", "sql_audit", "edr_events", "proxy"],
     "UC-DLP-002": ["dlp", "email", "sql_audit", "edr_events"],
-    "UC-AI-001": ["ai_gateway"], "UC-AI-002": ["ai_gateway"],
+    "UC-AI-001": ["ai_gateway"],
+    "UC-AI-002": ["ai_gateway"],
     "UC-OT-001": ["firewall", "edr_events"],
     "UC-DEV-001": ["cicd_builds", "cloudtrail"],
 }
@@ -78,8 +114,13 @@ RULE_LOG_SOURCES = {
 # Entity types searched in logs as an exact value in any field. Others (process names,
 # cloud account) would match far too much or nothing.
 VALUE_TYPES = {"domain", "url", "file", "customer", "ai_session", "cloud_identity", "access_key", "bucket"}
-_CLOUD_TYPES = {"identity": "cloud_identity", "new_user": "cloud_identity", "access_key": "access_key",
-                "bucket": "bucket", "account": "cloud_account"}
+_CLOUD_TYPES = {
+    "identity": "cloud_identity",
+    "new_user": "cloud_identity",
+    "access_key": "access_key",
+    "bucket": "bucket",
+    "account": "cloud_account",
+}
 
 
 def _parse_utc(s):
@@ -151,7 +192,7 @@ def _parse_entities(alert):
 
 def _lookup_entities(alert):
     entities, users, assets, intel, sandbox = [], {}, {}, [], []
-    named = {}     # assets the alert itself names (host entities, IPs the CMDB knows)
+    named = {}  # assets the alert itself names (host entities, IPs the CMDB knows)
     searches = []  # (criterion, value) pairs for log search
 
     def add_asset(a):
@@ -280,6 +321,7 @@ def _trim(rows, related_ids, anchors, budget):
     then the rest by distance to the nearest anchor time (alert creation or a linked
     event). Linked events are always kept; the rest fill `budget` characters.
     Returns (kept rows in that order, {source: [dropped event_ids]})."""
+
     def distance(r):
         try:
             t = _parse_utc(r.get("timestamp"))
@@ -360,10 +402,16 @@ def _campaign_rows(alert, entities, rows, lo, hi):
         return any(h == d or h.endswith("." + d) or d.endswith("." + h) for d in domains if h)
 
     # The reported email: linked to the alert, sent from a domain the alert names, or linking to one.
-    mails = [r for (s, _), r in rows.items() if s == "email" and (
-        r.get("event_id") in (alert.get("related_events") or [])
-        or phishing(str(r.get("sender") or "").rsplit("@", 1)[-1].lower())
-        or any(phishing(host(str(u))) for u in (r.get("urls") or [])))]
+    mails = [
+        r
+        for (s, _), r in rows.items()
+        if s == "email"
+        and (
+            r.get("event_id") in (alert.get("related_events") or [])
+            or phishing(str(r.get("sender") or "").rsplit("@", 1)[-1].lower())
+            or any(phishing(host(str(u))) for u in (r.get("urls") or []))
+        )
+    ]
     urls = sorted({u for r in mails for u in (r.get("urls") or []) if isinstance(u, str)})
     hosts = sorted({host(u) for u in urls} | domains)
     senders = sorted({r.get("sender") for r in mails if r.get("sender")})
@@ -404,7 +452,8 @@ def build_context(alert: dict) -> Context:
     entities, users, assets, named, intel, sandbox, searches = _lookup_entities(alert)
     ctx = Context(alert=alert, users=users, assets=assets, intel=intel, sandbox=sandbox)
     ctx.criticality, ctx.criticality_source = resolve_criticality(
-        alert, {"entities": entities, "assets": assets, "users": users})
+        alert, {"entities": entities, "assets": assets, "users": users}
+    )
 
     rows = _fetch_related(alert)
     event_times = []
@@ -419,8 +468,9 @@ def build_context(alert: dict) -> Context:
         except (TypeError, ValueError):
             event_times = []
 
-    ctx.changes = match_changes(api_client.get_changes(), alert, named, list(rows.values()), event_times,
-                                _linked_assets(rows.values()))
+    ctx.changes = match_changes(
+        api_client.get_changes(), alert, named, list(rows.values()), event_times, _linked_assets(rows.values())
+    )
     ctx.trips, ctx.hr_events = split_hr_events(users, event_times)
     lo, hi = (min(event_times) - CONTEXT_WINDOW, max(event_times) + CONTEXT_WINDOW) if event_times else (None, None)
     api_truncated, shared = _gather_logs(alert, rows, searches, lo, hi)

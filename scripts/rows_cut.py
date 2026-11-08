@@ -12,6 +12,7 @@ Any of them leaves the source in truncated_sources, and then the policy's -1 can
 (docs/decisions.md, Incomplete evidence). --context-chars and --prompt-chars try other budgets
 without changing the code. Needs the mock API (MOCK_API_URL, default http://localhost:8000).
 """
+
 import argparse
 import importlib.util
 import sys
@@ -75,8 +76,12 @@ def main(arguments=None):
     prompt = sum(in_prompt for _, in_prompt, _ in results)
     either = sum(by_budget or in_prompt for by_budget, in_prompt, _ in results)
     truncated = sum(any_truncated for _, _, any_truncated in results)
-    print(f"Set '{args.set}': {total} alerts. MAX_CONTEXT_CHARS {context_module.MAX_CONTEXT_CHARS:,}, MAX_PROMPT_CHARS {prompts.MAX_PROMPT_CHARS:,}.")
-    print(f"  Rows cut to fit a budget: {either} ({either / total:.0%}). By the context budget {budget}, from the prompt {prompt}.")
+    print(
+        f"Set '{args.set}': {total} alerts. MAX_CONTEXT_CHARS {context_module.MAX_CONTEXT_CHARS:,}, MAX_PROMPT_CHARS {prompts.MAX_PROMPT_CHARS:,}."
+    )
+    print(
+        f"  Rows cut to fit a budget: {either} ({either / total:.0%}). By the context budget {budget}, from the prompt {prompt}."
+    )
     print(f"  Any source truncated, including the API's search limit, so no -1: {truncated} ({truncated / total:.0%}).")
     return 0
 

@@ -1,5 +1,6 @@
 """search_logs() on the real data. Expected rows are computed straight from the files in
 data/04_logs with each log's literal format, independently of LOG_FIELDS."""
+
 import csv
 import json
 from functools import lru_cache
@@ -31,7 +32,11 @@ def ids(rows):
 # (marc.gil / marc.gil2 ...). The lambda says literally how that log writes the person.
 PEOPLE = [
     ("idp_signins", "marc.gil", lambda r, n: r["user_upn"] == f"{n}@tarvia.example"),
-    ("email", "marc.gil", lambda r, n: r["sender"] == f"{n}@tarvia.example" or f"{n}@tarvia.example" in r["recipients"]),
+    (
+        "email",
+        "marc.gil",
+        lambda r, n: r["sender"] == f"{n}@tarvia.example" or f"{n}@tarvia.example" in r["recipients"],
+    ),
     ("idp_audit", "marc.gil", lambda r, n: f"{n}@tarvia.example" in (r["actor_upn"], r["target"])),
     ("email_clicks", "neus.sala", lambda r, n: r["user"] == f"{n}@tarvia.example"),
     ("edr_events", "andrea.gomez", lambda r, n: r["user"] == f"TARVIA\\{n}"),

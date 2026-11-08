@@ -75,7 +75,12 @@ def no_sleep(_seconds):
 def test_returns_text_model_and_tokens():
     client = FakeClient(reply())
     result = complete("system", "user", client=client, sleep=no_sleep)
-    assert (result.text, result.model, result.prompt_tokens, result.completion_tokens) == ('{"ok": true}', "main-model", 10, 5)
+    assert (result.text, result.model, result.prompt_tokens, result.completion_tokens) == (
+        '{"ok": true}',
+        "main-model",
+        10,
+        5,
+    )
     assert result.attempts == 1
     assert client.last_request["messages"][0] == {"role": "system", "content": "system"}
     assert "response_format" not in client.last_request  # JSON mode is off by default since v8
@@ -112,7 +117,9 @@ def test_rate_limit_then_backup_model():
 def test_backup_defaults_when_not_set(monkeypatch):
     monkeypatch.delenv("LLM_BACKUP_MODEL")
     client = FakeClient(overloaded(), overloaded(), reply())
-    assert complete("s", "u", client=client, sleep=no_sleep).model == llm.DEFAULT_BACKUP_MODEL == "gemini-3.5-flash-lite"
+    assert (
+        complete("s", "u", client=client, sleep=no_sleep).model == llm.DEFAULT_BACKUP_MODEL == "gemini-3.5-flash-lite"
+    )
 
 
 def test_gives_up_after_every_model_failed():
@@ -132,13 +139,34 @@ def test_does_not_call_the_same_model_twice_as_backup(monkeypatch):
 
 
 def daily_limit(seconds="44107s"):
-    body = [{"error": {"details": [{"violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}]},
-                                   {"retryDelay": seconds}]}}]
+    body = [
+        {
+            "error": {
+                "details": [
+                    {
+                        "violations": [
+                            {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}
+                        ]
+                    },
+                    {"retryDelay": seconds},
+                ]
+            }
+        }
+    ]
     return openai.RateLimitError("quota", response=httpx2.Response(429, request=REQUEST), body=body)
 
 
 def per_minute_limit(seconds="40s"):
-    body = [{"error": {"details": [{"violations": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}, {"retryDelay": seconds}]}}]
+    body = [
+        {
+            "error": {
+                "details": [
+                    {"violations": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]},
+                    {"retryDelay": seconds},
+                ]
+            }
+        }
+    ]
     return openai.RateLimitError("quota", response=httpx2.Response(429, request=REQUEST), body=body)
 
 
@@ -197,7 +225,9 @@ def test_the_client_is_reused_between_calls(monkeypatch):
 def chunk(text=None, finish_reason=None, usage=None):
     if text is None and finish_reason is None:
         return SimpleNamespace(choices=[], usage=usage)
-    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text), finish_reason=finish_reason)], usage=usage)
+    return SimpleNamespace(
+        choices=[SimpleNamespace(delta=SimpleNamespace(content=text), finish_reason=finish_reason)], usage=usage
+    )
 
 
 def streamed(*chunks, then=None):
@@ -205,6 +235,7 @@ def streamed(*chunks, then=None):
         yield from chunks
         if then:
             raise then
+
     return generate()
 
 
@@ -228,7 +259,9 @@ def test_streaming_can_be_turned_off(monkeypatch):
 
 
 def test_a_stream_cut_halfway_is_retried(streaming):
-    client = FakeClient(streamed(chunk('{"ok"'), then=ConnectionResetError("cut")), streamed(chunk('{"ok": true}'), chunk("", "stop")))
+    client = FakeClient(
+        streamed(chunk('{"ok"'), then=ConnectionResetError("cut")), streamed(chunk('{"ok": true}'), chunk("", "stop"))
+    )
     result = complete("s", "u", client=client, sleep=no_sleep)
     assert result.text == '{"ok": true}' and result.attempts == 2
 
@@ -335,7 +368,9 @@ def test_auth_error_stops_at_once_and_never_shows_the_key():
 
 def test_retry_logs_never_show_the_key(caplog):
     with pytest.raises(LLMUnavailable):
-        complete("s", "u", client=FakeClient(*[rate_limited(message="secret-test-key") for _ in range(4)]), sleep=no_sleep)
+        complete(
+            "s", "u", client=FakeClient(*[rate_limited(message="secret-test-key") for _ in range(4)]), sleep=no_sleep
+        )
     assert "secret-test-key" not in caplog.text
 
 

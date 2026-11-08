@@ -4,6 +4,7 @@ Source: data/01_contexto/politica_soc.md, section 2. Where the sample ticket
 (ticket_ejemplo.json) disagrees, this follows the policy: the sample drops two levels
 (blocked by WAF, then "path does not exist"), which breaks the one-level cap.
 """
+
 import csv
 from pathlib import Path
 
@@ -13,11 +14,11 @@ CRITICALITIES = ["Baja", "Media", "Alta", "Crítica"]
 # Rule severity x criticality of the most critical affected asset or identity.
 MATRIX = {
     #                Baja             Media            Alta        Crítica
-    "informational": {"Baja": "informational", "Media": "informational", "Alta": "low",      "Crítica": "low"},
-    "low":           {"Baja": "informational", "Media": "low",           "Alta": "low",      "Crítica": "medium"},
-    "medium":        {"Baja": "low",           "Media": "medium",        "Alta": "medium",   "Crítica": "high"},
-    "high":          {"Baja": "medium",        "Media": "high",          "Alta": "high",     "Crítica": "critical"},
-    "critical":      {"Baja": "high",          "Media": "critical",      "Alta": "critical", "Crítica": "critical"},
+    "informational": {"Baja": "informational", "Media": "informational", "Alta": "low", "Crítica": "low"},
+    "low": {"Baja": "informational", "Media": "low", "Alta": "low", "Crítica": "medium"},
+    "medium": {"Baja": "low", "Media": "medium", "Alta": "medium", "Crítica": "high"},
+    "high": {"Baja": "medium", "Media": "high", "Alta": "high", "Crítica": "critical"},
+    "critical": {"Baja": "high", "Media": "critical", "Alta": "critical", "Crítica": "critical"},
 }
 
 MAX_ADJUSTMENT = 1  # policy: at most one level up or down in total
@@ -27,10 +28,15 @@ MAX_ADJUSTMENT = 1  # policy: at most one level up or down in total
 AUTHORISED_SEVERITY = "low"
 
 _CRIT_ALIASES = {
-    "baja": "Baja", "low": "Baja",
-    "media": "Media", "medium": "Media",
-    "alta": "Alta", "high": "Alta",
-    "crítica": "Crítica", "critica": "Crítica", "critical": "Crítica",
+    "baja": "Baja",
+    "low": "Baja",
+    "media": "Media",
+    "medium": "Media",
+    "alta": "Alta",
+    "high": "Alta",
+    "crítica": "Crítica",
+    "critica": "Crítica",
+    "critical": "Crítica",
 }
 
 
@@ -61,8 +67,9 @@ def _shift(level, delta):
     return LEVELS[i]
 
 
-def compute_severity(rule_severity, criticality, adjustments=(), runbook_floor=None, authorised=False,
-                     evidence_complete=True):
+def compute_severity(
+    rule_severity, criticality, adjustments=(), runbook_floor=None, authorised=False, evidence_complete=True
+):
     """Final severity per policy section 2.
 
     adjustments: items with delta (+1/-1) and reason, as dicts, (delta, reason) tuples or objects.

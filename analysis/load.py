@@ -6,6 +6,7 @@ Original timestamps are preserved; *_utc columns are added only for event
 timestamps with explicit UTC offsets. Calendar wall times need separate handling.
 No loader opens URLs, reads environment files, or writes to the dataset.
 """
+
 import json
 from pathlib import Path
 
@@ -19,9 +20,9 @@ def _table(directory, name):
     if not isinstance(name, str) or Path(name).name != name or name.startswith("."):
         raise ValueError("Use a table basename, not a path")
     folder = DATA / directory
-    candidates = [folder / name] if Path(name).suffix else [
-        folder / (name + suffix) for suffix in (".jsonl", ".csv", ".json")
-    ]
+    candidates = (
+        [folder / name] if Path(name).suffix else [folder / (name + suffix) for suffix in (".jsonl", ".csv", ".json")]
+    )
     matches = [p for p in candidates if p.is_file() and p.suffix in {".csv", ".jsonl", ".json"}]
     if len(matches) != 1:
         raise FileNotFoundError(f"Expected one table for {directory}/{name}; found {len(matches)}")
@@ -32,7 +33,9 @@ def _table(directory, name):
         frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     else:
         with path.open(encoding="utf-8-sig") as handle:
-            rows = [json.loads(line) for line in handle if line.strip()] if path.suffix == ".jsonl" else json.load(handle)
+            rows = (
+                [json.loads(line) for line in handle if line.strip()] if path.suffix == ".jsonl" else json.load(handle)
+            )
         frame = pd.DataFrame(rows if isinstance(rows, list) else [rows])
     for column in ("timestamp", "created_at", "eventTime"):
         if column in frame:

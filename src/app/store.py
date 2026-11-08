@@ -3,6 +3,7 @@
 One connection guarded by a lock, so background runs and requests can share it,
 and so tests can use ":memory:".
 """
+
 import json
 import sqlite3
 import threading
@@ -99,7 +100,17 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 """
 
-RUN_FIELDS = ("run_id", "alert_id", "mode", "status", "started_at", "finished_at", "duration_seconds", "ticket_id", "error")
+RUN_FIELDS = (
+    "run_id",
+    "alert_id",
+    "mode",
+    "status",
+    "started_at",
+    "finished_at",
+    "duration_seconds",
+    "ticket_id",
+    "error",
+)
 DECISION_FIELDS = ("id", "ticket_id", "run_id", "analyst", "decision", "outcome", "reason", "decided_at")
 
 
@@ -215,9 +226,13 @@ class Store:
     def add_event(self, run_id, event):
         """Stores the event with the next seq of its run, and returns it."""
         with self._lock:
-            (last,) = self._db.execute("SELECT COALESCE(MAX(seq), 0) FROM events WHERE run_id = ?", (run_id,)).fetchone()
+            (last,) = self._db.execute(
+                "SELECT COALESCE(MAX(seq), 0) FROM events WHERE run_id = ?", (run_id,)
+            ).fetchone()
             event = {**event, "run_id": run_id, "seq": last + 1}
-            self._db.execute("INSERT INTO events (run_id, seq, data) VALUES (?, ?, ?)", (run_id, last + 1, _dumps(event)))
+            self._db.execute(
+                "INSERT INTO events (run_id, seq, data) VALUES (?, ?, ?)", (run_id, last + 1, _dumps(event))
+            )
             self._db.commit()
         return event
 
@@ -237,35 +252,50 @@ class Store:
         if not row:
             return None
         run_id, ticket_id, alert_id, mode, data, saved_at = row
-        return {"run_id": run_id, "ticket_id": ticket_id, "alert_id": alert_id, "mode": mode, "ticket": json.loads(data), "saved_at": saved_at}
+        return {
+            "run_id": run_id,
+            "ticket_id": ticket_id,
+            "alert_id": alert_id,
+            "mode": mode,
+            "ticket": json.loads(data),
+            "saved_at": saved_at,
+        }
 
     def get_ticket(self, ticket_id):
         """The newest version of a ticket. Triaging an alert again makes a new version."""
-        return self._ticket_row(self._one(
-            "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE ticket_id = ? ORDER BY rowid DESC LIMIT 1",
-            (ticket_id,),
-        ))
+        return self._ticket_row(
+            self._one(
+                "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE ticket_id = ? ORDER BY rowid DESC LIMIT 1",
+                (ticket_id,),
+            )
+        )
 
     def ticket_for_run(self, run_id):
-        return self._ticket_row(self._one(
-            "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE run_id = ?", (run_id,)
-        ))
+        return self._ticket_row(
+            self._one(
+                "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE run_id = ?", (run_id,)
+            )
+        )
 
     def ticket_version(self, ticket_id, run_id):
-        return self._ticket_row(self._one(
-            "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE ticket_id = ? AND run_id = ?",
-            (ticket_id, run_id),
-        ))
+        return self._ticket_row(
+            self._one(
+                "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE ticket_id = ? AND run_id = ?",
+                (ticket_id, run_id),
+            )
+        )
 
     def update_ticket(self, run_id, ticket):
         """Changes one saved version in place, so the newest version stays the newest."""
         self._write("UPDATE tickets SET data = ? WHERE run_id = ?", (_dumps(ticket), run_id))
 
     def latest_ticket_for_alert(self, alert_id):
-        return self._ticket_row(self._one(
-            "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE alert_id = ? ORDER BY rowid DESC LIMIT 1",
-            (alert_id,),
-        ))
+        return self._ticket_row(
+            self._one(
+                "SELECT run_id, ticket_id, alert_id, mode, data, saved_at FROM tickets WHERE alert_id = ? ORDER BY rowid DESC LIMIT 1",
+                (alert_id,),
+            )
+        )
 
     def count_tickets(self):
         return self._one("SELECT COUNT(*) FROM tickets")[0]
@@ -328,17 +358,22 @@ class Store:
 
     def get_report(self, key):
         """The newest report for an incident or ticket."""
-        return self._report_row(self._one(
-            "SELECT run_id, report_key, data, saved_at FROM reports WHERE report_key = ? ORDER BY rowid DESC LIMIT 1", (key,)
-        ))
+        return self._report_row(
+            self._one(
+                "SELECT run_id, report_key, data, saved_at FROM reports WHERE report_key = ? ORDER BY rowid DESC LIMIT 1",
+                (key,),
+            )
+        )
 
     def latest_reports(self):
         """{key: {"run_id", "saved_at", "fallback"}} for the newest report of each key, without the reports themselves."""
         rows = self._all(
             "SELECT run_id, report_key, data, saved_at FROM reports WHERE rowid IN (SELECT MAX(rowid) FROM reports GROUP BY report_key)"
         )
-        return {key: {"run_id": run_id, "saved_at": saved_at, "fallback": bool(json.loads(data).get("fallback"))}
-                for run_id, key, data, saved_at in rows}
+        return {
+            key: {"run_id": run_id, "saved_at": saved_at, "fallback": bool(json.loads(data).get("fallback"))}
+            for run_id, key, data, saved_at in rows
+        }
 
     # Decisions
 
@@ -351,7 +386,9 @@ class Store:
         return dict(zip(DECISION_FIELDS, row))
 
     def decisions_for(self, ticket_id):
-        rows = self._all(f"SELECT {', '.join(DECISION_FIELDS)} FROM decisions WHERE ticket_id = ? ORDER BY id DESC", (ticket_id,))
+        rows = self._all(
+            f"SELECT {', '.join(DECISION_FIELDS)} FROM decisions WHERE ticket_id = ? ORDER BY id DESC", (ticket_id,)
+        )
         return [dict(zip(DECISION_FIELDS, row)) for row in rows]
 
     def latest_decisions_by_run(self):
@@ -395,7 +432,9 @@ class Store:
         """Adds it unless the same one exists. Returns its ID, or None if it already existed."""
         with self._lock:
             cursor = self._db.execute(
-                "INSERT OR IGNORE INTO notifications (dedupe, alert_id, data) VALUES (?, ?, ?)", (dedupe, alert_id, _dumps(data)))
+                "INSERT OR IGNORE INTO notifications (dedupe, alert_id, data) VALUES (?, ?, ?)",
+                (dedupe, alert_id, _dumps(data)),
+            )
             self._db.commit()
             return cursor.lastrowid if cursor.rowcount else None
 
@@ -406,18 +445,24 @@ class Store:
     def list_notifications(self, limit=500):
         rows = self._all(
             "SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications "
-            "ORDER BY acknowledged_at IS NOT NULL, id DESC LIMIT ?", (limit,))
+            "ORDER BY acknowledged_at IS NOT NULL, id DESC LIMIT ?",
+            (limit,),
+        )
         return [self._notification(row) for row in rows]
 
     def get_notification(self, notification_id):
-        row = self._one("SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications WHERE id = ?", (notification_id,))
+        row = self._one(
+            "SELECT id, alert_id, data, acknowledged_by, acknowledged_at FROM notifications WHERE id = ?",
+            (notification_id,),
+        )
         return self._notification(row) if row else None
 
     def acknowledge_notification(self, notification_id, analyst):
         """Only the first acknowledgement counts. Returns True if this one did."""
         cursor = self._write(
             "UPDATE notifications SET acknowledged_by = ?, acknowledged_at = ? WHERE id = ? AND acknowledged_at IS NULL",
-            (analyst, now_iso(), notification_id))
+            (analyst, now_iso(), notification_id),
+        )
         return cursor.rowcount > 0
 
     def count_unacknowledged(self):

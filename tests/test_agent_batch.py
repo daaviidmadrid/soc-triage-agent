@@ -160,7 +160,13 @@ def test_daily_limit_stops_the_run_and_saves_nothing_new(tmp_path):
 def test_workers_do_every_alert_once(tmp_path):
     llm = FakeLLM()
     seen = []
-    report = run(tmp_path, list(ALERTS) + ["NOT-THERE"], llm=llm, workers=3, on_result=lambda alert_id, status, seconds: seen.append((alert_id, status)))
+    report = run(
+        tmp_path,
+        list(ALERTS) + ["NOT-THERE"],
+        llm=llm,
+        workers=3,
+        on_result=lambda alert_id, status, seconds: seen.append((alert_id, status)),
+    )
     assert sorted(report["done"]) == sorted(ALERTS) and report["not_found"] == ["NOT-THERE"]
     assert llm.calls == len(ALERTS) and report["calls_used"] == len(ALERTS)
     assert all((tmp_path / f"{alert_id}.json").exists() for alert_id in ALERTS)
@@ -201,7 +207,15 @@ def test_command_line_reads_a_file_of_ids(tmp_path, monkeypatch, capsys):
 
     def fake_run(ids):
         seen.extend(ids)
-        return {"done": ids, "skipped": [], "failed": [], "not_found": [], "invalid_ids": [], "not_started": [], "calls_used": len(ids)}
+        return {
+            "done": ids,
+            "skipped": [],
+            "failed": [],
+            "not_found": [],
+            "invalid_ids": [],
+            "not_started": [],
+            "calls_used": len(ids),
+        }
 
     monkeypatch.setattr(batch, "run_batch", fake_run)
     ids_file = tmp_path / "ids.txt"

@@ -2,7 +2,10 @@ from src.agent.triage import parse_answer
 
 
 def test_object_wrapped_in_text_is_still_read_and_checked():
-    draft, errors = parse_answer('Here it is:\n```json\n{"action": "search_logs", "source": "dns", "value": "x.test", "reason": "x"}\n```\nDone.', True)
+    draft, errors = parse_answer(
+        'Here it is:\n```json\n{"action": "search_logs", "source": "dns", "value": "x.test", "reason": "x"}\n```\nDone.',
+        True,
+    )
     assert errors == [] and draft is not None
 
 

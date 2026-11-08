@@ -9,6 +9,7 @@ data/03_alertas/alertas.jsonl whose detection rule has a fixed rule, except the 
 --out writes one line per alert: whether it closed, and the condition that failed if not.
 Needs the mock API (MOCK_API_URL, default http://localhost:8000).
 """
+
 import argparse
 import collections
 import json
@@ -41,8 +42,13 @@ def outcome(raw):
         ticket, refusal = rule_ticket(alert, context, check, compute_severity, 0.0)
         check.refuse(refusal)
     return {
-        "alert_id": raw.get("alert_id"), "detection_rule": raw.get("rule_id"), "rule": check.rule_id, "closed": ticket is not None,
-        "failed": check.failed, "verdict": ticket.verdict if ticket else None, "severity": ticket.severity if ticket else None,
+        "alert_id": raw.get("alert_id"),
+        "detection_rule": raw.get("rule_id"),
+        "rule": check.rule_id,
+        "closed": ticket is not None,
+        "failed": check.failed,
+        "verdict": ticket.verdict if ticket else None,
+        "severity": ticket.severity if ticket else None,
         "truncated_sources": context.get("truncated_sources") or [],
     }
 
@@ -54,7 +60,11 @@ def main(arguments=None):
     args = parser.parse_args(arguments)
 
     held_out = set(score._read_ids(score.HELDOUT_FILE))
-    alerts = [alert for alert in score._read_jsonl(score.ALL_ALERTS) if alert.get("rule_id") in RULES and alert.get("alert_id") not in held_out]
+    alerts = [
+        alert
+        for alert in score._read_jsonl(score.ALL_ALERTS)
+        if alert.get("rule_id") in RULES and alert.get("alert_id") not in held_out
+    ]
     print(f"{len(alerts)} alerts covered by a fixed rule, held-out alerts left out. Working ...", flush=True)
     with ThreadPoolExecutor(args.workers) as pool:
         results = list(pool.map(outcome, alerts))
@@ -63,12 +73,18 @@ def main(arguments=None):
         mine = [result for result in results if result["rule"] == rule]
         closed = [result for result in mine if result["closed"]]
         verdicts = collections.Counter((result["verdict"], result["severity"]) for result in closed)
-        print(f"\n{rule} ({mine[0]['detection_rule']}): closes {len(closed)} of {len(mine)} alerts. "
-              + ", ".join(f"{count} {verdict} {severity}" for (verdict, severity), count in verdicts.most_common()))
-        for reason, count in collections.Counter(result["failed"] for result in mine if not result["closed"]).most_common():
+        print(
+            f"\n{rule} ({mine[0]['detection_rule']}): closes {len(closed)} of {len(mine)} alerts. "
+            + ", ".join(f"{count} {verdict} {severity}" for (verdict, severity), count in verdicts.most_common())
+        )
+        for reason, count in collections.Counter(
+            result["failed"] for result in mine if not result["closed"]
+        ).most_common():
             print(f"  goes to the LLM, {count}: {reason}")
     if args.out:
-        Path(args.out).write_text("".join(json.dumps(result, ensure_ascii=False) + "\n" for result in results), encoding="utf-8")
+        Path(args.out).write_text(
+            "".join(json.dumps(result, ensure_ascii=False) + "\n" for result in results), encoding="utf-8"
+        )
         print(f"\nOne line per alert in {args.out}")
     return 0
 

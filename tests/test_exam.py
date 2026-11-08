@@ -1,4 +1,5 @@
 """The script that splits the practice exam across laptops."""
+
 import importlib.util
 import json
 import sys
@@ -15,8 +16,15 @@ spec.loader.exec_module(exam)
 
 
 def ticket(alert_id, verdict="true_positive"):
-    return {"ticket_id": f"TKT-{alert_id}", "alert_ids": [alert_id], "verdict": verdict, "severity": "high", "confidence": 0.9,
-            "evidence": [{"event_id": "E"}], "escalation": {"escalate": True}}
+    return {
+        "ticket_id": f"TKT-{alert_id}",
+        "alert_ids": [alert_id],
+        "verdict": verdict,
+        "severity": "high",
+        "confidence": 0.9,
+        "evidence": [{"event_id": "E"}],
+        "escalation": {"escalate": True},
+    }
 
 
 @pytest.fixture
@@ -120,8 +128,12 @@ def make_laptop(base, name, alert_ids, folder="v2-test-model"):
     (results / "calls").mkdir()
     for alert_id in alert_ids:
         (results / f"{alert_id}.json").write_text(json.dumps(ticket(alert_id)), encoding="utf-8")
-        (results / "calls" / f"{alert_id}.json").write_text(json.dumps({"alert_id": alert_id, "calls": []}), encoding="utf-8")
-        (results / "traces" / f"{alert_id}.json").write_text(json.dumps([{"tool": "llm", "args": {"model": "test-model", "seconds": 2.0}}]), encoding="utf-8")
+        (results / "calls" / f"{alert_id}.json").write_text(
+            json.dumps({"alert_id": alert_id, "calls": []}), encoding="utf-8"
+        )
+        (results / "traces" / f"{alert_id}.json").write_text(
+            json.dumps([{"tool": "llm", "args": {"model": "test-model", "seconds": 2.0}}]), encoding="utf-8"
+        )
     return results
 
 
@@ -133,7 +145,9 @@ def pack(monkeypatch, tmp_path, name, results, laptop):
 
 
 def test_three_laptops_pack_and_merge_into_one_folder(tmp_path, monkeypatch):
-    zips = [pack(monkeypatch, tmp_path, f"l{n}", make_laptop(tmp_path, f"l{n}", [f"A{n}", f"B{n}"]), n) for n in (1, 2, 3)]
+    zips = [
+        pack(monkeypatch, tmp_path, f"l{n}", make_laptop(tmp_path, f"l{n}", [f"A{n}", f"B{n}"]), n) for n in (1, 2, 3)
+    ]
     merged = tmp_path / "merged"
     for path in zips:
         assert exam.merge_zip(path, merged) == ("v2-test-model", 2, 0, 0)
@@ -152,7 +166,19 @@ def test_merge_never_overwrites_a_different_ticket(tmp_path, monkeypatch):
     assert json.loads((merged / "A1.json").read_text(encoding="utf-8"))["verdict"] == "false_positive"
 
 
-@pytest.mark.parametrize("name", ["../evil.json", "v2/../../evil.json", "v2/a/b/c.json", "v2/evil.py", "../v2/ok.json", "ok.json", "/tmp/evil.json", "v2/traces/../evil.json"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../evil.json",
+        "v2/../../evil.json",
+        "v2/a/b/c.json",
+        "v2/evil.py",
+        "../v2/ok.json",
+        "ok.json",
+        "/tmp/evil.json",
+        "v2/traces/../evil.json",
+    ],
+)
 def test_merge_refuses_anything_that_isnt_a_ticket_or_trace(tmp_path, name):
     path = tmp_path / "bad.zip"
     with zipfile.ZipFile(path, "w") as archive:
@@ -188,7 +214,9 @@ def test_run_does_only_what_is_missing_and_says_when_it_is_finished(runs, monkey
         return {"quota_exhausted": False}
 
     monkeypatch.setattr(batch, "run_batch", fake_batch)
-    monkeypatch.setattr(batch, "load_alerts", lambda pending: {alert_id: {"alert_id": alert_id} for alert_id in pending})
+    monkeypatch.setattr(
+        batch, "load_alerts", lambda pending: {alert_id: {"alert_id": alert_id} for alert_id in pending}
+    )
     monkeypatch.setattr(exam, "mock_is_up", lambda url=None: True)
     assert exam.command_run(exam.parser().parse_args(["run", "--laptop", "2", "--laptops", "3"])) == 0
     assert seen == ids[1:]
@@ -220,7 +248,11 @@ def test_score_marks_labelled_tickets_and_counts_the_rest(tmp_path, runs, monkey
     from eval import score
 
     results = make_laptop(tmp_path, "l1", ["A1", "NOLABEL"])
-    monkeypatch.setattr(score, "load_labels", lambda: [{"alert_id": "A1", "verdict": "true_positive", "severity": "high", "escalate": "true"}])
+    monkeypatch.setattr(
+        score,
+        "load_labels",
+        lambda: [{"alert_id": "A1", "verdict": "true_positive", "severity": "high", "escalate": "true"}],
+    )
     assert exam.command_score(exam.parser().parse_args(["score", "--folder", str(results)])) == 0
     output = capsys.readouterr().out
     assert "verdict                1/1" in output and "no answer to compare: 1" in output and "test-model" in output
@@ -231,7 +263,11 @@ def test_score_lists_disagreements_with_the_key(tmp_path, runs, monkeypatch, cap
     from eval import score
 
     results = make_laptop(tmp_path, "l1", ["A1"])
-    monkeypatch.setattr(score, "load_labels", lambda: [{"alert_id": "A1", "verdict": "false_positive", "severity": "", "escalate": "false"}])
+    monkeypatch.setattr(
+        score,
+        "load_labels",
+        lambda: [{"alert_id": "A1", "verdict": "false_positive", "severity": "", "escalate": "false"}],
+    )
     exam.command_score(exam.parser().parse_args(["score", "--folder", str(results)]))
     output = capsys.readouterr().out
     assert "Disagreements with the key: 1" in output and "verdict: AI true_positive, key false_positive" in output

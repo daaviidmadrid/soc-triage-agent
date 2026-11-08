@@ -4,29 +4,41 @@ Severities and deadlines come from the alert's severity field and the ticket's f
 through src/policy/sla.py. No text from an alert, a log or a ticket reaches a record or a notification: their reasons are
 fixed texts. This never sends anything outside the app. A person reads and acknowledges notifications in the console.
 """
+
 import threading
 from functools import wraps
 
 from src.policy import sla as policy
 
-SEVERITY_NAME = {"critical": "crítica", "high": "alta", "medium": "media", "low": "baja", "informational": "informativa"}
+SEVERITY_NAME = {
+    "critical": "crítica",
+    "high": "alta",
+    "medium": "media",
+    "low": "baja",
+    "informational": "informativa",
+}
 
 
 def is_fallback(ticket, events):
     """A ticket code wrote because the triage couldn't finish. It isn't a triage, so it doesn't stop the clock.
     The same test as isFallback in ui/src/ticket/runState.js."""
     evidence = ticket.get("evidence") if isinstance(ticket, dict) else None
-    return (ticket.get("verdict") == "needs_more_info" and not evidence
-            and any(isinstance(event, dict) and event.get("type") == "error" for event in events))
+    return (
+        ticket.get("verdict") == "needs_more_info"
+        and not evidence
+        and any(isinstance(event, dict) and event.get("type") == "error" for event in events)
+    )
 
 
 def _locked(method):
     """Each change reads a record, works on it and writes it back, from requests and the worker at once. Without the
     lock, a refresh could write back an old copy over the ticket that just stopped the clock."""
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         with self._lock:
             return method(self, *args, **kwargs)
+
     return wrapper
 
 
@@ -42,20 +54,48 @@ class SlaTracker:
     def _notify(self, record, kind, reason):
         severity = record["severity"]
         for role in policy.TARGETS[severity]["notify"]:
-            data = {"role": role, "severity": severity, "kind": kind, "ticket_id": record.get("ticket_id"), "mode": record.get("mode"),
-                    "deadline": record.get("deadline"), "at": self.now(), "reason": reason}
-            added = self.store.add_notification(f"{record['alert_id']}|{role}|{severity}|{kind}", record["alert_id"], data)
+            data = {
+                "role": role,
+                "severity": severity,
+                "kind": kind,
+                "ticket_id": record.get("ticket_id"),
+                "mode": record.get("mode"),
+                "deadline": record.get("deadline"),
+                "at": self.now(),
+                "reason": reason,
+            }
+            added = self.store.add_notification(
+                f"{record['alert_id']}|{role}|{severity}|{kind}", record["alert_id"], data
+            )
             if added:
-                self._audit("notification_created", record["alert_id"], reason, {"role": role, "severity": severity, "kind": kind, "notification_id": added})
+                self._audit(
+                    "notification_created",
+                    record["alert_id"],
+                    reason,
+                    {"role": role, "severity": severity, "kind": kind, "notification_id": added},
+                )
 
     def _new_record(self, alert_id, alert, started_at):
         severity, assumed = policy.rule_severity(alert)
         return {
-            "alert_id": alert_id, "started_at": started_at, "rule_severity": severity, "severity_assumed": assumed,
-            "severity": severity, "severity_source": "rule", "deadline_severity": severity,
-            "target_seconds": policy.TARGETS[severity]["seconds"], "deadline": policy.deadline_for(started_at, severity),
-            "stopped_at": None, "stopped_by": None, "status": "open", "breached_at": None,
-            "ticket_id": None, "run_id": None, "mode": None, "changes": [], "escalation_confirmation": None,
+            "alert_id": alert_id,
+            "started_at": started_at,
+            "rule_severity": severity,
+            "severity_assumed": assumed,
+            "severity": severity,
+            "severity_source": "rule",
+            "deadline_severity": severity,
+            "target_seconds": policy.TARGETS[severity]["seconds"],
+            "deadline": policy.deadline_for(started_at, severity),
+            "stopped_at": None,
+            "stopped_by": None,
+            "status": "open",
+            "breached_at": None,
+            "ticket_id": None,
+            "run_id": None,
+            "mode": None,
+            "changes": [],
+            "escalation_confirmation": None,
         }
 
     @_locked
@@ -68,12 +108,27 @@ class SlaTracker:
             row = self.store.get_alert(alert_id)
             record = self._new_record(alert_id, row["alert"], entered[alert_id])
             self.store.save_sla(alert_id, record)
-            self._audit("sla_started", alert_id, "El reloj empieza cuando la alerta entra en el sistema.",
-                        {"started_at": record["started_at"], "deadline": record["deadline"], "severity": record["severity"]})
-            self._notify(record, "severity", f"Severidad {SEVERITY_NAME[record['severity']]} según la regla (política, apartado 3).")
+            self._audit(
+                "sla_started",
+                alert_id,
+                "El reloj empieza cuando la alerta entra en el sistema.",
+                {"started_at": record["started_at"], "deadline": record["deadline"], "severity": record["severity"]},
+            )
+            self._notify(
+                record,
+                "severity",
+                f"Severidad {SEVERITY_NAME[record['severity']]} según la regla (política, apartado 3).",
+            )
             ticket_row = self.store.latest_ticket_for_alert(alert_id)
             if ticket_row:  # a database from before SLA tracking
-                self.on_ticket(alert_id, ticket_row["ticket"], ticket_row["run_id"], ticket_row["mode"], self.store.events_after(ticket_row["run_id"]), at=ticket_row["saved_at"])
+                self.on_ticket(
+                    alert_id,
+                    ticket_row["ticket"],
+                    ticket_row["run_id"],
+                    ticket_row["mode"],
+                    self.store.events_after(ticket_row["run_id"]),
+                    at=ticket_row["saved_at"],
+                )
         return len(missing)
 
     @_locked
@@ -93,18 +148,29 @@ class SlaTracker:
             change = {"at": at, "from": record["severity"], "to": final, "deadline_before": record["deadline"]}
             record.update(severity=final, severity_source="final")
             if policy.is_higher(final, record["deadline_severity"]):
-                record.update(deadline_severity=final, target_seconds=policy.TARGETS[final]["seconds"],
-                              deadline=policy.deadline_for(record["started_at"], final), breached_at=None)
+                record.update(
+                    deadline_severity=final,
+                    target_seconds=policy.TARGETS[final]["seconds"],
+                    deadline=policy.deadline_for(record["started_at"], final),
+                    breached_at=None,
+                )
             change["deadline_after"] = record["deadline"]
             record["changes"].append(change)
-            self._audit("sla_severity_changed", alert_id, "La severidad final sustituye a la de la regla. Si es mayor, el plazo se recalcula desde el mismo inicio.", change)
+            self._audit(
+                "sla_severity_changed",
+                alert_id,
+                "La severidad final sustituye a la de la regla. Si es mayor, el plazo se recalcula desde el mismo inicio.",
+                change,
+            )
         elif final in policy.TARGETS:
             record["severity_source"] = "final"
         if record["stopped_at"] is None and not is_fallback(ticket, events):
             record.update(stopped_at=at, stopped_by="ticket")
         self._settle(record)
         self.store.save_sla(alert_id, record)
-        self._notify(record, "severity", f"Severidad {SEVERITY_NAME[record['severity']]} tras el triaje (política, apartado 3).")
+        self._notify(
+            record, "severity", f"Severidad {SEVERITY_NAME[record['severity']]} tras el triaje (política, apartado 3)."
+        )
         return record
 
     @_locked
@@ -128,11 +194,25 @@ class SlaTracker:
                 self._record_breach(record)
         else:
             record["breached_at"] = None
-        self._audit("sla_stopped", record["alert_id"], f"Reloj detenido: {record['status']}.",
-                    {"stopped_at": record["stopped_at"], "deadline": record["deadline"], "status": record["status"], "by": record["stopped_by"]})
+        self._audit(
+            "sla_stopped",
+            record["alert_id"],
+            f"Reloj detenido: {record['status']}.",
+            {
+                "stopped_at": record["stopped_at"],
+                "deadline": record["deadline"],
+                "status": record["status"],
+                "by": record["stopped_by"],
+            },
+        )
 
     def _record_breach(self, record):
-        self._audit("sla_breached", record["alert_id"], "Se superó el plazo de la política.", {"deadline": record["deadline"], "severity": record["severity"]})
+        self._audit(
+            "sla_breached",
+            record["alert_id"],
+            "Se superó el plazo de la política.",
+            {"deadline": record["deadline"], "severity": record["severity"]},
+        )
         self._notify(record, "breach", f"Plazo incumplido para severidad {SEVERITY_NAME[record['severity']]}.")
 
     @_locked
@@ -142,7 +222,11 @@ class SlaTracker:
         self.open_new()
         now = self.now()
         for alert_id, record in self.store.all_sla().items():
-            if record["status"] == "open" and record["deadline"] and policy.live_status(record["deadline"], record["target_seconds"], now) == "breached":
+            if (
+                record["status"] == "open"
+                and record["deadline"]
+                and policy.live_status(record["deadline"], record["target_seconds"], now) == "breached"
+            ):
                 record.update(status="breached", breached_at=record["deadline"])
                 self.store.save_sla(alert_id, record)
                 self._record_breach(record)
@@ -162,7 +246,12 @@ class SlaTracker:
             why = "time" if state == "at_risk" else None
             if state == "on_track" and worker_stopped:
                 state, why = "at_risk", "worker"
-        return {**record, "state": state, "at_risk_reason": why, "required_action": policy.required_action(record["severity"])}
+        return {
+            **record,
+            "state": state,
+            "at_risk_reason": why,
+            "required_action": policy.required_action(record["severity"]),
+        }
 
     @_locked
     def confirm_escalation(self, alert_id, analyst, kind, note):
@@ -172,5 +261,7 @@ class SlaTracker:
             return None
         record["escalation_confirmation"] = {"kind": kind, "by": analyst, "at": self.now(), "note": note}
         self.store.save_sla(alert_id, record)
-        self.store.add_audit("person", analyst, "escalation_confirmed", alert_id, note or "Confirmación sin nota.", {"kind": kind})
+        self.store.add_audit(
+            "person", analyst, "escalation_confirmed", alert_id, note or "Confirmación sin nota.", {"kind": kind}
+        )
         return record

@@ -55,12 +55,14 @@ def test_text_in_the_data_cannot_close_the_block():
     assert user.count("</untrusted_data>") == 1
     assert user.count("<untrusted_data>") == 1
     # Only v8's fixed answer checklist may follow the block.
-    assert user.rstrip().endswith("</untrusted_data>" + prompts.REMINDER.rstrip()) or user.rstrip().endswith("</untrusted_data>")
+    assert user.rstrip().endswith("</untrusted_data>" + prompts.REMINDER.rstrip()) or user.rstrip().endswith(
+        "</untrusted_data>"
+    )
     assert block_contents(user)["logs"][0]["text"] == CLOSER
 
 
 def test_data_block_is_valid_json_that_round_trips():
-    data = {"a": "<b>&\"quotes\"</b>\n", "ñ": "€"}
+    data = {"a": '<b>&"quotes"</b>\n', "ñ": "€"}
     inner = data_block(data).removeprefix("<untrusted_data>\n").removesuffix("\n</untrusted_data>")
     assert json.loads(inner) == data
 

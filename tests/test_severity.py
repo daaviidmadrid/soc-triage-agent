@@ -118,14 +118,19 @@ def test_adjustment_objects():
     class Adj:
         delta = -1
         reason = "bloqueado"
+
     assert compute_severity("medium", "Media", [Adj()])["final"] == "low"
 
 
 # --- resolve_criticality ---
 
+
 def ctx(entities=(), assets=(), users=()):
-    return {"entities": [{"type": t, "value": v, "known": True} for t, v in entities],
-            "assets": list(assets), "users": list(users)}
+    return {
+        "entities": [{"type": t, "value": v, "known": True} for t, v in entities],
+        "assets": list(assets),
+        "users": list(users),
+    }
 
 
 WS_ALTA = {"hostname": "WS-BCN-1001", "ip": "10.10.1.12", "criticality": "Alta"}

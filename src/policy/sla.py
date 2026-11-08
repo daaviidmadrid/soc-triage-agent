@@ -7,14 +7,30 @@ The clock starts when an alert enters the store, not at its timestamp in the dat
 and would otherwise all show as breached. Everything here takes severities and times worked out by code. Text from
 the data never reaches it.
 """
+
 from datetime import datetime, timedelta, timezone
 
 from src.policy.severity import LEVELS
 
 TARGETS = {
-    "critical": {"seconds": 15 * 60, "label": "15 min", "escalation": "Inmediato a N2 de guardia por teléfono", "notify": ["Responsable SOC", "CISO"]},
-    "high": {"seconds": 30 * 60, "label": "30 min", "escalation": "A N2 en la misma jornada", "notify": ["Responsable SOC"]},
-    "medium": {"seconds": 4 * 3600, "label": "4 h", "escalation": "Si tras el triaje hay indicios de compromiso", "notify": []},
+    "critical": {
+        "seconds": 15 * 60,
+        "label": "15 min",
+        "escalation": "Inmediato a N2 de guardia por teléfono",
+        "notify": ["Responsable SOC", "CISO"],
+    },
+    "high": {
+        "seconds": 30 * 60,
+        "label": "30 min",
+        "escalation": "A N2 en la misma jornada",
+        "notify": ["Responsable SOC"],
+    },
+    "medium": {
+        "seconds": 4 * 3600,
+        "label": "4 h",
+        "escalation": "Si tras el triaje hay indicios de compromiso",
+        "notify": [],
+    },
     "low": {"seconds": 24 * 3600, "label": "24 h", "escalation": "No", "notify": []},
     "informational": {"seconds": None, "label": "lote diario", "escalation": "No", "notify": []},
 }

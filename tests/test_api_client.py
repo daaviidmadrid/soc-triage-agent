@@ -68,32 +68,40 @@ def test_changes():
 
 # --- containment: runs against the copy in a temp folder (see conftest) ---
 
+
 def test_server_refuses_without_approval():
     # Straight to the server, bypassing our checks: the mock itself still says 403.
     with pytest.raises(APIError) as e:
-        api_client._request("POST", "/containment/isolate_host",
-                            json={"target": "WS-BCN-1380", "justification": "test"})
+        api_client._request(
+            "POST", "/containment/isolate_host", json={"target": "WS-BCN-1380", "justification": "test"}
+        )
     assert e.value.status == 403
 
 
 def test_containment_with_approval_and_log(mock_dir):
     ap = api_client.request_approval("isolate_host", "WS-BCN-1380", "n2.test", "test")
     assert ap["approval_token"].startswith("APR-")
-    rec = api_client.run_containment("isolate_host", "WS-BCN-1380", "test",
-                                     approval_token=ap["approval_token"], ticket_id="TKT-TEST")
+    rec = api_client.run_containment(
+        "isolate_host", "WS-BCN-1380", "test", approval_token=ap["approval_token"], ticket_id="TKT-TEST"
+    )
     assert rec["result"].startswith("ok")
     assert any(r.get("ticket_id") == "TKT-TEST" for r in api_client.get_containment_log())
     assert (mock_dir / "06_herramientas" / "containment_log.jsonl").exists()
 
 
 def test_every_action_needs_an_approval():
-    for action, target in [("isolate_host", "WS-BCN-1380"), ("block_ioc", "bad.example"),
-                           ("purge_email", "<x@bad.example>")]:
+    for action, target in [
+        ("isolate_host", "WS-BCN-1380"),
+        ("block_ioc", "bad.example"),
+        ("purge_email", "<x@bad.example>"),
+    ]:
         with pytest.raises(ContainmentRefused):
             api_client.run_containment(action, target, "test")
     ap = api_client.request_approval("block_ioc", "bad.example", "n1.test")
-    assert api_client.run_containment("block_ioc", "bad.example", "test",
-                                      approval_token=ap["approval_token"])["action"] == "block_ioc"
+    assert (
+        api_client.run_containment("block_ioc", "bad.example", "test", approval_token=ap["approval_token"])["action"]
+        == "block_ioc"
+    )
 
 
 def test_approval_is_single_use():

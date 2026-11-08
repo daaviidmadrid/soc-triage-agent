@@ -4,6 +4,7 @@ The LLM only proposes. Plain code here checks the answer, computes the final sev
 applies the mandatory escalation rules and decides whether a ticket can close.
 Before any LLM call, the fixed rules of src/agent/rules.py may close well-known noise.
 """
+
 import json
 import re
 import time
@@ -137,7 +138,7 @@ def parse_answer(text, can_search):
         # Without JSON mode a model may wrap the object in a sentence; the object itself is still checked below.
         start, end = cleaned.find("{"), cleaned.rfind("}")
         try:
-            data = json.loads(cleaned[start:end + 1]) if 0 <= start < end else None
+            data = json.loads(cleaned[start : end + 1]) if 0 <= start < end else None
         except json.JSONDecodeError:
             data = None
         if data is None:
@@ -200,8 +201,10 @@ def check_authorisation(draft, context):
         return []
     if draft.authorised_by and draft.authorised_by.id in _authorising_ids(context):
         return []
-    return ["benign_true_positive needs an authorised_by id copied from the changes or trips list, and this answer has none that is there. "
-            "Harmless isn't authorised: choose true_positive, false_positive or needs_more_info instead."]
+    return [
+        "benign_true_positive needs an authorised_by id copied from the changes or trips list, and this answer has none that is there. "
+        "Harmless isn't authorised: choose true_positive, false_positive or needs_more_info instead."
+    ]
 
 
 def _authorising_ids(context):
@@ -236,7 +239,13 @@ def _final_severity(compute, rule, criticality, adjustments, floor, authorised):
     """Returns (severity, note, problem). If compute_severity fails, the rule's severity stands, raised to any floor."""
     try:
         final, note = _read_severity(
-            compute(rule, criticality, adjustments=[a.model_dump() for a in adjustments], runbook_floor=floor, authorised=authorised)
+            compute(
+                rule,
+                criticality,
+                adjustments=[a.model_dump() for a in adjustments],
+                runbook_floor=floor,
+                authorised=authorised,
+            )
         )
         return final, note, None
     except Exception as error:
@@ -270,7 +279,11 @@ def _final_actions(proposed, escalate, target, reason):
         name = item.action.strip()
         if not name or DECISION_ACTION.match(name):
             continue
-        actions.append(RecommendedAction(action=name, target=item.target or "ticket", requires_approval=True, justification=item.justification))
+        actions.append(
+            RecommendedAction(
+                action=name, target=item.target or "ticket", requires_approval=True, justification=item.justification
+            )
+        )
     return actions
 
 
@@ -295,7 +308,9 @@ def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
         if cited in _authorising_ids(context):
             authorised_by = draft.authorised_by
         else:
-            verdict = override("Se propuso actividad autorizada sin un cambio aprobado que exista en el calendario de cambios.")
+            verdict = override(
+                "Se propuso actividad autorizada sin un cambio aprobado que exista en el calendario de cambios."
+            )
     if verdict == "false_positive" and not _has_log_rows(context):
         verdict = override(NO_DATA_QUESTION)
 
@@ -313,7 +328,11 @@ def build_ticket(alert, context, draft, compute, seconds, assumptions=()):
         return kept, floor, _final_severity(compute, rule, criticality, kept, floor, current == "benign_true_positive")
 
     adjustments, floor, (severity, severity_note, problem) = severity_for(verdict)
-    if verdict == "false_positive" and severity in ("high", "critical") and not any(item.event_id for item in draft.evidence):
+    if (
+        verdict == "false_positive"
+        and severity in ("high", "critical")
+        and not any(item.event_id for item in draft.evidence)
+    ):
         verdict = override(UNSUPPORTED_QUESTION.format(severity=severity))
         adjustments, floor, (severity, severity_note, problem) = severity_for(verdict)
     authorised = verdict == "benign_true_positive"
@@ -404,16 +423,27 @@ def rule_ticket(alert, context, check, compute, seconds):
     floor = RUNBOOK_FLOORS.get(alert.get("rule_id")) if check.verdict in ("true_positive", "needs_more_info") else None
     try:
         severity, note = _read_severity(
-            compute(rule, criticality, adjustments=[a.model_dump() for a in adjustments], runbook_floor=floor, authorised=authorised)
+            compute(
+                rule,
+                criticality,
+                adjustments=[a.model_dump() for a in adjustments],
+                runbook_floor=floor,
+                authorised=authorised,
+            )
         )
     except Exception:
         return None, "No se pudo calcular la severidad."
     if mandatory_escalation_reasons(check.verdict, severity, PolicyFlags()):
         return None, "Con esta severidad la política obliga a escalar."
 
-    conditions = [*check.conditions, f"Severidad con la matriz de la política: {severity}. No se cumple ningún criterio de escalado obligatorio."]
+    conditions = [
+        *check.conditions,
+        f"Severidad con la matriz de la política: {severity}. No se cumple ningún criterio de escalado obligatorio.",
+    ]
     questions = [TRUNCATED_QUESTION.format(sources=", ".join(check.other_truncated))] if check.other_truncated else []
-    rationale = f"Regla {rule} con criticidad {criticality} ({source}): resultado {severity}." + (f" {note}" if note else "")
+    rationale = f"Regla {rule} con criticidad {criticality} ({source}): resultado {severity}." + (
+        f" {note}" if note else ""
+    )
     justification = f"Cerrada por la regla fija {check.rule_id} ({check.name}): se cumplen todas sus condiciones."
     ticket = Ticket(
         ticket_id=_ticket_id(alert),
@@ -444,7 +474,11 @@ def rule_ticket(alert, context, check, compute, seconds):
         ),
         authorised_by=AuthorisedBy(**check.authorised_by) if check.authorised_by else None,
         closed_by_rule=RuleClosure(
-            rule_id=check.rule_id, name=check.name, detection_rule=check.detection_rule, conditions=conditions, event_ids=check.event_ids
+            rule_id=check.rule_id,
+            name=check.name,
+            detection_rule=check.detection_rule,
+            conditions=conditions,
+            event_ids=check.event_ids,
         ),
     )
     return ticket, None
@@ -473,7 +507,9 @@ def failsafe_ticket(alert, context, reason, compute, seconds, assumptions=()):
         escalation=Escalation(escalate=True, to=target, reason=reason),
         open_questions=[item for item in (reason, problem, *assumptions) if item],
         triage_seconds=seconds,
-        severity_inputs=SeverityInputs(rule_severity=rule, criticality=criticality, criticality_source=source, runbook_floor=floor),
+        severity_inputs=SeverityInputs(
+            rule_severity=rule, criticality=criticality, criticality_source=source, runbook_floor=floor
+        ),
     )
 
 
@@ -520,7 +556,12 @@ class _Trace:
 
 def _gather(alert, build, emit):
     """One event per lookup, built from counts and IDs only, so no text from the data reaches the trace."""
-    yield emit("tool_call", tool="build_context", args={"alert_id": _alert_id(alert)}, summary="Reuniendo el contexto de la alerta")
+    yield emit(
+        "tool_call",
+        tool="build_context",
+        args={"alert_id": _alert_id(alert)},
+        summary="Reuniendo el contexto de la alerta",
+    )
     context = context_to_dict(build(alert))
     context.setdefault("alert", alert)
     for section in ("users", "assets", "changes", "trips", "hr_events", "intel", "sandbox"):
@@ -547,13 +588,25 @@ def _extra_search(request, context, search, emit):
         rows, truncated = _rows_from(search(**args))
     except Exception as error:
         context["extra_search"] = "not available"
-        yield emit("tool_result", tool="search_logs", args=args, summary=f"La búsqueda no está disponible ({type(error).__name__})")
+        yield emit(
+            "tool_result",
+            tool="search_logs",
+            args=args,
+            summary=f"La búsqueda no está disponible ({type(error).__name__})",
+        )
         return
     context.setdefault("extra_logs", []).extend(rows)
     context["extra_search"] = "done"
     if truncated:
         context["truncated_sources"] = [*(context.get("truncated_sources") or []), request.source]
-    yield emit("tool_result", tool="search_logs", args=args, summary=f"{len(rows)} fila(s) de {request.source}", event_ids=_row_ids(rows), truncated=truncated)
+    yield emit(
+        "tool_result",
+        tool="search_logs",
+        args=args,
+        summary=f"{len(rows)} fila(s) de {request.source}",
+        event_ids=_row_ids(rows),
+        truncated=truncated,
+    )
 
 
 def _try_rules(alert, context, search, compute, emit, seconds, call_log):
@@ -561,6 +614,7 @@ def _try_rules(alert, context, search, compute, emit, seconds, call_log):
 
     The trace shows the rule's own log searches and "closed by rule" in place of an LLM call. Its summaries are
     fixed texts with counts and IDs only, like the rest of the trace. The call log keeps every condition."""
+
     def find(source, **criteria):
         return _rows_from(search(source=source, **criteria))
 
@@ -572,27 +626,73 @@ def _try_rules(alert, context, search, compute, emit, seconds, call_log):
             check.refuse(refusal)
     except Exception as error:
         # A rule that can't finish never closes anything.
-        yield emit("note", tool="rules", args={"kind": "internal"}, summary=f"No se pudieron comprobar las reglas fijas ({type(error).__name__}): se consulta al modelo.")
+        yield emit(
+            "note",
+            tool="rules",
+            args={"kind": "internal"},
+            summary=f"No se pudieron comprobar las reglas fijas ({type(error).__name__}): se consulta al modelo.",
+        )
         _record(call_log, kind="rule", outcome="rule check failed, sent to the model", error=type(error).__name__)
         return None
     if check is None:
         return None
-    yield emit("tool_call", tool="rules", args={"rule": check.rule_id}, summary=f"Comprobando la regla fija {check.rule_id}: {check.name}")
+    yield emit(
+        "tool_call",
+        tool="rules",
+        args={"rule": check.rule_id},
+        summary=f"Comprobando la regla fija {check.rule_id}: {check.name}",
+    )
     for lookup in check.lookups:
-        yield emit("tool_call", tool="search_logs", args=lookup["args"], summary=f"Búsqueda de la regla fija {check.rule_id}: actividad posterior del origen")
-        yield emit("tool_result", tool="search_logs", args=lookup["args"], summary=f"{lookup['count']} fila(s) de {lookup['source']}",
-                   event_ids=lookup["event_ids"], truncated=lookup["truncated"])
+        yield emit(
+            "tool_call",
+            tool="search_logs",
+            args=lookup["args"],
+            summary=f"Búsqueda de la regla fija {check.rule_id}: actividad posterior del origen",
+        )
+        yield emit(
+            "tool_result",
+            tool="search_logs",
+            args=lookup["args"],
+            summary=f"{lookup['count']} fila(s) de {lookup['source']}",
+            event_ids=lookup["event_ids"],
+            truncated=lookup["truncated"],
+        )
     if ticket is not None:
-        yield emit("tool_result", tool="rules", args={"rule": check.rule_id, "result": "closed", "llm_calls": 0},
-                   summary=f"Cerrada por regla {check.rule_id} ({check.name}), sin llamar al modelo: {ticket.verdict}, severidad {ticket.severity}.",
-                   event_ids=ticket.closed_by_rule.event_ids)
-        _record(call_log, kind="rule", outcome="closed by rule", rule=check.rule_id, name=check.name, verdict=ticket.verdict,
-                severity=ticket.severity, escalate=False, conditions=ticket.closed_by_rule.conditions, event_ids=ticket.closed_by_rule.event_ids)
+        yield emit(
+            "tool_result",
+            tool="rules",
+            args={"rule": check.rule_id, "result": "closed", "llm_calls": 0},
+            summary=f"Cerrada por regla {check.rule_id} ({check.name}), sin llamar al modelo: {ticket.verdict}, severidad {ticket.severity}.",
+            event_ids=ticket.closed_by_rule.event_ids,
+        )
+        _record(
+            call_log,
+            kind="rule",
+            outcome="closed by rule",
+            rule=check.rule_id,
+            name=check.name,
+            verdict=ticket.verdict,
+            severity=ticket.severity,
+            escalate=False,
+            conditions=ticket.closed_by_rule.conditions,
+            event_ids=ticket.closed_by_rule.event_ids,
+        )
         return ticket
-    yield emit("tool_result", tool="rules", args={"rule": check.rule_id, "result": "not_applied"},
-               summary=f"La regla fija {check.rule_id} no se aplica: {check.failed} Se consulta al modelo.")
-    _record(call_log, kind="rule", outcome="did not apply, sent to the model", rule=check.rule_id, name=check.name,
-            failed=check.failed, conditions_met=check.conditions)
+    yield emit(
+        "tool_result",
+        tool="rules",
+        args={"rule": check.rule_id, "result": "not_applied"},
+        summary=f"La regla fija {check.rule_id} no se aplica: {check.failed} Se consulta al modelo.",
+    )
+    _record(
+        call_log,
+        kind="rule",
+        outcome="did not apply, sent to the model",
+        rule=check.rule_id,
+        name=check.name,
+        failed=check.failed,
+        conditions_met=check.conditions,
+    )
     return None
 
 
@@ -624,13 +724,25 @@ def _ask_llm(context, llm, search, emit, max_calls, call_log=None):
         yield emit("tool_call", tool="llm", args={"call": calls}, summary="Consultando al modelo")
         started = time.monotonic()
         # The system prompt is the same on every call for an alert, so the log keeps it once.
-        prompt = {"system": system if system != last_system else "(same as the previous call)", "user": user, "omitted": omitted or {}}
+        prompt = {
+            "system": system if system != last_system else "(same as the previous call)",
+            "user": user,
+            "omitted": omitted or {},
+        }
         last_system = system
         try:
             result = llm(system, user)
         except Exception as error:
-            _record(call_log, kind="llm_call", call=calls, prompt_version=PROMPT_VERSION, **prompt, outcome="failed",
-                    error=f"{type(error).__name__}: {str(error)[:300]}", seconds=round(time.monotonic() - started, 2))
+            _record(
+                call_log,
+                kind="llm_call",
+                call=calls,
+                prompt_version=PROMPT_VERSION,
+                **prompt,
+                outcome="failed",
+                error=f"{type(error).__name__}: {str(error)[:300]}",
+                seconds=round(time.monotonic() - started, 2),
+            )
             raise
         yield emit(
             "tool_result",
@@ -646,9 +758,19 @@ def _ask_llm(context, llm, search, emit, max_calls, call_log=None):
             summary=f"Respuesta de {result.model}",
         )
         answer, errors = parse_answer(result.text, can_search)
-        log_entry = dict(kind="llm_call", call=calls, prompt_version=PROMPT_VERSION, **prompt, model=result.model, attempts=result.attempts,
-                         prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
-                         seconds=round(time.monotonic() - started, 2), answer=result.text, reasoning=getattr(result, "reasoning", "") or "")
+        log_entry = dict(
+            kind="llm_call",
+            call=calls,
+            prompt_version=PROMPT_VERSION,
+            **prompt,
+            model=result.model,
+            attempts=result.attempts,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            seconds=round(time.monotonic() - started, 2),
+            answer=result.text,
+            reasoning=getattr(result, "reasoning", "") or "",
+        )
         if isinstance(answer, SearchRequest):
             _record(call_log, **log_entry, outcome="asked for a log search", errors=[])
             yield from _extra_search(answer, context, search, emit)
@@ -663,17 +785,35 @@ def _ask_llm(context, llm, search, emit, max_calls, call_log=None):
         if not errors:
             return answer
         feedback = errors
-        yield emit("note", tool="llm", args={"call": calls}, summary="La respuesta no pasó las comprobaciones: " + " ".join(errors))
+        yield emit(
+            "note",
+            tool="llm",
+            args={"call": calls},
+            summary="La respuesta no pasó las comprobaciones: " + " ".join(errors),
+        )
     return unauthorised
 
 
 def final_checks(ticket, context):
     """check_evidence and check_authorisation on the finished ticket, kept on it so the app can read the result.
     Only records them: close or escalate was already decided, and nothing here changes it."""
-    return TicketChecks(evidence=not check_evidence(ticket, retrieved_ids(context)), authorisation=not check_authorisation(ticket, context))
+    return TicketChecks(
+        evidence=not check_evidence(ticket, retrieved_ids(context)),
+        authorisation=not check_authorisation(ticket, context),
+    )
 
 
-def triage(alert: dict, *, build_context=None, compute_severity=None, search_logs=None, llm=None, max_llm_calls=MAX_LLM_CALLS, call_log=None, rules_only=False) -> Iterator[TraceEvent]:
+def triage(
+    alert: dict,
+    *,
+    build_context=None,
+    compute_severity=None,
+    search_logs=None,
+    llm=None,
+    max_llm_calls=MAX_LLM_CALLS,
+    call_log=None,
+    rules_only=False,
+) -> Iterator[TraceEvent]:
     """The data functions are arguments so tests can pass fakes.
 
     call_log, if given, is a list that receives every model call and what code decided. It holds prompts and data
@@ -696,11 +836,20 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         if context is not None:
             ticket.checks = final_checks(ticket, context)
         event_ids = [item.event_id for item in ticket.evidence if item.event_id]
-        return emit("ticket_ready", summary=f"{ticket.verdict}, severidad {ticket.severity}", event_ids=event_ids, ticket=ticket)
+        return emit(
+            "ticket_ready", summary=f"{ticket.verdict}, severidad {ticket.severity}", event_ids=event_ids, ticket=ticket
+        )
 
     def fail(reason):
         ticket = failsafe_ticket(alert, context, reason, compute, seconds(), assumptions)
-        _record(call_log, kind="result", outcome="triage failed and went to a person", reason=reason, verdict=ticket.verdict, severity=ticket.severity)
+        _record(
+            call_log,
+            kind="result",
+            outcome="triage failed and went to a person",
+            reason=reason,
+            verdict=ticket.verdict,
+            severity=ticket.severity,
+        )
         return finish(ticket)
 
     yield emit("started", args={"alert_id": _alert_id(alert)}, summary=f"Triaje de {_alert_id(alert)}")
@@ -744,8 +893,17 @@ def triage(alert: dict, *, build_context=None, compute_severity=None, search_log
         yield fail("El modelo no dio una respuesta que pasara las comprobaciones.")
         return
     ticket, notes = build_ticket(alert, context, draft, compute, seconds(), assumptions)
-    _record(call_log, kind="result", outcome="ticket", model_verdict=draft.verdict, verdict=ticket.verdict, severity=ticket.severity,
-            escalate=ticket.escalation.escalate, code_changes=notes, assumptions=list(assumptions))
+    _record(
+        call_log,
+        kind="result",
+        outcome="ticket",
+        model_verdict=draft.verdict,
+        verdict=ticket.verdict,
+        severity=ticket.severity,
+        escalate=ticket.escalation.escalate,
+        code_changes=notes,
+        assumptions=list(assumptions),
+    )
     for note in notes:
         yield emit("note", summary=note)
     yield finish(ticket)

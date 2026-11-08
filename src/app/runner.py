@@ -8,6 +8,7 @@ Every event is a dict in the TraceEvent format of contracts/models.py:
 run_id, seq, at, type, tool, args, summary, event_ids, truncated, ticket.
 The app overwrites run_id and seq with its own when it stores them.
 """
+
 import copy
 import hashlib
 import json
@@ -90,15 +91,24 @@ def run_investigation(alerts, tickets=(), incident_id=None, others=(), membershi
     try:
         from src.agent.investigate import investigate
     except ImportError as error:
-        raise TriageUnavailable(f"La investigación no está disponible: no se pudo importar src.agent.investigate ({type(error).__name__}).") from None
+        raise TriageUnavailable(
+            f"La investigación no está disponible: no se pudo importar src.agent.investigate ({type(error).__name__})."
+        ) from None
     from src.policy.containment import step_checker
     from src.tools import api_client
 
     calls = []
     check = step_checker(api_client.get_asset, api_client.get_user)
     try:
-        for event in investigate(alerts, tickets=tickets, incident_id=incident_id, others=others, memberships=memberships,
-                                 call_log=calls, check_containment=check):
+        for event in investigate(
+            alerts,
+            tickets=tickets,
+            incident_id=incident_id,
+            others=others,
+            memberships=memberships,
+            call_log=calls,
+            check_containment=check,
+        ):
             yield _to_dict(event)
     finally:
         _write_call_log({"alert_id": f"report_{incident_id or 'incidente'}"}, calls)
@@ -118,7 +128,10 @@ def _write_call_log(alert, calls):
     path = call_log_dir() / f"{re.sub(r'[^A-Za-z0-9_-]', '_', alert_id)[:100]}_{stamp}.json"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"alert_id": alert_id, "calls": calls}, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        path.write_text(
+            json.dumps({"alert_id": alert_id, "calls": calls}, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
     except OSError:
         pass
 

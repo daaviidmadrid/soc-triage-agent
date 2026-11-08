@@ -16,6 +16,7 @@ identifiers they share, and every link is kept with its reason so a person can c
   shares, such as a newsletter's sender or the online shop, says nothing about one attack.
 - Never by display name, by IPs shared by many identities, or by ID numbers.
 """
+
 import argparse
 import collections
 import hashlib
@@ -41,21 +42,47 @@ MAX_QUESTIONS = 20
 
 SEVERITIES = ("informational", "low", "medium", "high", "critical")
 OWN_DOMAINS = ("tarvia.example",)
-INTERNAL_NETWORKS = [ipaddress.ip_network(net) for net in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8")]
+INTERNAL_NETWORKS = [
+    ipaddress.ip_network(net) for net in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8")
+]
 IP = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 
 BROAD = {"account", "host"}
-SPECIFIC = {"event", "session", "message", "sender", "mail_domain", "file", "ip", "domain", "customer", "cloud", "ai_session"}
-LABELS = {
-    "account": "misma cuenta", "host": "mismo equipo", "event": "mismo evento", "session": "misma sesión",
-    "message": "mismo mensaje", "sender": "mismo remitente", "mail_domain": "mismo dominio de correo",
-    "file": "mismo fichero", "ip": "misma IP externa", "domain": "mismo dominio", "customer": "mismo cliente",
-    "cloud": "misma identidad cloud", "ai_session": "misma sesión del asistente",
+SPECIFIC = {
+    "event",
+    "session",
+    "message",
+    "sender",
+    "mail_domain",
+    "file",
+    "ip",
+    "domain",
+    "customer",
+    "cloud",
+    "ai_session",
 }
-CHAIN_REASON = "Cadena de {count} alertas relacionadas (política, apartado 5): se escala aunque cada una por separado sea baja."
+LABELS = {
+    "account": "misma cuenta",
+    "host": "mismo equipo",
+    "event": "mismo evento",
+    "session": "misma sesión",
+    "message": "mismo mensaje",
+    "sender": "mismo remitente",
+    "mail_domain": "mismo dominio de correo",
+    "file": "mismo fichero",
+    "ip": "misma IP externa",
+    "domain": "mismo dominio",
+    "customer": "mismo cliente",
+    "cloud": "misma identidad cloud",
+    "ai_session": "misma sesión del asistente",
+}
+CHAIN_REASON = (
+    "Cadena de {count} alertas relacionadas (política, apartado 5): se escala aunque cada una por separado sea baja."
+)
 
 
 # --- identifiers -----------------------------------------------------------------------------
+
 
 def _external_ip(value):
     try:
@@ -106,7 +133,10 @@ def identifiers(alert, ticket=None):
     for value in [*_items(entities.get("ips")), *(text for text in _strings(evidence) for text in IP.findall(text))]:
         if isinstance(value, str) and _external_ip(value):
             found.add(("ip", value))
-    for value in [*_items(entities.get("domains")), *(urlparse(url).hostname for url in _items(entities.get("urls")) if isinstance(url, str))]:
+    for value in [
+        *_items(entities.get("domains")),
+        *(urlparse(url).hostname for url in _items(entities.get("urls")) if isinstance(url, str)),
+    ]:
         if isinstance(value, str) and value and not _own(value.lower()):
             found.add(("domain", value.lower()))
     for item in _items(entities.get("files")):
@@ -177,6 +207,7 @@ def shared_by(alerts, path=ALERTS_FILE):
 
 # --- linking ---------------------------------------------------------------------------------
 
+
 def role(ticket):
     """escalated: a person will look at it. attack: a closed true positive, such as a blocked attempt. noise: everything else."""
     if (ticket.get("escalation") or {}).get("escalate") is True:
@@ -214,7 +245,7 @@ def find_links(items, counts):
     links = collections.defaultdict(list)
     for (kind, value), members in sorted(by_key.items()):
         for i, first in enumerate(members):
-            for second in members[i + 1:]:
+            for second in members[i + 1 :]:
                 a, b = items[first], items[second]
                 close = bool(a["time"] and b["time"] and abs(a["time"] - b["time"]) <= LINK_WINDOW)
                 if kind in allowed_kinds(a["role"], b["role"], close):
@@ -242,6 +273,7 @@ def _groups(alert_ids, links):
 
 # --- the incident ticket ---------------------------------------------------------------------
 
+
 def _dedupe(items, key):
     seen, out = set(), []
     for item in items:
@@ -259,13 +291,20 @@ def incident_id_for(alert_ids):
 
 def merge(members, links, items):
     """One ticket for the whole incident. Plain code decides everything. Each member keeps its own ticket."""
-    ordered = sorted(members, key=lambda alert_id: (items[alert_id]["time"] or datetime.max.replace(tzinfo=timezone.utc), alert_id))
+    ordered = sorted(
+        members, key=lambda alert_id: (items[alert_id]["time"] or datetime.max.replace(tzinfo=timezone.utc), alert_id)
+    )
     tickets = [items[alert_id]["ticket"] for alert_id in ordered]
     alerts = [items[alert_id]["alert"] for alert_id in ordered]
     incident_id = incident_id_for(members)
-    severity = max((t.get("severity") for t in tickets if t.get("severity") in SEVERITIES), key=SEVERITIES.index, default="medium")
+    severity = max(
+        (t.get("severity") for t in tickets if t.get("severity") in SEVERITIES), key=SEVERITIES.index, default="medium"
+    )
     verdicts = [t.get("verdict") for t in tickets]
-    verdict = next((v for v in ("true_positive", "needs_more_info") if v in verdicts), "benign_true_positive" if set(verdicts) == {"benign_true_positive"} else "false_positive")
+    verdict = next(
+        (v for v in ("true_positive", "needs_more_info") if v in verdicts),
+        "benign_true_positive" if set(verdicts) == {"benign_true_positive"} else "false_positive",
+    )
     rules = {a.get("rule_id") for a in alerts if a.get("rule_id")}
     chain = len(rules) >= 2 and "true_positive" in verdicts
     reasons = [r for t in tickets for r in [(t.get("escalation") or {}).get("reason")] if r]
@@ -278,26 +317,48 @@ def merge(members, links, items):
     times = [items[alert_id]["time"] for alert_id in ordered if items[alert_id]["time"]]
     span = f" entre {times[0]:%Y-%m-%d %H:%M} y {times[-1]:%Y-%m-%d %H:%M} UTC" if times else ""
     kinds = collections.Counter(r.split(" (")[0] for rs in links.values() for r in rs)
-    summary = (f"{len(members)} alertas relacionadas{span}: "
-               + "; ".join(f"{a.get('alert_id')} {a.get('rule_name') or a.get('rule_id') or ''}".strip() for a in alerts)
-               + ". Se agrupan por " + ", ".join(k for k, _ in kinds.most_common(4)) + ".")
-    actions = [{"action": "escalate" if escalate else "close", "target": target or "ticket", "requires_approval": False, "justification": reason or summary[:200]}]
-    actions += _dedupe([a for t in tickets for a in t.get("recommended_actions") or [] if a.get("requires_approval")],
-                       lambda a: (a.get("action"), a.get("target")))
-    affected = {field: _dedupe([x for t in tickets for x in (t.get("affected") or {}).get(field) or []], json.dumps)
-                for field in ("users", "hosts", "business_services", "customers")}
-    group_links = [{"alert_id": second, "linked_to": first, "reasons": reasons_} for (first, second), reasons_ in sorted(links.items())]
+    summary = (
+        f"{len(members)} alertas relacionadas{span}: "
+        + "; ".join(f"{a.get('alert_id')} {a.get('rule_name') or a.get('rule_id') or ''}".strip() for a in alerts)
+        + ". Se agrupan por "
+        + ", ".join(k for k, _ in kinds.most_common(4))
+        + "."
+    )
+    actions = [
+        {
+            "action": "escalate" if escalate else "close",
+            "target": target or "ticket",
+            "requires_approval": False,
+            "justification": reason or summary[:200],
+        }
+    ]
+    actions += _dedupe(
+        [a for t in tickets for a in t.get("recommended_actions") or [] if a.get("requires_approval")],
+        lambda a: (a.get("action"), a.get("target")),
+    )
+    affected = {
+        field: _dedupe([x for t in tickets for x in (t.get("affected") or {}).get(field) or []], json.dumps)
+        for field in ("users", "hosts", "business_services", "customers")
+    }
+    group_links = [
+        {"alert_id": second, "linked_to": first, "reasons": reasons_}
+        for (first, second), reasons_ in sorted(links.items())
+    ]
     ticket = Ticket(
         ticket_id=incident_id,
         alert_ids=ordered,
         title=f"Incidente: {main.get('title') or alerts[0].get('rule_name') or incident_id}",
         verdict=verdict,
-        confidence=min((t.get("confidence") for t in tickets if isinstance(t.get("confidence"), (int, float))), default=0.0),
+        confidence=min(
+            (t.get("confidence") for t in tickets if isinstance(t.get("confidence"), (int, float))), default=0.0
+        ),
         severity=severity,
         severity_rationale=f"La severidad más alta de las {len(members)} alertas del incidente.",
         affected=affected,
         summary=summary,
-        evidence=_dedupe([e for t in tickets for e in t.get("evidence") or []], lambda e: (e.get("event_id"), e.get("finding")))[:MAX_EVIDENCE],
+        evidence=_dedupe(
+            [e for t in tickets for e in t.get("evidence") or []], lambda e: (e.get("event_id"), e.get("finding"))
+        )[:MAX_EVIDENCE],
         enrichment=_dedupe([e for t in tickets for e in t.get("enrichment") or []], lambda e: e.get("indicator")),
         mitre=_dedupe([m for t in tickets for m in t.get("mitre") or []], str),
         recommended_actions=actions,
@@ -306,17 +367,25 @@ def merge(members, links, items):
         injection_flags=_dedupe([f for t in tickets for f in t.get("injection_flags") or []], json.dumps),
         group_links=group_links,
     )
-    member_rows = [{
-        "alert_id": alert_id,
-        "ticket_id": items[alert_id]["ticket"].get("ticket_id"),
-        "rule_id": items[alert_id]["alert"].get("rule_id"),
-        "rule_name": items[alert_id]["alert"].get("rule_name"),
-        "created_at": items[alert_id]["alert"].get("created_at"),
-        "verdict": items[alert_id]["ticket"].get("verdict"),
-        "severity": items[alert_id]["ticket"].get("severity"),
-        "escalate": (items[alert_id]["ticket"].get("escalation") or {}).get("escalate") is True,
-    } for alert_id in ordered]
-    return {"incident_id": incident_id, "chain": chain, "members": member_rows, "ticket": ticket.model_dump(mode="json")}
+    member_rows = [
+        {
+            "alert_id": alert_id,
+            "ticket_id": items[alert_id]["ticket"].get("ticket_id"),
+            "rule_id": items[alert_id]["alert"].get("rule_id"),
+            "rule_name": items[alert_id]["alert"].get("rule_name"),
+            "created_at": items[alert_id]["alert"].get("created_at"),
+            "verdict": items[alert_id]["ticket"].get("verdict"),
+            "severity": items[alert_id]["ticket"].get("severity"),
+            "escalate": (items[alert_id]["ticket"].get("escalation") or {}).get("escalate") is True,
+        }
+        for alert_id in ordered
+    ]
+    return {
+        "incident_id": incident_id,
+        "chain": chain,
+        "members": member_rows,
+        "ticket": ticket.model_dump(mode="json"),
+    }
 
 
 def _noise(items, grouped):
@@ -332,8 +401,17 @@ def _noise(items, grouped):
         bucket["sources"] |= {value for kind, value in item["ids"] if kind in ("ip", "sender", "domain", "customer")}
         if len(bucket["examples"]) < 3:
             bucket["examples"].append(alert_id)
-    rows = [{"rule_id": rule, "rule_name": b["rule_name"], "verdict": verdict, "count": b["count"], "sources": len(b["sources"]), "examples": b["examples"]}
-            for (rule, verdict), b in buckets.items()]
+    rows = [
+        {
+            "rule_id": rule,
+            "rule_name": b["rule_name"],
+            "verdict": verdict,
+            "count": b["count"],
+            "sources": len(b["sources"]),
+            "examples": b["examples"],
+        }
+        for (rule, verdict), b in buckets.items()
+    ]
     return sorted(rows, key=lambda row: (-row["count"], row["rule_id"]))
 
 
@@ -344,14 +422,22 @@ def correlate(pairs, history=ALERTS_FILE):
         if not isinstance(alert, dict) or not isinstance(ticket, dict) or not alert.get("alert_id"):
             continue
         alert = normalise_alert(alert)[0]
-        items[alert["alert_id"]] = {"alert": alert, "ticket": ticket, "ids": identifiers(alert, ticket), "role": role(ticket), "time": _time(alert)}
+        items[alert["alert_id"]] = {
+            "alert": alert,
+            "ticket": ticket,
+            "ids": identifiers(alert, ticket),
+            "role": role(ticket),
+            "time": _time(alert),
+        }
     counts = shared_by([item["alert"] for item in items.values()], history)
     links = find_links(items, counts)
     incidents = []
     for group in _groups(list(items), links):
         members = set(group)
         incidents.append(merge(group, {pair: r for pair, r in links.items() if set(pair) <= members}, items))
-    incidents.sort(key=lambda inc: (-SEVERITIES.index(inc["ticket"]["severity"]), inc["members"][0]["created_at"] or ""))
+    incidents.sort(
+        key=lambda inc: (-SEVERITIES.index(inc["ticket"]["severity"]), inc["members"][0]["created_at"] or "")
+    )
     memberships = {member["alert_id"]: inc["incident_id"] for inc in incidents for member in inc["members"]}
     return {
         "incidents": incidents,
@@ -363,6 +449,7 @@ def correlate(pairs, history=ALERTS_FILE):
 
 
 # --- command line ----------------------------------------------------------------------------
+
 
 def load_folder(folder, alerts_file=ALERTS_FILE):
     """Tickets saved by the batch, with their alerts from the dataset."""
@@ -390,14 +477,22 @@ def main(arguments=None):
     out = Path(args.out or Path(args.folder) / "incidents")
     out.mkdir(parents=True, exist_ok=True)
     for incident in result["incidents"]:
-        (out / f"{incident['incident_id']}.json").write_text(json.dumps(incident, ensure_ascii=False, indent=2), encoding="utf-8")
+        (out / f"{incident['incident_id']}.json").write_text(
+            json.dumps(incident, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     (out / "noise.json").write_text(json.dumps(result["noise"], ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"{result['alerts']} alerts, {len(result['incidents'])} incidents holding {len(result['memberships'])} of them. Written to {out}")
+    print(
+        f"{result['alerts']} alerts, {len(result['incidents'])} incidents holding {len(result['memberships'])} of them. Written to {out}"
+    )
     for incident in result["incidents"]:
         t = incident["ticket"]
-        print(f"\n{incident['incident_id']}  {t['severity']}  {'escalate' if t['escalation']['escalate'] else 'close'}{'  CHAIN' if incident['chain'] else ''}  {len(incident['members'])} alerts")
+        print(
+            f"\n{incident['incident_id']}  {t['severity']}  {'escalate' if t['escalation']['escalate'] else 'close'}{'  CHAIN' if incident['chain'] else ''}  {len(incident['members'])} alerts"
+        )
         for member in incident["members"]:
-            print(f"  {member['alert_id']}  {member['rule_id']}  {member['verdict']}  {member['severity']}  {'escalate' if member['escalate'] else 'close'}")
+            print(
+                f"  {member['alert_id']}  {member['rule_id']}  {member['verdict']}  {member['severity']}  {'escalate' if member['escalate'] else 'close'}"
+            )
         for link in t["group_links"]:
             print(f"    {link['alert_id']} with {link['linked_to']}: {'; '.join(link['reasons'][:3])}")
     print("\nCounted, not grouped:")

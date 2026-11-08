@@ -7,6 +7,7 @@ check keeps the ticket in the human queue. Delay is never a reason: nothing here
 Text from the data can't close anything here. Free text is only searched for OT hosts and IPs, which can only send
 a ticket to a person.
 """
+
 import csv
 import ipaddress
 import json
@@ -72,7 +73,9 @@ def assess(ticket, alert, mode, lookup_asset):
     escalation = ticket.get("escalation") if isinstance(ticket.get("escalation"), dict) else {}
     checks = ticket.get("checks") if isinstance(ticket.get("checks"), dict) else {}
     actions = ticket.get("recommended_actions") if isinstance(ticket.get("recommended_actions"), list) else []
-    closed = escalation.get("escalate") is False and any(isinstance(a, dict) and a.get("action") == "close" for a in actions)
+    closed = escalation.get("escalate") is False and any(
+        isinstance(a, dict) and a.get("action") == "close" for a in actions
+    )
     failed = []
     if mode != "real":
         failed.append("mode")

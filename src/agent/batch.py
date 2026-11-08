@@ -3,6 +3,7 @@
 Run from the repo root: python -m src.agent.batch alert_ids.txt
 To split a run across laptops, use scripts/exam.py, which calls this.
 """
+
 import json
 import os
 import re
@@ -66,7 +67,10 @@ def _write_json(path, data):
 
 def _save(path, ticket, events):
     """The trace says which model answered and how long it took, and holds only counts and IDs."""
-    _write_json(path.parent / "traces" / path.name, [event.model_dump(exclude={"ticket"}, exclude_none=True) for event in events])
+    _write_json(
+        path.parent / "traces" / path.name,
+        [event.model_dump(exclude={"ticket"}, exclude_none=True) for event in events],
+    )
     _write_json(path, ticket.model_dump(exclude_none=True))
 
 
@@ -80,8 +84,10 @@ def _triage(alert, triage_options):
 def _save_calls(out_dir, alert_id, calls, saved):
     """Written even when the ticket isn't, because a failure is what most needs explaining. A later run overwrites it.
     It holds alert and log text, which is untrusted: read it as data. runs/ is not in git."""
-    _write_json(out_dir / "calls" / f"{alert_id}.json",
-                {"alert_id": alert_id, "prompt_version": PROMPT_VERSION, "ticket_saved": saved, "calls": calls})
+    _write_json(
+        out_dir / "calls" / f"{alert_id}.json",
+        {"alert_id": alert_id, "prompt_version": PROMPT_VERSION, "ticket_saved": saved, "calls": calls},
+    )
 
 
 def _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, report, notify):
@@ -109,7 +115,11 @@ def _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, 
                 failures["in_a_row"] = 0 if saved else failures["in_a_row"] + 1
                 if _out_of_quota(events):
                     report["quota_exhausted"] = True
-                if report["quota_exhausted"] or failures["in_a_row"] >= MAX_FAILURES_IN_A_ROW * workers or report["calls_used"] + MAX_LLM_CALLS > max_calls:
+                if (
+                    report["quota_exhausted"]
+                    or failures["in_a_row"] >= MAX_FAILURES_IN_A_ROW * workers
+                    or report["calls_used"] + MAX_LLM_CALLS > max_calls
+                ):
                     stop.set()
             notify(alert_id, "done" if saved else "failed", time.monotonic() - started)
 
@@ -120,14 +130,33 @@ def _run_in_parallel(todo, alerts, triage_options, out_dir, workers, max_calls, 
     return report
 
 
-def run_batch(alert_ids, alerts=None, triage_options=None, out_dir=None, pace_seconds=PACE_SECONDS, max_calls=MAX_CALLS_PER_RUN, sleep=time.sleep, on_result=None, workers=1):
+def run_batch(
+    alert_ids,
+    alerts=None,
+    triage_options=None,
+    out_dir=None,
+    pace_seconds=PACE_SECONDS,
+    max_calls=MAX_CALLS_PER_RUN,
+    sleep=time.sleep,
+    on_result=None,
+    workers=1,
+):
     """Returns a report: done, skipped, failed, not_found, invalid_ids, not_started, calls_used and quota_exhausted.
 
     on_result(alert_id, status, seconds) is called after each alert, for showing progress.
     workers above 1 runs that many alerts at a time, with no pause between them."""
     alert_ids = list(dict.fromkeys(alert_ids))
     out_dir = Path(out_dir or RUNS_DIR / PROMPT_VERSION)
-    report = {"done": [], "skipped": [], "failed": [], "not_found": [], "invalid_ids": [], "not_started": [], "calls_used": 0, "quota_exhausted": False}
+    report = {
+        "done": [],
+        "skipped": [],
+        "failed": [],
+        "not_found": [],
+        "invalid_ids": [],
+        "not_started": [],
+        "calls_used": 0,
+        "quota_exhausted": False,
+    }
     # IDs become file names, so anything else is refused.
     safe_ids = []
     for alert_id in alert_ids:
@@ -181,7 +210,9 @@ def run_batch(alert_ids, alerts=None, triage_options=None, out_dir=None, pace_se
             notify(alert_id, "failed", time.monotonic() - started)
         if _out_of_quota(events):
             report["quota_exhausted"] = True
-            report["not_started"] = [item for item in safe_ids[position + 1:] if not (out_dir / f"{item}.json").exists()]
+            report["not_started"] = [
+                item for item in safe_ids[position + 1 :] if not (out_dir / f"{item}.json").exists()
+            ]
             break
     return report
 
@@ -195,7 +226,9 @@ def main(arguments=None):
     alert_ids = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
     report = run_batch(alert_ids)
     print(json.dumps(report, indent=2))
-    print(f"Done {len(report['done'])}, skipped {len(report['skipped'])}, failed {len(report['failed'])}, not started {len(report['not_started'])}, calls used {report['calls_used']}.")
+    print(
+        f"Done {len(report['done'])}, skipped {len(report['skipped'])}, failed {len(report['failed'])}, not started {len(report['not_started'])}, calls used {report['calls_used']}."
+    )
     if report.get("quota_exhausted"):
         print("The provider's daily limit was reached. Saved tickets are kept, so run this again once it resets.")
     return 0

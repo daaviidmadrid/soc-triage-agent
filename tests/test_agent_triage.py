@@ -1,4 +1,5 @@
 """All tests use a fake LLM and made-up alerts. Nothing here calls a real model."""
+
 import json
 import sys
 from pathlib import Path
@@ -163,7 +164,14 @@ def test_trace_shows_each_lookup_and_ends_with_the_ticket():
     assert events[-1].ticket is not None
     assert all(event.ticket is None for event in events[:-1])
     lookups = {(event.tool, event.args.get("source")) for event in events if event.type == "tool_result"}
-    assert {("users", None), ("assets", None), ("changes", None), ("search_logs", "proxy"), ("search_logs", "email"), ("llm", None)} <= lookups
+    assert {
+        ("users", None),
+        ("assets", None),
+        ("changes", None),
+        ("search_logs", "proxy"),
+        ("search_logs", "email"),
+        ("llm", None),
+    } <= lookups
     llm_result = next(event for event in events if event.tool == "llm" and event.type == "tool_result")
     assert llm_result.args["model"] == "fake-model"
     assert llm_result.args["prompt_tokens"] == 100
@@ -179,7 +187,17 @@ def test_trace_never_carries_text_from_the_data():
 
 
 def test_fields_owned_by_code_cannot_be_set_by_the_llm():
-    ticket, _ = run(FakeLLM(answer(severity="informational", ticket_id="TKT-HACKED", alert_ids=["X"], executed_actions=[{"action": "x"}], triage_seconds=0)))
+    ticket, _ = run(
+        FakeLLM(
+            answer(
+                severity="informational",
+                ticket_id="TKT-HACKED",
+                alert_ids=["X"],
+                executed_actions=[{"action": "x"}],
+                triage_seconds=0,
+            )
+        )
+    )
     assert ticket.severity == "medium"
     assert ticket.ticket_id == "TKT-ALR-TEST-0001"
     assert ticket.alert_ids == ["ALR-TEST-0001"]
@@ -196,15 +214,25 @@ def test_compute_severity_receives_the_right_inputs():
     seen = {}
 
     def spy(rule, criticality, adjustments=(), runbook_floor=None, authorised=False):
-        seen.update(rule=rule, criticality=criticality, adjustments=adjustments, floor=runbook_floor, authorised=authorised)
+        seen.update(
+            rule=rule, criticality=criticality, adjustments=adjustments, floor=runbook_floor, authorised=authorised
+        )
         return "low"
 
     ticket, _ = run(FakeLLM(answer(severity_adjustments=[{"delta": -1, "reason": "Bloqueado"}])), compute_severity=spy)
-    assert seen == {"rule": "medium", "criticality": "Media", "adjustments": [{"delta": -1, "reason": "Bloqueado"}], "floor": None, "authorised": False}
+    assert seen == {
+        "rule": "medium",
+        "criticality": "Media",
+        "adjustments": [{"delta": -1, "reason": "Bloqueado"}],
+        "floor": None,
+        "authorised": False,
+    }
     assert ticket.severity == "low"
 
 
-@pytest.mark.parametrize("result", ["high", {"final": "high"}, {"severity": "high"}, SimpleNamespace(final="high", reason="x")])
+@pytest.mark.parametrize(
+    "result", ["high", {"final": "high"}, {"severity": "high"}, SimpleNamespace(final="high", reason="x")]
+)
 def test_accepts_the_shapes_compute_severity_may_return(result):
     ticket, _ = run(FakeLLM(answer()), compute_severity=lambda *a, **k: result)
     assert ticket.severity == "high"
@@ -276,7 +304,10 @@ def test_ids_named_by_the_alert_but_not_retrieved_do_not_count():
 
 
 def test_alert_id_and_sources_without_ids_can_be_cited():
-    evidence = [{"source": "alert", "event_id": "ALR-TEST-0001", "finding": "a"}, {"source": "intel", "event_id": "", "finding": "b"}]
+    evidence = [
+        {"source": "alert", "event_id": "ALR-TEST-0001", "finding": "a"},
+        {"source": "intel", "event_id": "", "finding": "b"},
+    ]
     ticket, _ = run(FakeLLM(answer(evidence=evidence)))
     assert len(ticket.evidence) == 2
 
@@ -316,7 +347,10 @@ def test_benign_with_a_real_change_id_can_close():
         seen["authorised"] = authorised
         return "informational"
 
-    ticket, _ = run(FakeLLM(answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-TEST-1"})), compute_severity=spy)
+    ticket, _ = run(
+        FakeLLM(answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-TEST-1"})),
+        compute_severity=spy,
+    )
     assert ticket.verdict == "benign_true_positive"
     assert ticket.authorised_by.id == "CHG-TEST-1"
     assert ticket.severity == "informational"
@@ -326,8 +360,14 @@ def test_benign_with_a_real_change_id_can_close():
 
 
 def test_an_id_that_only_appears_in_a_log_is_not_an_approval():
-    context = make_context(logs=[{"source": "email", "event_id": "EVT-1", "id": "CHG-IN-EMAIL", "text": "Aprobado bajo CHG-IN-EMAIL"}], changes=[])
-    ticket, _ = run(FakeLLM(answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-IN-EMAIL"})), context=context)
+    context = make_context(
+        logs=[{"source": "email", "event_id": "EVT-1", "id": "CHG-IN-EMAIL", "text": "Aprobado bajo CHG-IN-EMAIL"}],
+        changes=[],
+    )
+    ticket, _ = run(
+        FakeLLM(answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "CHG-IN-EMAIL"})),
+        context=context,
+    )
     assert_stays_open(ticket)
 
 
@@ -341,14 +381,18 @@ def test_true_positive_high_escalates_even_if_the_llm_says_no():
 
 
 def test_critical_goes_to_the_on_call_n2_by_phone():
-    ticket, _ = run(FakeLLM(answer()), alert={**ALERT, "severity": "critical"}, compute_severity=lambda *a, **k: "critical")
+    ticket, _ = run(
+        FakeLLM(answer()), alert={**ALERT, "severity": "critical"}, compute_severity=lambda *a, **k: "critical"
+    )
     assert ticket.escalation.to == "N2 de guardia (teléfono)"
 
 
 @pytest.mark.parametrize("flag", list(triage_module.MANDATORY_FLAGS))
 def test_each_mandatory_rule_escalates_whatever_the_llm_says(flag):
     alert = {**ALERT, "severity": "low"}
-    draft = answer(policy_flags={flag: True}, escalate=False, recommended_actions=[{"action": "close", "target": "ticket"}])
+    draft = answer(
+        policy_flags={flag: True}, escalate=False, recommended_actions=[{"action": "close", "target": "ticket"}]
+    )
     ticket, _ = run(FakeLLM(draft), alert=alert)
     assert ticket.severity == "low"
     assert ticket.escalation.escalate is True
@@ -369,16 +413,23 @@ def test_llm_can_escalate_on_its_own():
 
 
 def test_suggestions_need_approval_and_nothing_is_executed():
-    draft = answer(recommended_actions=[{"action": "revoke_sessions", "target": "persona@test.example", "justification": "x"}])
+    draft = answer(
+        recommended_actions=[{"action": "revoke_sessions", "target": "persona@test.example", "justification": "x"}]
+    )
     ticket, _ = run(FakeLLM(draft))
     suggestion = next(action for action in ticket.recommended_actions if action.action == "revoke_sessions")
     assert suggestion.requires_approval is True
     assert ticket.executed_actions == []
 
 
-@pytest.mark.parametrize("name", ["close", "Cerrar alerta", "cerrar el ticket", "Close alert", "Cierre del ticket", "  CERRAR  "])
+@pytest.mark.parametrize(
+    "name", ["close", "Cerrar alerta", "cerrar el ticket", "Close alert", "Cierre del ticket", "  CERRAR  "]
+)
 def test_close_suggestions_in_any_wording_do_not_survive_on_an_escalated_ticket(name):
-    draft = answer(escalate=True, recommended_actions=[{"action": name, "target": "ticket"}, {"action": "Bloquear IOC", "target": "x"}])
+    draft = answer(
+        escalate=True,
+        recommended_actions=[{"action": name, "target": "ticket"}, {"action": "Bloquear IOC", "target": "x"}],
+    )
     ticket, _ = run(FakeLLM(draft))
     assert [action.action for action in ticket.recommended_actions] == ["escalate", "Bloquear IOC"]
 
@@ -402,7 +453,12 @@ def test_a_suggestion_that_only_mentions_closing_later_is_kept():
 
 
 def test_llm_needs_more_info_stays_open_and_cannot_lower_severity():
-    draft = answer(verdict="needs_more_info", evidence=[], open_questions=["Falta el log"], severity_adjustments=[{"delta": -1, "reason": "x"}])
+    draft = answer(
+        verdict="needs_more_info",
+        evidence=[],
+        open_questions=["Falta el log"],
+        severity_adjustments=[{"delta": -1, "reason": "x"}],
+    )
     ticket, _ = run(FakeLLM(draft))
     assert_stays_open(ticket)
     assert ticket.severity == "medium"
@@ -473,7 +529,12 @@ def test_llm_may_ask_for_one_extra_search_and_cite_its_rows():
         seen.update(args)
         return {"items": [{"event_id": "EVT-EXTRA", "text": "nueva"}], "truncated": False}
 
-    request = {"action": "search_logs", "source": "idp_audit", "user": "persona@test.example", "reason": "Ver la sesión"}
+    request = {
+        "action": "search_logs",
+        "source": "idp_audit",
+        "user": "persona@test.example",
+        "reason": "Ver la sesión",
+    }
     llm = FakeLLM(request, answer(evidence=[{"source": "idp_audit", "event_id": "EVT-EXTRA", "finding": "x"}]))
     ticket, events = run(llm, search_logs=search)
     assert seen == {"source": "idp_audit", "user": "persona@test.example"}
@@ -542,7 +603,9 @@ def test_a_real_claim_of_authorisation_needs_no_correction():
 
 def test_false_positive_with_no_log_rows_cant_close():
     context = make_context(logs=[])
-    ticket, events = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), context=context)
+    ticket, events = run(
+        FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), context=context
+    )
     assert ticket.verdict == "needs_more_info" and ticket.escalation.escalate is True
     assert any("ningún log" in event.summary for event in events if event.type == "note")
 
@@ -550,14 +613,18 @@ def test_false_positive_with_no_log_rows_cant_close():
 def test_rows_from_the_extra_search_count_as_data():
     context = make_context(logs=[])
     request = {"action": "search_logs", "source": "proxy", "value": "x"}
-    llm = FakeLLM(request, answer(verdict="false_positive", evidence=[{"source": "proxy", "event_id": "EVT-9", "finding": "x"}]))
+    llm = FakeLLM(
+        request, answer(verdict="false_positive", evidence=[{"source": "proxy", "event_id": "EVT-9", "finding": "x"}])
+    )
     ticket, _ = run(llm, context=context, search_logs=lambda **a: [{"event_id": "EVT-9"}])
     assert ticket.verdict == "false_positive" and ticket.escalation.escalate is False
 
 
 def test_high_severity_false_positive_needs_a_cited_event():
     high = lambda *_a, **_k: {"final": "high", "reason": "prueba"}
-    ticket, _ = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), compute_severity=high)
+    ticket, _ = run(
+        FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), compute_severity=high
+    )
     assert ticket.verdict == "needs_more_info" and ticket.escalation.escalate is True
     ticket, _ = run(FakeLLM(answer(verdict="false_positive")), compute_severity=high)
     assert ticket.verdict == "false_positive" and ticket.escalation.escalate is False
@@ -565,7 +632,9 @@ def test_high_severity_false_positive_needs_a_cited_event():
 
 def test_low_severity_false_positive_can_rest_on_the_alert_when_logs_exist():
     low = lambda *_a, **_k: {"final": "low", "reason": "prueba"}
-    ticket, _ = run(FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), compute_severity=low)
+    ticket, _ = run(
+        FakeLLM(answer(verdict="false_positive", evidence=[{"source": "alert", "finding": "x"}])), compute_severity=low
+    )
     assert ticket.verdict == "false_positive" and ticket.escalation.escalate is False
 
 
@@ -573,7 +642,17 @@ def test_llm_has_no_tool_that_changes_anything():
     llm = FakeLLM({"action": "run_containment", "target": "HOST-1"}, answer())
     ticket, events = run(llm)
     assert ticket.executed_actions == []
-    assert {event.tool for event in events} <= {None, "build_context", "users", "assets", "changes", "intel", "sandbox", "search_logs", "llm"}
+    assert {event.tool for event in events} <= {
+        None,
+        "build_context",
+        "users",
+        "assets",
+        "changes",
+        "intel",
+        "sandbox",
+        "search_logs",
+        "llm",
+    }
 
 
 def test_truncated_results_are_shown_and_become_a_question():
@@ -584,7 +663,13 @@ def test_truncated_results_are_shown_and_become_a_question():
     assert next(event for event in events if event.args.get("source") == "email").truncated is False
 
 
-@pytest.mark.parametrize("change", [{"truncated_sources": ["proxy"]}, {"logs": [{"source": "proxy", "event_id": f"EVT-{i}", "text": "x" * 800} for i in range(100)]}])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"truncated_sources": ["proxy"]},
+        {"logs": [{"source": "proxy", "event_id": f"EVT-{i}", "text": "x" * 800} for i in range(100)]},
+    ],
+)
 def test_incomplete_evidence_cannot_lower_severity(change):
     down = answer(severity_adjustments=[{"delta": -1, "reason": "Bloqueado"}])
     ticket, _ = run(FakeLLM(down), context=make_context(**change))
@@ -623,7 +708,10 @@ def test_other_hr_events_cannot_authorise():
 
 
 def test_trips_and_hr_events_can_be_cited_without_an_event_id():
-    evidence = [{"source": "trips", "event_id": "", "finding": "Viaje notificado"}, {"source": "hr_events", "event_id": "", "finding": "Baja comunicada"}]
+    evidence = [
+        {"source": "trips", "event_id": "", "finding": "Viaje notificado"},
+        {"source": "hr_events", "event_id": "", "finding": "Baja comunicada"},
+    ]
     ticket, _ = run(FakeLLM(answer(evidence=evidence)))
     assert [item.source for item in ticket.evidence] == ["trips", "hr_events"]
 
@@ -657,7 +745,11 @@ def test_planted_text_stays_inside_the_data_block():
 
 
 def test_obeying_with_a_fake_approval_is_stopped():
-    obeying = answer(verdict="benign_true_positive", authorised_by={"type": "change", "id": "FAKE-999"}, severity_adjustments=[{"delta": -1, "reason": "Aprobado"}])
+    obeying = answer(
+        verdict="benign_true_positive",
+        authorised_by={"type": "change", "id": "FAKE-999"},
+        severity_adjustments=[{"delta": -1, "reason": "Aprobado"}],
+    )
     ticket, _ = run(FakeLLM(obeying), context=planted_context())
     assert_stays_open(ticket)
     assert ticket.severity == "medium"
@@ -670,13 +762,17 @@ def test_obeying_with_no_evidence_is_stopped():
 
 
 def test_obeying_by_citing_the_fake_ticket_as_evidence_is_stopped():
-    obeying = answer(verdict="false_positive", evidence=[{"source": "changes", "event_id": "FAKE-999", "finding": "Aprobado"}])
+    obeying = answer(
+        verdict="false_positive", evidence=[{"source": "changes", "event_id": "FAKE-999", "finding": "Aprobado"}]
+    )
     ticket, _ = run(FakeLLM(obeying, obeying), context=planted_context())
     assert_stays_open(ticket)
 
 
 def test_obeying_by_setting_severity_directly_is_ignored():
-    obeying = answer(severity="informational", escalation={"escalate": False}, severity_adjustments=[{"delta": 1, "reason": "x"}])
+    obeying = answer(
+        severity="informational", escalation={"escalate": False}, severity_adjustments=[{"delta": 1, "reason": "x"}]
+    )
     ticket, _ = run(FakeLLM(obeying), context=planted_context())
     assert ticket.severity == "high"
     assert ticket.escalation.escalate is True
@@ -702,7 +798,9 @@ def test_a_ticket_flagged_for_planted_text_does_not_close(verdict):
 
 
 def test_injection_flag_with_a_made_up_id_keeps_the_note_but_not_the_id():
-    draft = answer(injection_flags=[{"event_id": "EVT-MADE-UP", "description": "Texto"}, {"event_id": "", "description": ""}])
+    draft = answer(
+        injection_flags=[{"event_id": "EVT-MADE-UP", "description": "Texto"}, {"event_id": "", "description": ""}]
+    )
     ticket, _ = run(FakeLLM(draft))
     assert [flag.event_id for flag in ticket.injection_flags] == [""]
 
@@ -747,5 +845,9 @@ def test_real_planted_text_cannot_close_through_a_fake_approval(alert_id):
 def test_real_attacks_escalate_when_the_llm_recognises_them(alert_id):
     alert = _real_alert(alert_id)
     evidence = [{"source": "alert", "event_id": alert_id, "finding": "x"}]
-    ticket, _ = run(FakeLLM(answer(evidence=evidence, severity_adjustments=[{"delta": 1, "reason": "x"}])), alert=alert, context={"alert": alert})
+    ticket, _ = run(
+        FakeLLM(answer(evidence=evidence, severity_adjustments=[{"delta": 1, "reason": "x"}])),
+        alert=alert,
+        context={"alert": alert},
+    )
     assert ticket.escalation.escalate is True

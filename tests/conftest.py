@@ -3,6 +3,7 @@
 The mock writes containment_log.jsonl next to itself, so we copy mock_soc_api.py into a
 temp folder and symlink the read-only data folders beside it. MOCK_API_URL points at it.
 """
+
 import os
 import shutil
 import socket
@@ -43,9 +44,20 @@ def mock_api(mock_dir):
     port = _free_port()
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "--app-dir", str(mock_dir / "06_herramientas"),
-         "mock_soc_api:app", "--port", str(port), "--log-level", "warning"],
-        env=env, cwd=str(mock_dir),
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "--app-dir",
+            str(mock_dir / "06_herramientas"),
+            "mock_soc_api:app",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ],
+        env=env,
+        cwd=str(mock_dir),
     )
     url = f"http://127.0.0.1:{port}"
     deadline = time.time() + 60

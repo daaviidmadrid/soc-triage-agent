@@ -6,6 +6,7 @@ We don't know the format we'll be given, so this accepts other wrappers and fiel
 fields and values are always kept. Alert text may be written by an attacker, so it is only ever
 stored and shown, never interpreted.
 """
+
 import csv
 import hashlib
 import io
@@ -19,7 +20,19 @@ MAX_BYTES = 2_000_000
 MAX_ROWS = 1000
 ALERT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,99}")
 FENCE = re.compile(r"^\s*```[A-Za-z]*\s*\n(.*?)\n?\s*```\s*$", re.DOTALL)
-WRAPPER_KEYS = ("alerts", "alertas", "data", "datos", "items", "results", "resultados", "records", "rows", "hits", "value")
+WRAPPER_KEYS = (
+    "alerts",
+    "alertas",
+    "data",
+    "datos",
+    "items",
+    "results",
+    "resultados",
+    "records",
+    "rows",
+    "hits",
+    "value",
+)
 INNER_ALERT_KEYS = ("_source", "alert", "alerta")
 CONTENT_FIELDS = ("rule_id", "rule_name", "description", "severity", "entities", "related_events")
 CSV_DELIMITERS = ",;\t|"
@@ -98,7 +111,7 @@ def _json_rows(data):
         if inner is not None:
             return [(n, _unwrap(value), None) for n, value in enumerate(inner, 1)]
         return [(1, _unwrap(data), None)]
-    raise ImportProblem("El JSON debe ser un objeto, una lista de objetos o {\"alerts\": [...]}.")
+    raise ImportProblem('El JSON debe ser un objeto, una lista de objetos o {"alerts": [...]}.')
 
 
 def _concatenated(text):
@@ -141,7 +154,11 @@ def _csv_rows(text):
             return None
         rows = []
         for row in reader:
-            value = {str(key).strip(): _cell(cell) for key, cell in row.items() if key and isinstance(cell, str) and cell.strip()}
+            value = {
+                str(key).strip(): _cell(cell)
+                for key, cell in row.items()
+                if key and isinstance(cell, str) and cell.strip()
+            }
             rows.append((reader.line_num, value, None))
     except csv.Error:
         return None

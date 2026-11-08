@@ -1,4 +1,5 @@
 """Builds the prompt for one alert."""
+
 import json
 import os
 import re
@@ -23,7 +24,12 @@ FORMAT_REMINDER = _on("AGENT_FORMAT_REMINDER")
 _OFF = [tag for name, tag in (("AGENT_FORMAT_REMINDER", "noR"), ("AGENT_CAMPAIGN", "noK")) if not _on(name)]
 _OFF += ["J1"] if os.environ.get("LLM_JSON_MODE", "0").strip() == "1" else []  # JSON mode is off by default (llm.py)
 _RUN_TAG = os.environ.get("AGENT_RUN_TAG", "")
-PROMPT_VERSION = BASE_PROMPT_VERSION + "".join(f"+{t}" for t in ([LESSONS_TAG] if LESSONS_TAG else []) + _OFF + ([_RUN_TAG] if re.fullmatch(r"[a-z0-9]{1,8}", _RUN_TAG) else []))
+PROMPT_VERSION = BASE_PROMPT_VERSION + "".join(
+    f"+{t}"
+    for t in ([LESSONS_TAG] if LESSONS_TAG else [])
+    + _OFF
+    + ([_RUN_TAG] if re.fullmatch(r"[a-z0-9]{1,8}", _RUN_TAG) else [])
+)
 
 REMINDER = """
 
@@ -32,9 +38,24 @@ Before you answer, check: the answer is one JSON object in the ticket format fro
 CONTEXT_DIR = Path(__file__).resolve().parents[2] / "data" / "01_contexto"
 
 LOG_SOURCES = (
-    "ad_events", "ai_gateway", "cicd_builds", "cloudtrail", "dlp", "dns",
-    "ecom_account", "ecom_auth", "edr_events", "email", "email_clicks", "firewall",
-    "idp_audit", "idp_signins", "proxy", "sql_audit", "vpn", "waf",
+    "ad_events",
+    "ai_gateway",
+    "cicd_builds",
+    "cloudtrail",
+    "dlp",
+    "dns",
+    "ecom_account",
+    "ecom_auth",
+    "edr_events",
+    "email",
+    "email_clicks",
+    "firewall",
+    "idp_audit",
+    "idp_signins",
+    "proxy",
+    "sql_audit",
+    "vpn",
+    "waf",
 )
 
 # The system prompt is about 14,000-14,700 characters, so about 60,000 are left for data, the size of the context
@@ -43,8 +64,21 @@ MAX_PROMPT_CHARS = 75_000
 
 # Analysis section 5: the alert first, then what code already knows, then raw rows.
 CONTEXT_ORDER = (
-    "alert", "entities", "criticality", "criticality_source", "users", "assets",
-    "changes", "trips", "hr_events", "intel", "sandbox", "logs", "extra_logs", "extra_search", "truncated_sources",
+    "alert",
+    "entities",
+    "criticality",
+    "criticality_source",
+    "users",
+    "assets",
+    "changes",
+    "trips",
+    "hr_events",
+    "intel",
+    "sandbox",
+    "logs",
+    "extra_logs",
+    "extra_search",
+    "truncated_sources",
 )
 
 # Analysis section 5: what goes first when a prompt is too long. Rows are cut from the end of each list, so Data sends the most important first.
@@ -189,14 +223,16 @@ def build_prompt_with_info(context, allow_search=True, feedback=None):
     """Returns (system, user, omitted), where omitted says what didn't fit."""
     data = _ordered(json.loads(json.dumps(context_to_dict(context), default=str)))
     system = "\n\n".join(
-        part for part in (
+        part
+        for part in (
             INSTRUCTIONS + (SEARCH_INSTRUCTIONS if allow_search else NO_SEARCH_INSTRUCTIONS),
             NOISE_GUIDANCE,
             _lessons.section(LESSONS),
             "SOC policy:\n" + _read("politica_soc.md"),
             "Runbook for this alert:\n" + _runbook(data.get("alert")),
             "Company rules:\n" + _read("empresa_tarvia.md"),
-        ) if part
+        )
+        if part
     )
     intro = "Triage the alert in this block, following your instructions."
     if feedback:

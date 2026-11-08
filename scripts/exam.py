@@ -19,6 +19,7 @@ or the path of a file with one alert ID per line.
 If a run stops for any reason, run the same command again. Saved tickets are never redone.
 The .env file is read only by the program, and neither its key nor its contents are ever printed.
 """
+
 import argparse
 import collections
 import contextlib
@@ -99,7 +100,7 @@ def split(ids, laptop, laptops):
     """This laptop's share. Every alert goes to exactly one laptop, and the order comes from the list, not the ID."""
     if laptops < 1 or not 1 <= laptop <= laptops:
         raise Problem(f"--laptop must be between 1 and {max(laptops, 1)}.")
-    return ids[laptop - 1::laptops]
+    return ids[laptop - 1 :: laptops]
 
 
 def choose_ids(name):
@@ -136,6 +137,7 @@ def choose_ids(name):
 
 # --- the mock API -----------------------------------------------------------------------------
 
+
 def mock_url():
     _load_env()
     return os.environ.get("MOCK_API_URL", "http://localhost:8000").rstrip("/")
@@ -160,8 +162,20 @@ def running_mock():
     port = found.group(1) if found else "8000"
     print(f"Starting the mock API on port {port}. Loading the logs can take a minute.", flush=True)
     process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "--app-dir", str(MOCK_FILE.parent), "mock_soc_api:app", "--port", port, "--log-level", "warning"],
-        cwd=ROOT, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "--app-dir",
+            str(MOCK_FILE.parent),
+            "mock_soc_api:app",
+            "--port",
+            port,
+            "--log-level",
+            "warning",
+        ],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     try:
         deadline = time.monotonic() + MOCK_START_SECONDS
@@ -182,10 +196,13 @@ def running_mock():
 
 # --- setup and check --------------------------------------------------------------------------
 
+
 def command_setup(_args):
     os.chdir(ROOT)
     if sys.version_info < MIN_PYTHON:
-        raise Problem(f"Python {'.'.join(map(str, MIN_PYTHON))} or newer is needed, and this is {sys.version.split()[0]}.")
+        raise Problem(
+            f"Python {'.'.join(map(str, MIN_PYTHON))} or newer is needed, and this is {sys.version.split()[0]}."
+        )
     if not VENV_PYTHON.exists():
         print("Creating .venv ...", flush=True)
         subprocess.check_call([sys.executable, "-m", "venv", str(VENV)])
@@ -216,14 +233,29 @@ def _checks():
     yield not missing, "Python packages", "Run: python3 scripts/exam.py setup"
     if missing:
         return
-    for path, name in ((ALERTS_FILE, "alerts"), (MOCK_FILE, "mock API"), (EXAM_FILE, "exam list"), (LABELS_FILE, "answer key")):
+    for path, name in (
+        (ALERTS_FILE, "alerts"),
+        (MOCK_FILE, "mock API"),
+        (EXAM_FILE, "exam list"),
+        (LABELS_FILE, "answer key"),
+    ):
         yield path.exists(), f"{name} file", "Run: python3 scripts/exam.py setup, and update this branch with git pull."
     _load_env()
-    yield bool(os.environ.get("LLM_API_KEY", "").strip()), "LLM key is set", "Put your own key after LLM_API_KEY= in .env"
-    yield bool(os.environ.get("LLM_BASE_URL", "").strip()), "LLM address is set", "Copy LLM_BASE_URL from the README into .env"
+    yield (
+        bool(os.environ.get("LLM_API_KEY", "").strip()),
+        "LLM key is set",
+        "Put your own key after LLM_API_KEY= in .env",
+    )
+    yield (
+        bool(os.environ.get("LLM_BASE_URL", "").strip()),
+        "LLM address is set",
+        "Copy LLM_BASE_URL from the README into .env",
+    )
     model = os.environ.get("LLM_MODEL", "").strip()
     yield bool(model), f"model: {model or 'not set'}", "Put LLM_MODEL=ornith in .env"
-    print(f"  --  reasoning: {'off' if os.environ.get('LLM_ENABLE_THINKING', '').strip().lower() == 'false' else 'on, which takes minutes per alert'}")
+    print(
+        f"  --  reasoning: {'off' if os.environ.get('LLM_ENABLE_THINKING', '').strip().lower() == 'false' else 'on, which takes minutes per alert'}"
+    )
 
 
 def _commit():
@@ -243,7 +275,7 @@ def _ping():
 
     started = time.monotonic()
     try:
-        result = complete("Reply with this JSON only: {\"ok\": true}", "Are you there?")
+        result = complete('Reply with this JSON only: {"ok": true}', "Are you there?")
     except LLMError as error:
         return False, f"LLM call failed: {error}"
     return True, f"LLM answered in {time.monotonic() - started:.1f} s from {result.model}"
@@ -268,7 +300,9 @@ def command_check(args):
         started = time.monotonic()
         rows = sum(len(items) for items in build_context(alert).logs.values())
         print(f"  ok  mock API answers: {rows} log rows for a test alert in {time.monotonic() - started:.1f} s")
-    print(f"  ok  {len(choose_ids('exam'))} exam alerts, {len(choose_ids('normal'))} normal-day alerts, {len(choose_ids('extra'))} extra alerts")
+    print(
+        f"  ok  {len(choose_ids('exam'))} exam alerts, {len(choose_ids('normal'))} normal-day alerts, {len(choose_ids('extra'))} extra alerts"
+    )
     if args.ping:
         passed, message = _ping()
         print(f"  {'ok ' if passed else 'NO '} {message}")
@@ -279,6 +313,7 @@ def command_check(args):
 
 
 # --- run ---------------------------------------------------------------------------------------
+
 
 def _unreviewed_answers():
     from eval import score
@@ -340,13 +375,19 @@ def command_run(args):
     ids = split(choose_ids(args.set), args.laptop, args.laptops)
     folder = results_folder(model)
     pending = [alert_id for alert_id in ids if not (folder / f"{alert_id}.json").exists()]
-    print(f"Laptop {args.laptop} of {args.laptops}: {len(ids)} alerts from '{args.set}', {len(ids) - len(pending)} already done. Model {model}.")
-    print(f"Results go to runs/{folder.name}. About {max(1, round(len(pending) * (SECONDS_PER_ALERT + args.pace) / 60))} min.")
+    print(
+        f"Laptop {args.laptop} of {args.laptops}: {len(ids)} alerts from '{args.set}', {len(ids) - len(pending)} already done. Model {model}."
+    )
+    print(
+        f"Results go to runs/{folder.name}. About {max(1, round(len(pending) * (SECONDS_PER_ALERT + args.pace) / 60))} min."
+    )
     if args.limit:
-        pending = pending[:args.limit]
+        pending = pending[: args.limit]
         print(f"Only the next {len(pending)}, because of --limit.")
     if args.set == "exam" and _unreviewed_answers():
-        print(f"Note: {_unreviewed_answers()} answers in eval/labels.csv are still unreviewed drafts. Don't edit them after seeing results without noting why.")
+        print(
+            f"Note: {_unreviewed_answers()} answers in eval/labels.csv are still unreviewed drafts. Don't edit them after seeing results without noting why."
+        )
     if not pending:
         print("Nothing to do.")
         return 0
@@ -360,13 +401,23 @@ def command_run(args):
     report = {}
     with running_mock(), bar:
         for attempt in range(EXTRA_PASSES + 1):
-            todo = [alert_id for alert_id in pending if not (folder / f"{alert_id}.json").exists() and alert_id in alerts]
+            todo = [
+                alert_id for alert_id in pending if not (folder / f"{alert_id}.json").exists() and alert_id in alerts
+            ]
             if not todo:
                 break
             if attempt:
                 print(f"Trying {len(todo)} failed alert(s) again in 30 s.", flush=True)
                 time.sleep(30)
-            report = run_batch(todo, alerts=alerts, out_dir=folder, pace_seconds=args.pace, max_calls=MAX_CALLS, on_result=show, workers=args.workers)
+            report = run_batch(
+                todo,
+                alerts=alerts,
+                out_dir=folder,
+                pace_seconds=args.pace,
+                max_calls=MAX_CALLS,
+                on_result=show,
+                workers=args.workers,
+            )
             if report["quota_exhausted"]:
                 break
 
@@ -379,11 +430,16 @@ def command_run(args):
     if left:
         print("Run the same command again to carry on.")
         return 1
-    print(f"Next: python3 scripts/exam.py pack --laptop {args.laptop}" if args.laptops > 1 else "Next: python3 scripts/exam.py score")
+    print(
+        f"Next: python3 scripts/exam.py pack --laptop {args.laptop}"
+        if args.laptops > 1
+        else "Next: python3 scripts/exam.py score"
+    )
     return 0
 
 
 # --- status, pack and merge --------------------------------------------------------------------
+
 
 def _folder(args):
     if getattr(args, "folder", None):
@@ -393,7 +449,11 @@ def _folder(args):
 
 def _shorten(text, limit):
     text = str(text or "")
-    return text if limit <= 0 or len(text) <= limit else text[:limit] + f" ... [{len(text) - limit} more characters, use --full]"
+    return (
+        text
+        if limit <= 0 or len(text) <= limit
+        else text[:limit] + f" ... [{len(text) - limit} more characters, use --full]"
+    )
 
 
 def command_explain(args):
@@ -409,8 +469,10 @@ def command_explain(args):
     print(f"{log['alert_id']}, prompt {log.get('prompt_version')}, ticket saved: {log.get('ticket_saved')}")
     for entry in log.get("calls", []):
         if entry.get("kind") == "llm_call":
-            print(f"\n--- call {entry.get('call')}: {entry.get('outcome')} ({entry.get('model', '-')}, {entry.get('seconds')} s, "
-                  f"{entry.get('prompt_tokens')} tokens in, {entry.get('completion_tokens')} out)")
+            print(
+                f"\n--- call {entry.get('call')}: {entry.get('outcome')} ({entry.get('model', '-')}, {entry.get('seconds')} s, "
+                f"{entry.get('prompt_tokens')} tokens in, {entry.get('completion_tokens')} out)"
+            )
             if entry.get("errors"):
                 print("Code rejected it: " + " ".join(entry["errors"]))
             if entry.get("error"):
@@ -436,7 +498,13 @@ def command_explain(args):
                 print(f"Ticket: {entry['verdict']}, severity {entry.get('severity')}, closed. No model call was made.")
         else:
             print(f"\n--- result: {entry.get('outcome')}")
-            print(json.dumps({key: value for key, value in entry.items() if key not in ("kind", "outcome", "at")}, ensure_ascii=False, indent=1))
+            print(
+                json.dumps(
+                    {key: value for key, value in entry.items() if key not in ("kind", "outcome", "at")},
+                    ensure_ascii=False,
+                    indent=1,
+                )
+            )
     return 0
 
 
@@ -486,7 +554,9 @@ def merge_zip(path, runs_dir=RUNS_DIR):
         contents = {}
         for name in names:
             inside = name.split("/")[1:]
-            valid = (len(inside) == 1 and TICKET_NAME.fullmatch(inside[0])) or (len(inside) == 2 and inside[0] in ("traces", "calls") and TICKET_NAME.fullmatch(inside[1]))
+            valid = (len(inside) == 1 and TICKET_NAME.fullmatch(inside[0])) or (
+                len(inside) == 2 and inside[0] in ("traces", "calls") and TICKET_NAME.fullmatch(inside[1])
+            )
             if not valid or not FOLDER_NAME.fullmatch(folder_name):
                 raise Problem(f"{path} holds an unexpected file, so nothing was merged from it.")
             contents[tuple(inside)] = archive.read(name)
@@ -517,14 +587,23 @@ def command_merge(args):
             raise Problem(f"There's no file called {name}.")
         folder, new, same, different = merge_zip(path)
         folders.add(folder)
-        print(f"{path.name}: {new} new tickets, {same} already here" + (f", {different} DIFFERENT and not replaced" if different else "") + f", in runs/{folder}")
+        print(
+            f"{path.name}: {new} new tickets, {same} already here"
+            + (f", {different} DIFFERENT and not replaced" if different else "")
+            + f", in runs/{folder}"
+        )
     if len(folders) > 1:
-        print(f"Warning: these packs come from different models or prompts: {', '.join(sorted(folders))}. Don't mix them in one score.")
-    print("Next: python3 scripts/exam.py status, then python3 scripts/exam.py score --folder runs/" + sorted(folders)[0])
+        print(
+            f"Warning: these packs come from different models or prompts: {', '.join(sorted(folders))}. Don't mix them in one score."
+        )
+    print(
+        "Next: python3 scripts/exam.py status, then python3 scripts/exam.py score --folder runs/" + sorted(folders)[0]
+    )
     return 0
 
 
 # --- score -------------------------------------------------------------------------------------
+
 
 def _trace_facts(folder):
     models, seconds = collections.Counter(), []
@@ -542,7 +621,11 @@ def _print_mistakes(report):
     """Where the AI and the key disagree. The key can be wrong too, so each of these is worth a look."""
     rows = []
     for row in report["per_alert"]:
-        wrong = [f"{field}: AI {row[field][0]}, key {row[field][1]}" for field in ("verdict", "severity", "escalate") if field in row and row[field][0] != row[field][1]]
+        wrong = [
+            f"{field}: AI {row[field][0]}, key {row[field][1]}"
+            for field in ("verdict", "severity", "escalate")
+            if field in row and row[field][0] != row[field][1]
+        ]
         if wrong:
             rows.append(f"  {row['alert_id']}  " + "; ".join(wrong))
     if rows:
@@ -565,8 +648,12 @@ def command_score(args):
 
         result = correlate(load_folder(folder))
         grouped = set(result["memberships"])
-        tickets = [incident["ticket"] for incident in result["incidents"]] + [t for t in tickets if not set(t.get("alert_ids") or []) & grouped]
-        print(f"Grouped into incidents: {len(result['incidents'])}, holding {len(grouped)} alerts. Each alert in one is marked by its incident's ticket.")
+        tickets = [incident["ticket"] for incident in result["incidents"]] + [
+            t for t in tickets if not set(t.get("alert_ids") or []) & grouped
+        ]
+        print(
+            f"Grouped into incidents: {len(result['incidents'])}, holding {len(grouped)} alerts. Each alert in one is marked by its incident's ticket."
+        )
     labels = score.load_labels()
     labelled = {label["alert_id"] for label in labels}
     if args.set:
@@ -575,17 +662,24 @@ def command_score(args):
     report = score.score(tickets, labels, score.load_planted())
     print(f"Tickets read: {len(tickets)} from {folder}" + (f". Marking only '{args.set}'." if args.set else ""))
     if report["no_ticket"]:
-        print(f"Note: {len(report['no_ticket'])} labelled alerts have no ticket yet, and they count as missed below. Run or merge the rest first.")
+        print(
+            f"Note: {len(report['no_ticket'])} labelled alerts have no ticket yet, and they count as missed below. Run or merge the rest first."
+        )
     score._print(report)
     fields = [row for row in report["per_alert"] if any(field in row for field in ("verdict", "severity", "escalate"))]
-    right = sum(all(row[field][0] == row[field][1] for field in ("verdict", "severity", "escalate") if field in row) for row in fields)
+    right = sum(
+        all(row[field][0] == row[field][1] for field in ("verdict", "severity", "escalate") if field in row)
+        for row in fields
+    )
     print(f"Fully right (verdict, severity and escalation all match the key): {right}/{len(fields)}")
     _print_mistakes(report)
     other = [ticket for ticket in tickets if not set(ticket.get("alert_ids") or []) & labelled]
     if other:
         verdicts = collections.Counter(ticket.get("verdict") for ticket in other)
         escalated = sum(bool((ticket.get("escalation") or {}).get("escalate")) for ticket in other)
-        print(f"Tickets with no answer to compare: {len(other)}. Verdicts {dict(verdicts)}, {escalated} escalated. These show it runs, not that it's right.")
+        print(
+            f"Tickets with no answer to compare: {len(other)}. Verdicts {dict(verdicts)}, {escalated} escalated. These show it runs, not that it's right."
+        )
     automatic = [ticket for ticket in tickets if ticket.get("confidence") == 0.0 and not ticket.get("evidence")]
     print(f"Tickets that fell back to a person because triage failed: {len(automatic)}")
     models, seconds = _trace_facts(folder)
@@ -596,12 +690,15 @@ def command_score(args):
 
 # --- entry point -------------------------------------------------------------------------------
 
+
 def parser():
     main_parser = argparse.ArgumentParser(description="Runs the practice exam on one or more laptops.")
     commands = main_parser.add_subparsers(dest="command", required=True)
     commands.add_parser("setup", help="prepare this laptop").set_defaults(run=command_setup)
     check = commands.add_parser("check", help="say what is ready")
-    check.add_argument("--ping", action="store_true", help="also make one real LLM call, which uses up one of the day's calls")
+    check.add_argument(
+        "--ping", action="store_true", help="also make one real LLM call, which uses up one of the day's calls"
+    )
     check.set_defaults(run=command_check)
     run = commands.add_parser("run", help="triage this laptop's share")
     run.add_argument("--set", default="exam", help="exam, extra, all or a file of alert IDs")

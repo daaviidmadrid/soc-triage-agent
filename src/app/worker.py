@@ -8,6 +8,7 @@ deadline and the order alerts arrived, never an ID number.
 step() does one unit of work and says what it did, so tests can drive it with no thread. Stopping or pausing takes
 effect between units, so no alert is ever left half-processed.
 """
+
 import os
 import threading
 import time
@@ -92,7 +93,9 @@ def alert_criticality(alert, lookup_asset=None, lookup_user=None, memo=None):
                     asset = cached("asset", lookup_asset, workstation) if workstation else None
                     if asset:
                         assets[asset["hostname"]] = asset
-        return resolve_criticality(fill_from_catalogue(alert)[0], {"entities": entities, "assets": list(assets.values()), "users": users})[0]
+        return resolve_criticality(
+            fill_from_catalogue(alert)[0], {"entities": entities, "assets": list(assets.values()), "users": users}
+        )[0]
     except Exception:
         return DEFAULT_CRITICALITY
 
@@ -106,8 +109,20 @@ def order_key(alert, criticality, deadline, position):
 class Worker:
     """triage_one, try_rules, group, report_candidates and report_one are the app's own functions. See main.py."""
 
-    def __init__(self, store, settings, *, triage_one, try_rules, group, report_candidates, report_one, tick=None, criticality=None,
-                 clock=time.monotonic):
+    def __init__(
+        self,
+        store,
+        settings,
+        *,
+        triage_one,
+        try_rules,
+        group,
+        report_candidates,
+        report_one,
+        tick=None,
+        criticality=None,
+        clock=time.monotonic,
+    ):
         self.store = store
         self.settings = settings
         self.triage_one = triage_one
@@ -189,7 +204,11 @@ class Worker:
 
     def _halt(self, reason, text):
         self.state, self.stop_reason = "stopped", reason
-        self._audit("worker_stopped", text, {"reason": reason, "llm_calls": self.calls_used, "failures_in_a_row": self.failures_in_a_row})
+        self._audit(
+            "worker_stopped",
+            text,
+            {"reason": reason, "llm_calls": self.calls_used, "failures_in_a_row": self.failures_in_a_row},
+        )
         return "stopped"
 
     # The queue, in order.
@@ -229,9 +248,15 @@ class Worker:
 
     def _count(self, run_id, now, failed):
         """What one finished run used and whether it failed, by the same tests as src/agent/batch.py."""
-        events = [SimpleNamespace(**{"tool": None, "type": None, "args": {}, **event}) for event in self.store.events_after(run_id)]
+        events = [
+            SimpleNamespace(**{"tool": None, "type": None, "args": {}, **event})
+            for event in self.store.events_after(run_id)
+        ]
         run = self.store.get_run(run_id) or {}
-        real = run.get("mode") in ("real", "report")  # example runs replay files and call nothing; reports always call the LLM
+        real = run.get("mode") in (
+            "real",
+            "report",
+        )  # example runs replay files and call nothing; reports always call the LLM
         calls = _calls_used(events) if real else 0
         self.calls_used += calls
         if calls:
@@ -249,7 +274,10 @@ class Worker:
         if out_of_quota:
             return self._halt("quota", "El LLM agotó su cuota: el resto de alertas sigue en la cola para una persona.")
         if self.failures_in_a_row >= self.settings.max_failures:
-            return self._halt("failures", f"{self.failures_in_a_row} fallos seguidos: el resto de alertas sigue en la cola para una persona.")
+            return self._halt(
+                "failures",
+                f"{self.failures_in_a_row} fallos seguidos: el resto de alertas sigue en la cola para una persona.",
+            )
         return None
 
     def _maybe_group(self, now):
@@ -271,7 +299,11 @@ class Worker:
         with self._lock:
             if self.state == "stopping":
                 self.state = "stopped"
-                self._audit("worker_stopped", "Detenido por una persona, sin dejar ninguna alerta a medias.", {"reason": self.stop_reason, "llm_calls": self.calls_used})
+                self._audit(
+                    "worker_stopped",
+                    "Detenido por una persona, sin dejar ninguna alerta a medias.",
+                    {"reason": self.stop_reason, "llm_calls": self.calls_used},
+                )
                 return "stopped"
             if self.state in ("stopped", "paused"):
                 return self.state
@@ -301,13 +333,19 @@ class Worker:
         next_alert = pending[0] if pending else None
         report = candidates[0] if candidates else None
         # A report goes first only if it is of a higher severity than the next alert, whose triage has a deadline.
-        report_first = report and (next_alert is None or LEVELS.index(report["severity"]) > LEVELS.index(sla_policy.rule_severity(next_alert)[0]))
+        report_first = report and (
+            next_alert is None
+            or LEVELS.index(report["severity"]) > LEVELS.index(sla_policy.rule_severity(next_alert)[0])
+        )
         if not next_alert and not report:
             return "idle"
 
         ok, why = self._can_call(now)
         if why == "budget":
-            return self._halt("budget", "Límite de llamadas al LLM de esta ejecución: el resto de alertas sigue en la cola para una persona.")
+            return self._halt(
+                "budget",
+                "Límite de llamadas al LLM de esta ejecución: el resto de alertas sigue en la cola para una persona.",
+            )
         if not ok:
             return "wait"
         self._next_llm_at = now + self.settings.pace_seconds
@@ -352,9 +390,19 @@ class Worker:
 
     def view(self):
         return {
-            "enabled": self.settings.enabled, "investigate": self.settings.investigate, "state": self.state, "stop_reason": self.stop_reason,
-            "current": self.current, "llm_calls_used": self.calls_used, "llm_calls_limit": self.settings.max_calls_per_run,
-            "llm_calls_per_minute": self.settings.max_calls_per_minute, "pace_seconds": self.settings.pace_seconds,
-            "failures_in_a_row": self.failures_in_a_row, "failures_total": self.failures_total, "max_failures": self.settings.max_failures,
-            "triaged": self.triaged, "reports": self.reports, "group_every_seconds": self.settings.group_every_seconds,
+            "enabled": self.settings.enabled,
+            "investigate": self.settings.investigate,
+            "state": self.state,
+            "stop_reason": self.stop_reason,
+            "current": self.current,
+            "llm_calls_used": self.calls_used,
+            "llm_calls_limit": self.settings.max_calls_per_run,
+            "llm_calls_per_minute": self.settings.max_calls_per_minute,
+            "pace_seconds": self.settings.pace_seconds,
+            "failures_in_a_row": self.failures_in_a_row,
+            "failures_total": self.failures_total,
+            "max_failures": self.settings.max_failures,
+            "triaged": self.triaged,
+            "reports": self.reports,
+            "group_every_seconds": self.settings.group_every_seconds,
         }

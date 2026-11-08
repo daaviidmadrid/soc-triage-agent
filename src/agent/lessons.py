@@ -7,6 +7,7 @@ tell the model to approve or run containment, which only a person does. The gate
 
 File format: {"tag": "L1", "lessons": [{"rule": "...", "why": "..."}]}
 """
+
 import json
 import os
 import re
@@ -23,9 +24,17 @@ FORBIDDEN = (
     (re.compile(r"https?://|www\.", re.I), "a URL"),
     (re.compile(r"\b[\w-]+\.(example|com|net|org|io|es|cat|ru|cn|xyz|top|info)\b", re.I), "a domain"),
     (re.compile(r"\b[A-Z]{2,}-[A-Z0-9]{2,}-\d{2,}\b"), "a host name"),
-    (re.compile(r"\b(approve|execute|perform|run|launch)\w*\b[^.]{0,40}\b(containment|isolat|block|disabl|quarantin)", re.I), "approving or running containment"),
+    (
+        re.compile(
+            r"\b(approve|execute|perform|run|launch)\w*\b[^.]{0,40}\b(containment|isolat|block|disabl|quarantin)", re.I
+        ),
+        "approving or running containment",
+    ),
     (re.compile(r"\b(labels?\.csv|answer key|eval/|held.?out)\b", re.I), "a reference to the answer key"),
-    (re.compile(r"\b(ignore|disregard|override)\b[^.]{0,30}\b(instruction|policy|rule|prompt)", re.I), "an instruction to ignore the rules"),
+    (
+        re.compile(r"\b(ignore|disregard|override)\b[^.]{0,30}\b(instruction|policy|rule|prompt)", re.I),
+        "an instruction to ignore the rules",
+    ),
 )
 
 

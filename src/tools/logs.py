@@ -5,6 +5,7 @@ q="laura.ferrer" also returns laura.ferrer2 and q="10.10.1.1" also returns 10.10
 We use `q` only to narrow the scan (with the JSON quotes around the value, which cuts
 most false hits), then keep rows whose named field is exactly equal.
 """
+
 import json
 from datetime import datetime, timezone
 
@@ -15,24 +16,24 @@ from src.tools import api_client
 # "domain\\username" (TARVIA\\laura.ferrer2). Nested fields use dots; lists match any item.
 # Analysis section 3 finds the same formats. Cloud identities have no UPN: search them with value=.
 LOG_FIELDS = {
-    "ad_events":    {"user": {"subject": "username", "target": "username"}, "ip": [], "host": ["src_host", "dc"]},
-    "ai_gateway":   {"user": {}, "ip": ["src_ip"], "host": []},
-    "cicd_builds":  {"user": {}, "ip": [], "host": ["runner"]},
-    "cloudtrail":   {"user": {"userIdentity.userName": "username"}, "ip": ["sourceIPAddress"], "host": []},
-    "dlp":          {"user": {"user": "username"}, "ip": [], "host": ["hostname"]},
-    "dns":          {"user": {}, "ip": ["src_ip", "response"], "host": ["hostname"]},
+    "ad_events": {"user": {"subject": "username", "target": "username"}, "ip": [], "host": ["src_host", "dc"]},
+    "ai_gateway": {"user": {}, "ip": ["src_ip"], "host": []},
+    "cicd_builds": {"user": {}, "ip": [], "host": ["runner"]},
+    "cloudtrail": {"user": {"userIdentity.userName": "username"}, "ip": ["sourceIPAddress"], "host": []},
+    "dlp": {"user": {"user": "username"}, "ip": [], "host": ["hostname"]},
+    "dns": {"user": {}, "ip": ["src_ip", "response"], "host": ["hostname"]},
     "ecom_account": {"user": {}, "ip": ["src_ip"], "host": []},
-    "ecom_auth":    {"user": {}, "ip": ["src_ip"], "host": []},
-    "edr_events":   {"user": {"user": "domain\\username"}, "ip": [], "host": ["hostname"]},
-    "email":        {"user": {"sender": "upn", "recipients": "upn"}, "ip": ["sender_ip"], "host": []},
+    "ecom_auth": {"user": {}, "ip": ["src_ip"], "host": []},
+    "edr_events": {"user": {"user": "domain\\username"}, "ip": [], "host": ["hostname"]},
+    "email": {"user": {"sender": "upn", "recipients": "upn"}, "ip": ["sender_ip"], "host": []},
     "email_clicks": {"user": {"user": "upn"}, "ip": ["src_ip"], "host": []},
-    "firewall":     {"user": {}, "ip": ["src_ip", "dst_ip"], "host": []},
-    "idp_audit":    {"user": {"actor_upn": "upn", "target": "upn"}, "ip": ["src_ip"], "host": []},
-    "idp_signins":  {"user": {"user_upn": "upn"}, "ip": ["src_ip"], "host": []},
-    "proxy":        {"user": {"user": "username"}, "ip": ["src_ip", "dst_ip"], "host": ["hostname"]},
-    "sql_audit":    {"user": {"user": "username"}, "ip": [], "host": ["client_host"]},
-    "vpn":          {"user": {"user": "username"}, "ip": ["src_ip", "assigned_ip"], "host": []},
-    "waf":          {"user": {}, "ip": ["src_ip"], "host": []},
+    "firewall": {"user": {}, "ip": ["src_ip", "dst_ip"], "host": []},
+    "idp_audit": {"user": {"actor_upn": "upn", "target": "upn"}, "ip": ["src_ip"], "host": []},
+    "idp_signins": {"user": {"user_upn": "upn"}, "ip": ["src_ip"], "host": []},
+    "proxy": {"user": {"user": "username"}, "ip": ["src_ip", "dst_ip"], "host": ["hostname"]},
+    "sql_audit": {"user": {"user": "username"}, "ip": [], "host": ["client_host"]},
+    "vpn": {"user": {"user": "username"}, "ip": ["src_ip", "assigned_ip"], "host": []},
+    "waf": {"user": {}, "ip": ["src_ip"], "host": []},
 }
 
 API_LIMIT = 2000  # the mock API's maximum page size
@@ -107,8 +108,9 @@ def _matcher(spec, user, ip, host, value):
         fields = spec["user"]
         if not fields:
             unsupported.append("user")
-        checks.append(lambda r: any(_user_matches(v, fmt, user)
-                                    for path, fmt in fields.items() for v in _field(r, path)))
+        checks.append(
+            lambda r: any(_user_matches(v, fmt, user) for path, fmt in fields.items() for v in _field(r, path))
+        )
         qs.append(sorted({_user_q(fmt, user) for fmt in fields.values()}))
     if ip:
         if not spec["ip"]:

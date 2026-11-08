@@ -1,4 +1,5 @@
 """The one place that calls the LLM."""
+
 import json
 import logging
 import os
@@ -201,7 +202,10 @@ def _read_stream(stream, model, attempts):
         raise
     except Exception as error:
         raise StreamCut(type(error).__name__) from None
-    answer = SimpleNamespace(finish_reason=finish_reason, message=SimpleNamespace(content="".join(parts), reasoning_content="".join(thoughts)))
+    answer = SimpleNamespace(
+        finish_reason=finish_reason,
+        message=SimpleNamespace(content="".join(parts), reasoning_content="".join(thoughts)),
+    )
     return _read_response(SimpleNamespace(choices=[answer] if choices else [], usage=usage), model, attempts)
 
 
@@ -226,7 +230,11 @@ def complete(system: str, user: str, client=None, sleep=time.sleep, thinking=Non
                     messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                     **extra,
                 )
-                return _read_stream(response, model, attempts) if extra.get("stream") else _read_response(response, model, attempts)
+                return (
+                    _read_stream(response, model, attempts)
+                    if extra.get("stream")
+                    else _read_response(response, model, attempts)
+                )
             except RETRYABLE_ERRORS as error:
                 last_failure = f"{model}: {type(error).__name__}"
                 log.warning("LLM call failed, %s", last_failure)
@@ -241,8 +249,12 @@ def complete(system: str, user: str, client=None, sleep=time.sleep, thinking=Non
                     raise LLMBlocked(f"{model} blocked the call: {message}", attempts) from None
                 raise LLMError(f"{model}: {type(error).__name__}: {message}", attempts) from None
             except UnicodeError:
-                raise LLMError("LLM_API_KEY contains a character that can't be sent. Check it in .env", attempts) from None
+                raise LLMError(
+                    "LLM_API_KEY contains a character that can't be sent. Check it in .env", attempts
+                ) from None
     waits = [_exhausted.get(model, 0) - time.monotonic() for model in models]
     if all(wait > 0 for wait in waits):
-        raise LLMQuotaExhausted(f"Daily limit reached on {', '.join(models)}. It resets in about {min(waits) / 3600:.1f} h.", attempts)
+        raise LLMQuotaExhausted(
+            f"Daily limit reached on {', '.join(models)}. It resets in about {min(waits) / 3600:.1f} h.", attempts
+        )
     raise LLMUnavailable(f"All models failed. Last failure: {last_failure}", attempts)

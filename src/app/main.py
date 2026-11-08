@@ -7,6 +7,7 @@ or an incident report's proposed steps, record each person's approval, and call 
 when a person clicks run after every required role has approved. A person's decision on a ticket
 is only recorded.
 """
+
 import asyncio
 import json
 import os
@@ -112,7 +113,16 @@ def sample_rate():
     return min(max(percent, 0.0), 100.0) / 100
 
 
-def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rules_fn=None, settings=None, lookup_asset=None, pick=random.random):
+def create_app(
+    db_path=None,
+    sample_path=None,
+    run_fn=None,
+    report_fn=None,
+    rules_fn=None,
+    settings=None,
+    lookup_asset=None,
+    pick=random.random,
+):
     """The arguments are there so tests can use a temporary database, fake runs and fixed settings."""
     store = Store(db_path or os.environ.get("APP_DB_PATH") or DEFAULT_DB)
     store.mark_interrupted_runs()
@@ -182,20 +192,38 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             "verdict": _text(ticket.get("verdict")),
             "severity": _severity(ticket.get("severity")),
             "proposed": "escalate" if escalate is True else "close" if escalate is False else None,
-            "injection_flags": len(ticket.get("injection_flags") or []) if isinstance(ticket.get("injection_flags"), list) else 0,
+            "injection_flags": len(ticket.get("injection_flags") or [])
+            if isinstance(ticket.get("injection_flags"), list)
+            else 0,
             # The fixed rule that closed it without the LLM (src/agent/rules.py), or None.
-            "closed_by_rule": _text(ticket["closed_by_rule"].get("rule_id")) if isinstance(ticket.get("closed_by_rule"), dict) else None,
+            "closed_by_rule": _text(ticket["closed_by_rule"].get("rule_id"))
+            if isinstance(ticket.get("closed_by_rule"), dict)
+            else None,
             "triage_seconds": run.get("duration_seconds") if run else None,
             "auto_closed": ticket.get("auto_closed") is True,
             "auto_close": ticket.get("auto_close") if isinstance(ticket.get("auto_close"), dict) else None,
             # The triage couldn't finish, so a person must look at it and its SLA clock is still running.
-            "fallback": is_fallback(ticket, store.events_after(row["run_id"])) if ticket.get("verdict") == "needs_more_info" else False,
+            "fallback": is_fallback(ticket, store.events_after(row["run_id"]))
+            if ticket.get("verdict") == "needs_more_info"
+            else False,
         }
 
     def run_view(run):
         if not run:
             return None
-        return {key: run[key] for key in ("run_id", "mode", "status", "started_at", "finished_at", "duration_seconds", "ticket_id", "error")}
+        return {
+            key: run[key]
+            for key in (
+                "run_id",
+                "mode",
+                "status",
+                "started_at",
+                "finished_at",
+                "duration_seconds",
+                "ticket_id",
+                "error",
+            )
+        }
 
     def triaged_pairs():
         """(alert, latest ticket) for every alert whose newest run produced a ticket."""
@@ -218,7 +246,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         return store.ticket_for_run(run["run_id"]) if run else None
 
     def is_escalated(ticket):
-        escalation = ticket.get("escalation") if isinstance(ticket, dict) and isinstance(ticket.get("escalation"), dict) else {}
+        escalation = (
+            ticket.get("escalation") if isinstance(ticket, dict) and isinstance(ticket.get("escalation"), dict) else {}
+        )
         return escalation.get("escalate") is True
 
     def report_subject(key):
@@ -231,15 +261,27 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             alert_ids = [m["alert_id"] for m in incident.get("members", [])]
             rows = [latest_ticket(alert_id, runs) for alert_id in alert_ids]
             ticket = incident.get("ticket") or {}
-            return {"key": key, "kind": "incident", "incident_id": key, "title": _text(ticket.get("title")),
-                    "alert_ids": alert_ids, "escalated": is_escalated(ticket),
-                    "tickets": [r["ticket"] for r in rows if r and r["mode"] == "real"]}
+            return {
+                "key": key,
+                "kind": "incident",
+                "incident_id": key,
+                "title": _text(ticket.get("title")),
+                "alert_ids": alert_ids,
+                "escalated": is_escalated(ticket),
+                "tickets": [r["ticket"] for r in rows if r and r["mode"] == "real"],
+            }
         row = store.get_ticket(key)
         if not row:
             return None
-        return {"key": key, "kind": "ticket", "incident_id": None, "title": _text(row["ticket"].get("title")),
-                "alert_ids": [row["alert_id"]], "escalated": is_escalated(row["ticket"]),
-                "tickets": [row["ticket"]] if row["mode"] == "real" else []}
+        return {
+            "key": key,
+            "kind": "ticket",
+            "incident_id": None,
+            "title": _text(row["ticket"].get("title")),
+            "alert_ids": [row["alert_id"]],
+            "escalated": is_escalated(row["ticket"]),
+            "tickets": [row["ticket"]] if row["mode"] == "real" else [],
+        }
 
     def report_key_for(alert_id, ticket_row):
         """Where the report of an alert lives: its incident if level 2 grouped it, otherwise its own escalated ticket."""
@@ -271,24 +313,26 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             run = runs.get(alert["alert_id"])
             ticket = ticket_summary(store.ticket_for_run(run["run_id"]), run) if run else None
             running = bool(run and run["status"] == "running")
-            items.append({
-                "alert_id": alert["alert_id"],
-                "created_at": _text(alert.get("created_at")),
-                "source_product": _text(shown.get("source_product")),
-                "rule_id": _text(shown.get("rule_id")),
-                "rule_name": _text(shown.get("rule_name")),
-                "rule_severity": _text(alert.get("severity")),
-                "origin": row["origin"],
-                "run": run_view(run),
-                "ticket": ticket,
-                "decision": decisions.get(run["run_id"]) if run else None,
-                "incident_id": incident_of.get(alert["alert_id"]),
-                "sla": tracker.view(records.get(alert["alert_id"]), blocked, now),
-                # For the pipeline view: structured facts about where the alert is, never its text.
-                "has_fixed_rule": shown.get("rule_id") in RULES,
-                "llm_started": running and any(e.get("tool") == "llm" for e in store.events_after(run["run_id"])),
-                "containment_active": bool(run and run["run_id"] in containment_runs),
-            })
+            items.append(
+                {
+                    "alert_id": alert["alert_id"],
+                    "created_at": _text(alert.get("created_at")),
+                    "source_product": _text(shown.get("source_product")),
+                    "rule_id": _text(shown.get("rule_id")),
+                    "rule_name": _text(shown.get("rule_name")),
+                    "rule_severity": _text(alert.get("severity")),
+                    "origin": row["origin"],
+                    "run": run_view(run),
+                    "ticket": ticket,
+                    "decision": decisions.get(run["run_id"]) if run else None,
+                    "incident_id": incident_of.get(alert["alert_id"]),
+                    "sla": tracker.view(records.get(alert["alert_id"]), blocked, now),
+                    # For the pipeline view: structured facts about where the alert is, never its text.
+                    "has_fixed_rule": shown.get("rule_id") in RULES,
+                    "llm_started": running and any(e.get("tool") == "llm" for e in store.events_after(run["run_id"])),
+                    "containment_active": bool(run and run["run_id"] in containment_runs),
+                }
+            )
         return {
             "mode": runner.current_mode(),
             "sample": sample,
@@ -345,7 +389,13 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             raise HTTPException(404, "Ticket no encontrado.")
         alert_row = store.get_alert(row["alert_id"])
         try:
-            built, not_proposed = propose(row["ticket"], alert_row["alert"] if alert_row else {}, api_client.get_asset, api_client.get_user, run_id=row["run_id"])
+            built, not_proposed = propose(
+                row["ticket"],
+                alert_row["alert"] if alert_row else {},
+                api_client.get_asset,
+                api_client.get_user,
+                run_id=row["run_id"],
+            )
         except Exception as error:  # the mock API is down or answered oddly
             raise HTTPException(503, mock_problem(error)) from None
         with containment_lock:
@@ -374,7 +424,11 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             proposal = load_proposal(proposal_id)
             if proposal.status == "executed":
                 raise HTTPException(409, "Esta acción ya se ejecutó.")
-            proposal.status, proposal.decided_by, proposal.error = "rejected", body.approver.strip(), body.reason.strip()
+            proposal.status, proposal.decided_by, proposal.error = (
+                "rejected",
+                body.approver.strip(),
+                body.reason.strip(),
+            )
             store.save_proposal(proposal.model_dump(mode="json"))
         return proposal.model_dump(mode="json")
 
@@ -389,8 +443,12 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                 raise HTTPException(409, str(problem)) from None
             reason = proposal.justification or proposal.suggestion
             try:
-                approval = api_client.request_approval(proposal.action, proposal.target, approver_record(proposal), reason)
-                record = api_client.run_containment(proposal.action, proposal.target, reason, approval["approval_token"], proposal.ticket_id)
+                approval = api_client.request_approval(
+                    proposal.action, proposal.target, approver_record(proposal), reason
+                )
+                record = api_client.run_containment(
+                    proposal.action, proposal.target, reason, approval["approval_token"], proposal.ticket_id
+                )
             except api_client.ContainmentRefused as refused:
                 proposal.status, proposal.error = "refused", str(refused)
             except Exception as error:
@@ -419,8 +477,12 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
     def build_incidents():
         """Level 2: groups the latest tickets into incidents with plain code, and keeps the result with its reasons."""
         result, built_at = group_now()
-        return {"built_at": built_at, "alerts": result["alerts"], "incidents": len(result["incidents"]),
-                "grouped_alerts": len(result["memberships"])}
+        return {
+            "built_at": built_at,
+            "alerts": result["alerts"],
+            "incidents": len(result["incidents"]),
+            "grouped_alerts": len(result["memberships"]),
+        }
 
     @app.get("/api/incidents")
     def incidents():
@@ -428,8 +490,16 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         triaged = len(triaged_pairs())
         reports = store.latest_reports()
         if not latest:
-            return {"built_at": None, "incidents": [], "noise": [], "memberships": {}, "alerts": 0, "triaged_now": triaged,
-                    "stale": triaged > 0, "reports": reports}
+            return {
+                "built_at": None,
+                "incidents": [],
+                "noise": [],
+                "memberships": {},
+                "alerts": 0,
+                "triaged_now": triaged,
+                "stale": triaged > 0,
+                "reports": reports,
+            }
         return {**latest, "triaged_now": triaged, "stale": triaged != latest.get("alerts"), "reports": reports}
 
     @app.post("/api/alerts/import")
@@ -460,17 +530,43 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         """Only changes who must look at the result. The close or escalate decision is the ticket's own, and stays."""
         eligible, failed = auto_close_policy.assess(ticket, fill_from_catalogue(alert)[0], mode, lookup_asset)
         if not eligible:
-            store.add_audit("code", "src/policy/auto_close.py", "auto_close_refused", alert["alert_id"], "Sigue en la cola para una persona.",
-                            {"ticket_id": ticket["ticket_id"], "run_id": run_id, "failed": failed})
+            store.add_audit(
+                "code",
+                "src/policy/auto_close.py",
+                "auto_close_refused",
+                alert["alert_id"],
+                "Sigue en la cola para una persona.",
+                {"ticket_id": ticket["ticket_id"], "run_id": run_id, "failed": failed},
+            )
             return ticket
         rule = ticket["closed_by_rule"].get("rule_id") if isinstance(ticket.get("closed_by_rule"), dict) else None
-        model = next((e["args"]["model"] for e in reversed(store.events_after(run_id))
-                      if e.get("tool") == "llm" and isinstance(e.get("args"), dict) and e["args"].get("model")), None)
+        model = next(
+            (
+                e["args"]["model"]
+                for e in reversed(store.events_after(run_id))
+                if e.get("tool") == "llm" and isinstance(e.get("args"), dict) and e["args"].get("model")
+            ),
+            None,
+        )
         reason = auto_close_policy.closure_reason(ticket)
-        detail = {"reason": reason, "by_rule": rule, "by_model": model, "at": now_iso(), "sampled": pick() < sample_rate(),
-                  "detection_rule": fill_from_catalogue(alert)[0].get("rule_id"), "reviewed_by": None, "reopened_by": None}
-        store.add_audit("code" if rule else "model", rule or model or "desconocido", "auto_closed", alert["alert_id"], reason,
-                        {"ticket_id": ticket["ticket_id"], "run_id": run_id, "sampled": detail["sampled"]})
+        detail = {
+            "reason": reason,
+            "by_rule": rule,
+            "by_model": model,
+            "at": now_iso(),
+            "sampled": pick() < sample_rate(),
+            "detection_rule": fill_from_catalogue(alert)[0].get("rule_id"),
+            "reviewed_by": None,
+            "reopened_by": None,
+        }
+        store.add_audit(
+            "code" if rule else "model",
+            rule or model or "desconocido",
+            "auto_closed",
+            alert["alert_id"],
+            reason,
+            {"ticket_id": ticket["ticket_id"], "run_id": run_id, "sampled": detail["sampled"]},
+        )
         return {**ticket, "auto_closed": True, "auto_close": detail}
 
     def work(run_id, alert, mode, source=None, by_worker=False):
@@ -478,7 +574,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         ticket_id = None
         error = None
         try:
-            for raw in (run_fn(alert, mode=mode) if source is None else source):
+            for raw in run_fn(alert, mode=mode) if source is None else source:
                 event = raw if isinstance(raw, dict) else {}
                 event = {
                     **event,
@@ -487,7 +583,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                     "args": event.get("args") if isinstance(event.get("args"), dict) else {},
                     "summary": event.get("summary") if isinstance(event.get("summary"), str) else "",
                     "event_ids": [str(i) for i in event.get("event_ids") or [] if isinstance(i, (str, int))]
-                    if isinstance(event.get("event_ids"), list) else [],
+                    if isinstance(event.get("event_ids"), list)
+                    else [],
                     "truncated": bool(event.get("truncated")),
                 }
                 store.add_event(run_id, event)
@@ -506,8 +603,18 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         except Exception as problem:  # the run must always end, whatever the agent does
             error = f"Error interno durante el triaje ({type(problem).__name__})."
         if error:
-            store.add_event(run_id, {"at": now_iso(), "type": "error", "tool": "app", "args": {"kind": "runner"},
-                                     "summary": error, "event_ids": [], "truncated": False})
+            store.add_event(
+                run_id,
+                {
+                    "at": now_iso(),
+                    "type": "error",
+                    "tool": "app",
+                    "args": {"kind": "runner"},
+                    "summary": error,
+                    "event_ids": [],
+                    "truncated": False,
+                },
+            )
         store.finish_run(run_id, "failed" if error else "done", round(time.monotonic() - started, 2), ticket_id, error)
 
     # One lock around "is one running? then create one", so a click and the worker can't both start the same alert.
@@ -543,9 +650,16 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             alerts = [row["alert"] for row in (store.get_alert(a) for a in subject["alert_ids"]) if row]
             if not alerts:
                 raise runner.TriageUnavailable("Las alertas de este incidente ya no están en la cola.")
-            others = [row["alert"] for row in store.list_alerts() if row["alert"]["alert_id"] not in subject["alert_ids"]]
-            for raw in report_fn(alerts, tickets=subject["tickets"], incident_id=subject["incident_id"], others=others,
-                                 memberships=memberships()):
+            others = [
+                row["alert"] for row in store.list_alerts() if row["alert"]["alert_id"] not in subject["alert_ids"]
+            ]
+            for raw in report_fn(
+                alerts,
+                tickets=subject["tickets"],
+                incident_id=subject["incident_id"],
+                others=others,
+                memberships=memberships(),
+            ):
                 event = raw if isinstance(raw, dict) else {}
                 report = event.get("report")
                 event = {
@@ -555,7 +669,8 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                     "args": event.get("args") if isinstance(event.get("args"), dict) else {},
                     "summary": event.get("summary") if isinstance(event.get("summary"), str) else "",
                     "event_ids": [str(i) for i in event.get("event_ids") or [] if isinstance(i, (str, int))]
-                    if isinstance(event.get("event_ids"), list) else [],
+                    if isinstance(event.get("event_ids"), list)
+                    else [],
                     "truncated": bool(event.get("truncated")),
                 }
                 store.add_event(run_id, event)
@@ -569,9 +684,25 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         except Exception as problem:  # the run must always end, whatever the agent does
             error = f"Error interno durante la investigación ({type(problem).__name__})."
         if error:
-            store.add_event(run_id, {"at": now_iso(), "type": "error", "tool": "app", "args": {"kind": "runner"},
-                                     "summary": error, "event_ids": [], "truncated": False})
-        store.finish_run(run_id, "failed" if error else "done", round(time.monotonic() - started, 2), subject["key"] if saved else None, error)
+            store.add_event(
+                run_id,
+                {
+                    "at": now_iso(),
+                    "type": "error",
+                    "tool": "app",
+                    "args": {"kind": "runner"},
+                    "summary": error,
+                    "event_ids": [],
+                    "truncated": False,
+                },
+            )
+        store.finish_run(
+            run_id,
+            "failed" if error else "done",
+            round(time.monotonic() - started, 2),
+            subject["key"] if saved else None,
+            error,
+        )
 
     @app.post("/api/reports/{key}", status_code=202)
     def start_report(key: str):
@@ -597,8 +728,12 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         shown = {k: v for k, v in (subject or {}).items() if k != "tickets"}
         if subject:
             shown["leads"] = len(subject["tickets"])
-        return {"subject": shown or None, "report": row, "latest_run": run_view(runs[0] if runs else None),
-                "runs": [run_view(r) for r in runs]}
+        return {
+            "subject": shown or None,
+            "report": row,
+            "latest_run": run_view(runs[0] if runs else None),
+            "runs": [run_view(r) for r in runs],
+        }
 
     @app.get("/api/reports/{key}/containment")
     def report_containment(key: str):
@@ -609,7 +744,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             raise HTTPException(404, "Este incidente aún no tiene informe.")
         steps = (row["report"] or {}).get("containment_plan") or []
         try:
-            built, not_proposed = proposals_from_steps(steps, key, row["run_id"], api_client.get_asset, api_client.get_user)
+            built, not_proposed = proposals_from_steps(
+                steps, key, row["run_id"], api_client.get_asset, api_client.get_user
+            )
         except Exception as error:  # the mock API is down or answered oddly
             raise HTTPException(503, mock_problem(error)) from None
         with containment_lock:
@@ -676,7 +813,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         if body.decision == "accept":
             escalation = row["ticket"].get("escalation") if isinstance(row["ticket"].get("escalation"), dict) else {}
             if not isinstance(escalation.get("escalate"), bool):
-                raise HTTPException(422, "El ticket no tiene propuesta de cerrar o escalar: elige cerrar o escalar con un motivo.")
+                raise HTTPException(
+                    422, "El ticket no tiene propuesta de cerrar o escalar: elige cerrar o escalar con un motivo."
+                )
             outcome = "escalate" if escalation["escalate"] else "close"
         else:
             outcome = body.decision
@@ -692,7 +831,14 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         run_id, active = claim_run(alert["alert_id"], mode)
         if active:
             return None
-        store.add_audit("code", "src/app/worker.py", "auto_triage_started", alert["alert_id"], "Siguiente alerta por prioridad.", {"run_id": run_id})
+        store.add_audit(
+            "code",
+            "src/app/worker.py",
+            "auto_triage_started",
+            alert["alert_id"],
+            "Siguiente alerta por prioridad.",
+            {"run_id": run_id},
+        )
         work(run_id, alert, mode, by_worker=True)
         return run_id
 
@@ -705,22 +851,47 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         run_id, active = claim_run(alert["alert_id"], mode)
         if active:
             return False
-        store.add_audit("code", "src/app/worker.py", "auto_rules_applied", alert["alert_id"], "Regla fija, sin LLM.", {"run_id": run_id})
+        store.add_audit(
+            "code",
+            "src/app/worker.py",
+            "auto_rules_applied",
+            alert["alert_id"],
+            "Regla fija, sin LLM.",
+            {"run_id": run_id},
+        )
         work(run_id, alert, mode, source=events, by_worker=True)
         return True
 
     def reopen_ticket(row, actor_kind, actor, reason):
         ticket = row["ticket"]
-        detail = {**(ticket.get("auto_close") or {}), "reopened_by": actor, "reopened_at": now_iso(), "reopen_reason": reason}
+        detail = {
+            **(ticket.get("auto_close") or {}),
+            "reopened_by": actor,
+            "reopened_at": now_iso(),
+            "reopen_reason": reason,
+        }
         store.update_ticket(row["run_id"], {**ticket, "auto_closed": False, "auto_close": detail})
-        store.add_audit(actor_kind, actor, "auto_close_reopened", row["alert_id"], reason, {"ticket_id": row["ticket_id"], "run_id": row["run_id"]})
+        store.add_audit(
+            actor_kind,
+            actor,
+            "auto_close_reopened",
+            row["alert_id"],
+            reason,
+            {"ticket_id": row["ticket_id"], "run_id": row["run_id"]},
+        )
 
     def worker_group():
         """Level 2, by the same code as the route. An auto-closed alert that joined an escalated incident goes back to
         a person: the policy escalates a chain even if each alert alone is low."""
         result, built_at = group_now()
-        store.add_audit("code", "src/agent/correlate.py", "auto_grouped", "worker", "Hay tickets nuevos desde la última agrupación.",
-                        {"built_at": built_at, "alerts": result["alerts"], "incidents": len(result["incidents"])})
+        store.add_audit(
+            "code",
+            "src/agent/correlate.py",
+            "auto_grouped",
+            "worker",
+            "Hay tickets nuevos desde la última agrupación.",
+            {"built_at": built_at, "alerts": result["alerts"], "incidents": len(result["incidents"])},
+        )
         runs = store.latest_runs()
         for incident in result["incidents"]:
             if not is_escalated(incident["ticket"]):
@@ -728,7 +899,12 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             for member in incident["members"]:
                 row = latest_ticket(member["alert_id"], runs)
                 if row and row["ticket"].get("auto_closed") is True:
-                    reopen_ticket(row, "code", "src/agent/correlate.py", "Forma parte de un incidente escalado: debe verlo una persona.")
+                    reopen_ticket(
+                        row,
+                        "code",
+                        "src/agent/correlate.py",
+                        "Forma parte de un incidente escalado: debe verlo una persona.",
+                    )
 
     def report_candidates():
         """Escalated incidents and tickets with no report or run yet, critical first. A ticket waits for the grouping
@@ -744,16 +920,34 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             ticket = incident.get("ticket") or {}
             key = incident.get("incident_id")
             if is_escalated(ticket) and key not in reports and not store.active_run(key):
-                found.append({"key": key, "severity": ticket.get("severity") if ticket.get("severity") in SEVERITIES else "medium"})
+                found.append(
+                    {
+                        "key": key,
+                        "severity": ticket.get("severity") if ticket.get("severity") in SEVERITIES else "medium",
+                    }
+                )
         grouped = latest.get("memberships", {})
         runs = store.latest_runs()
         for row in store.list_tickets():
             run = runs.get(row["alert_id"])
             ticket = row["ticket"]
-            if (run and run["run_id"] == row["run_id"] and row["mode"] == "real" and is_escalated(ticket) and row["alert_id"] not in grouped
-                    and row["saved_at"] <= latest["built_at"] and row["ticket_id"] not in reports and not store.active_run(row["ticket_id"])
-                    and not is_fallback(ticket, store.events_after(row["run_id"]))):
-                found.append({"key": row["ticket_id"], "severity": ticket.get("severity") if ticket.get("severity") in SEVERITIES else "medium"})
+            if (
+                run
+                and run["run_id"] == row["run_id"]
+                and row["mode"] == "real"
+                and is_escalated(ticket)
+                and row["alert_id"] not in grouped
+                and row["saved_at"] <= latest["built_at"]
+                and row["ticket_id"] not in reports
+                and not store.active_run(row["ticket_id"])
+                and not is_fallback(ticket, store.events_after(row["run_id"]))
+            ):
+                found.append(
+                    {
+                        "key": row["ticket_id"],
+                        "severity": ticket.get("severity") if ticket.get("severity") in SEVERITIES else "medium",
+                    }
+                )
         return sorted(found, key=lambda item: -SEVERITIES.index(item["severity"]))
 
     def worker_report(key):
@@ -764,18 +958,35 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         run_id, active = claim_run(key, "report")
         if active:
             return None
-        store.add_audit("code", "src/app/worker.py", "auto_investigation_started", key, "Escalado sin informe: primero los críticos.", {"run_id": run_id})
+        store.add_audit(
+            "code",
+            "src/app/worker.py",
+            "auto_investigation_started",
+            key,
+            "Escalado sin informe: primero los críticos.",
+            {"run_id": run_id},
+        )
         work_report(run_id, subject)
         return run_id
 
-    worker = Worker(store, settings, triage_one=worker_triage, try_rules=worker_rules, group=worker_group,
-                    report_candidates=report_candidates, report_one=worker_report, tick=tracker.refresh)
+    worker = Worker(
+        store,
+        settings,
+        triage_one=worker_triage,
+        try_rules=worker_rules,
+        group=worker_group,
+        report_candidates=report_candidates,
+        report_one=worker_report,
+        tick=tracker.refresh,
+    )
     app.state.worker = worker
     app.state.tracker = tracker
 
     def require_enabled():
         if not settings.enabled:
-            raise HTTPException(409, "El trabajador está desactivado. Arranca el servidor con AUTO_TRIAGE=1 para usarlo.")
+            raise HTTPException(
+                409, "El trabajador está desactivado. Arranca el servidor con AUTO_TRIAGE=1 para usarlo."
+            )
 
     @app.post("/api/worker/start")
     def worker_start():
@@ -806,12 +1017,31 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                 continue
             by_rule = detail.get("by_rule")
             key = (by_rule or "LLM", detail.get("detection_rule"))
-            entry = counts.setdefault(key, {"closed_by": by_rule or "LLM", "kind": "rule" if by_rule else "llm", "detection_rule": detail.get("detection_rule"), "count": 0, "reopened": 0})
+            entry = counts.setdefault(
+                key,
+                {
+                    "closed_by": by_rule or "LLM",
+                    "kind": "rule" if by_rule else "llm",
+                    "detection_rule": detail.get("detection_rule"),
+                    "count": 0,
+                    "reopened": 0,
+                },
+            )
             entry["count"] += 1
             entry["reopened"] += 1 if detail.get("reopened_by") else 0
             if detail.get("sampled"):
-                samples.append({"alert_id": row["alert_id"], "ticket_id": row["ticket_id"], "severity": row["ticket"].get("severity"), "verdict": row["ticket"].get("verdict"),
-                                 "closed_by": by_rule or "LLM", "reviewed_by": detail.get("reviewed_by"), "reopened_by": detail.get("reopened_by"), "at": detail.get("at")})
+                samples.append(
+                    {
+                        "alert_id": row["alert_id"],
+                        "ticket_id": row["ticket_id"],
+                        "severity": row["ticket"].get("severity"),
+                        "verdict": row["ticket"].get("verdict"),
+                        "closed_by": by_rule or "LLM",
+                        "reviewed_by": detail.get("reviewed_by"),
+                        "reopened_by": detail.get("reopened_by"),
+                        "at": detail.get("at"),
+                    }
+                )
         return sorted(counts.values(), key=lambda entry: -entry["count"]), samples
 
     @app.get("/api/status")
@@ -823,7 +1053,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         records = store.all_sla()
         runs = store.latest_runs()
         pending = dict.fromkeys(SEVERITIES, 0)
-        sla_counts = {severity: {"on_track": 0, "at_risk": 0, "breached": 0, "met": 0, "batch": 0} for severity in SEVERITIES}
+        sla_counts = {
+            severity: {"on_track": 0, "at_risk": 0, "breached": 0, "met": 0, "batch": 0} for severity in SEVERITIES
+        }
         for alert_id, record in records.items():
             view = tracker.view(record, blocked, now)
             sla_counts[view["severity"]][view["state"]] += 1
@@ -832,9 +1064,16 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                 pending[view["rule_severity"]] += 1
         per_rule, samples = auto_close_counts()
         return {
-            "now": now, "worker": worker_view, "pending_by_priority": pending, "sla": sla_counts, "sla_targets": sla_policy.TARGETS,
-            "notifications_unacknowledged": store.count_unacknowledged(), "auto_closed": per_rule, "samples": samples,
-            "sample_percent": round(sample_rate() * 100, 2), "at_risk_fraction": sla_policy.AT_RISK_FRACTION,
+            "now": now,
+            "worker": worker_view,
+            "pending_by_priority": pending,
+            "sla": sla_counts,
+            "sla_targets": sla_policy.TARGETS,
+            "notifications_unacknowledged": store.count_unacknowledged(),
+            "auto_closed": per_rule,
+            "samples": samples,
+            "sample_percent": round(sample_rate() * 100, 2),
+            "at_risk_fraction": sla_policy.AT_RISK_FRACTION,
         }
 
     @app.get("/api/sla/targets")
@@ -855,7 +1094,14 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         if not found:
             raise HTTPException(404, "Notificación no encontrada.")
         if store.acknowledge_notification(notification_id, analyst):
-            store.add_audit("person", analyst, "notification_acknowledged", found["alert_id"], body.reason.strip() or "Enterado.", {"notification_id": notification_id, "role": found["role"]})
+            store.add_audit(
+                "person",
+                analyst,
+                "notification_acknowledged",
+                found["alert_id"],
+                body.reason.strip() or "Enterado.",
+                {"notification_id": notification_id, "role": found["role"]},
+            )
         return store.get_notification(notification_id)
 
     @app.post("/api/alerts/{alert_id}/escalation")
@@ -869,7 +1115,9 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             raise HTTPException(404, "Alerta no encontrada.")
         if not sla_policy.required_action(record["severity"]):
             raise HTTPException(409, "La política solo exige confirmar el escalado en severidad alta o crítica.")
-        return tracker.view(tracker.confirm_escalation(alert_id, analyst, body.kind, body.note.strip()), worker_blocked())
+        return tracker.view(
+            tracker.confirm_escalation(alert_id, analyst, body.kind, body.note.strip()), worker_blocked()
+        )
 
     def auto_closed_row(ticket_id):
         row = store.get_ticket(ticket_id)
@@ -898,8 +1146,17 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         detail = row["ticket"].get("auto_close")
         if not isinstance(detail, dict) or not detail.get("sampled"):
             raise HTTPException(409, "Este ticket no está en la muestra de revisión.")
-        store.update_ticket(row["run_id"], {**row["ticket"], "auto_close": {**detail, "reviewed_by": analyst, "reviewed_at": now_iso()}})
-        store.add_audit("person", analyst, "auto_close_sample_reviewed", row["alert_id"], body.reason.strip() or "Revisada, sin cambios.", {"ticket_id": ticket_id})
+        store.update_ticket(
+            row["run_id"], {**row["ticket"], "auto_close": {**detail, "reviewed_by": analyst, "reviewed_at": now_iso()}}
+        )
+        store.add_audit(
+            "person",
+            analyst,
+            "auto_close_sample_reviewed",
+            row["alert_id"],
+            body.reason.strip() or "Revisada, sin cambios.",
+            {"ticket_id": ticket_id},
+        )
         return {"ticket_id": ticket_id, "reviewed_by": analyst}
 
     @app.get("/api/audit")
