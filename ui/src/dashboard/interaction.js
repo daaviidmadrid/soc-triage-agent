@@ -9,6 +9,7 @@ export const WORKFLOW_SERIES = [
   ["running", "var(--deloitte-navy)", "stateRunning"],
   ["pending", "var(--deloitte-gray)", "statePending"],
   ["decided", "var(--deloitte-sky)", "stateDecided"],
+  ["auto_closed", "var(--line-strong)", "stateAutoClosed"],
   ["failed", "url(#workflow-failed)", "stateFailed"],
 ];
 

@@ -28,11 +28,14 @@ from src.app.sla_tracker import SlaTracker, is_fallback
 from src.app.store import Store, now_iso
 from src.app.worker import Settings, Worker
 from src.agent.correlate import correlate
+from src.agent.rules import RULES
 from src.policy import auto_close as auto_close_policy
 from src.policy import sla as sla_policy
 from src.policy.containment import ApprovalProblem, approve, approver_record, proposals_from_steps, propose, ready_to_run
 from src.tools import api_client
 from src.tools.alert_fields import fill_from_catalogue
+from src.tools.context import _source_of
+from src.tools.logs import search_logs
 from contracts.models import ActionProposal
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -253,12 +256,14 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
         records = store.all_sla()
         blocked = worker_blocked()
         now = now_iso()
+        containment_runs = store.runs_with_containment_activity()
         items = []
         for row in store.list_alerts():
             alert = row["alert"]
             shown = fill_from_catalogue(alert)[0]
             run = runs.get(alert["alert_id"])
             ticket = ticket_summary(store.ticket_for_run(run["run_id"]), run) if run else None
+            running = bool(run and run["status"] == "running")
             items.append({
                 "alert_id": alert["alert_id"],
                 "created_at": _text(alert.get("created_at")),
@@ -272,6 +277,10 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
                 "decision": decisions.get(run["run_id"]) if run else None,
                 "incident_id": incident_of.get(alert["alert_id"]),
                 "sla": tracker.view(records.get(alert["alert_id"]), blocked, now),
+                # For the pipeline view: structured facts about where the alert is, never its text.
+                "has_fixed_rule": shown.get("rule_id") in RULES,
+                "llm_started": running and any(e.get("tool") == "llm" for e in store.events_after(run["run_id"])),
+                "containment_active": bool(run and run["run_id"] in containment_runs),
             })
         return {
             "mode": runner.current_mode(),
@@ -279,6 +288,7 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
             "alerts": items,
             "example_results": sum(1 for item in items if item["run"] and item["run"]["mode"] == "example"),
             "now": now,
+            "worker": {"enabled": settings.enabled, "state": worker.state},
         }
 
     @app.get("/api/alerts/{alert_id}")
@@ -888,6 +898,21 @@ def create_app(db_path=None, sample_path=None, run_fn=None, report_fn=None, rule
     @app.get("/api/audit")
     def audit(subject: str | None = None, limit: int = 200):
         return {"entries": store.audit_entries(subject, max(1, min(limit, 1000)))}
+
+    @app.get("/api/events/{event_id}")
+    def event_row(event_id: str):
+        """One log row, for a person checking an event a ticket cites. It comes back as data, to be shown as plain text."""
+        source = _source_of(event_id)
+        if not source:
+            raise HTTPException(404, "No se reconoce la fuente de este evento.")
+        try:
+            rows = search_logs(source, value=event_id)["items"]
+        except Exception as error:  # the mock API is down or answered oddly
+            raise HTTPException(503, mock_problem(error)) from None
+        for row in rows:
+            if row.get("event_id") == event_id:
+                return {"event_id": event_id, "source": source, "row": row}
+        raise HTTPException(404, "El log no tiene ese evento.")
 
     return app
 

@@ -72,11 +72,13 @@ export function Fact({ label, children }) {
   );
 }
 
-function Running({ run, now, ruleSeverity }) {
+function Running({ run, now, ruleSeverity, record }) {
   const started = Date.parse(run.started_at);
   const seconds = isFinite(started) ? (now - started) / 1000 : null;
   const sla = SLA[ruleSeverity];
-  const over = sla && sla.seconds !== null && seconds !== null && seconds > sla.seconds;
+  // Against the server's deadline, which runs from when the alert entered the app, not from when this run began.
+  const deadline = record && record.deadline ? Date.parse(record.deadline) : NaN;
+  const over = isFinite(deadline) ? now > deadline : sla && sla.seconds !== null && seconds !== null && seconds > sla.seconds;
   return (
     <div className="bar-running">
       <span className="running">
@@ -129,6 +131,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
   const authorTag = byCode ? L.tagCode : L.tagLlm;
   const authorKind = byCode ? "code" : "llm";
   const changed = decision && decision.decision !== "accept" && proposal && decision.outcome !== proposal;
+  const autoClosed = ticket.auto_closed === true && !decision;
 
   return (
     <>
@@ -157,6 +160,8 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
               <strong className="ok">{L.barDecided(OUTCOME[decision.outcome] || asText(decision.outcome), asText(decision.analyst))}</strong>
               {changed && <span className="sub">{L.barChanged(OUTCOME[proposal], OUTCOME[decision.outcome] || asText(decision.outcome))}</span>}
             </span>
+          ) : autoClosed ? (
+            <strong title={L.autoClosedHelp}>{L.autoClosed}</strong>
           ) : (
             <strong className="waiting with-icon">
               <Icon name="pause" />
@@ -171,7 +176,7 @@ function Summary({ ticketRow, decision, fallback, next, onGo, onNext, compact })
             {next.busy ? L.nextSearching : L.nextPending}
             <Icon name="arrowRight" />
           </button>
-        ) : (
+        ) : autoClosed ? null : (
           <button type="button" className="btn btn-primary" onClick={() => onGo("sec-decision")}>
             {L.barDecide}
           </button>
@@ -213,7 +218,7 @@ export default function DecisionBar(props) {
             </button>
           </div>
         )}
-        {running && <Running run={run} now={now} ruleSeverity={ruleSeverity} />}
+        {running && <Running run={run} now={now} ruleSeverity={ruleSeverity} record={props.sla} />}
         {run && run.status === "failed" && <Failed run={run} starting={starting} onStart={onStart} onReviewByHand={onReviewByHand} />}
         {ticket && run && run.status === "done" && (
           <Summary compact={props.compact} ticketRow={ticketRow} decision={decision} fallback={fallback} next={next} onGo={onGo} onNext={onNext} />

@@ -88,10 +88,12 @@ def test_the_daily_batch_has_no_deadline():
     assert policy.outcome(at(99999), None) == "met" and policy.live_status(None, None, at(99999)) == "batch"
 
 
-def test_the_api_serves_the_policy_targets(tmp_path):
+def test_the_api_serves_the_policy_targets_and_labels_has_no_copy(tmp_path):
     with TestClient(create_app(db_path=":memory:", sample_path=tmp_path / "none.jsonl"), headers=UI) as c:
         assert c.get("/api/sla/targets").json()["targets"] == policy.TARGETS
         assert c.get("/api/status").json()["sla_targets"] == policy.TARGETS
+    labels = (ROOT / "ui/src/labels.js").read_text(encoding="utf-8")
+    assert "15 * 60" not in labels and "24 * 3600" not in labels
 
 
 # The clock

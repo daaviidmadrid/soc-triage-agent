@@ -40,7 +40,7 @@ export function dashboardData(rows) {
     high: severity.filter(row => ["critical", "high"].includes(row.key)).reduce((sum, row) => sum + row.count, 0),
     triaged: alerts.filter(row => Boolean(row.ticket)).length,
     products: [...products].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key)),
-    priority: filterAndSort(alerts.filter(row => !row.decision), EMPTY_FILTERS).slice(0, 5),
+    priority: filterAndSort(alerts.filter(row => !row.decision && !row.ticket?.auto_closed), EMPTY_FILTERS).slice(0, 5),
     averageSeconds: duration.length ? duration.reduce((sum, seconds) => sum + seconds, 0) / duration.length : null,
   };
 }

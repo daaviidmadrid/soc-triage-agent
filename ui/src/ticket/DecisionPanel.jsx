@@ -9,7 +9,7 @@ import { DECISION, L, OUTCOME } from "../labels.js";
 
 const ANALYST_KEY = "tarvia.analyst";
 
-function rememberedName() {
+export function rememberedName() {
   try {
     return window.localStorage.getItem(ANALYST_KEY) || "";
   } catch {
@@ -17,7 +17,7 @@ function rememberedName() {
   }
 }
 
-function rememberName(name) {
+export function rememberName(name) {
   try {
     window.localStorage.setItem(ANALYST_KEY, name);
   } catch {
